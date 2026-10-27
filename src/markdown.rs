@@ -14,6 +14,7 @@ fn options() -> Options<'static> {
     options.extension.front_matter_delimiter = Some("---".into());
     options.render.r#unsafe = true;
     options.render.github_pre_lang = true;
+    options.render.tasklist_classes = true;
     options
 }
 
@@ -39,6 +40,7 @@ mod tests {
         assert!(html.contains(r##"id="title""##));
         assert!(html.contains(r#"<td align="right">2</td>"#));
         assert!(html.contains(r#"type="checkbox""#));
+        assert!(html.contains("contains-task-list"));
         assert!(html.contains("<del>gone</del>"));
         assert!(html.contains(r#"<a href="https://example.com">"#));
         assert!(html.contains("footnote"));

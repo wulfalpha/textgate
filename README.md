@@ -6,6 +6,8 @@ A lightweight desktop Markdown editor built with Rust, Tauri 2, CodeMirror 6, an
 pending. See the [release checklist](docs/release-checklist.md) and
 [contributor guide](CONTRIBUTING.md).
 
+![Textgate in Live mode: headings, task list, link, and table rendered in place](docs/screenshots/live.png)
+
 The [Textgate logo](docs/branding/README.md) combines a segmented omega
 with code-bracket feet, with a vector master and desktop icon exports.
 
@@ -28,6 +30,8 @@ the text, and Vim bindings work in both.
   to edit its Markdown. HTML, front matter, and link definitions are shown as
   source.
 - **Source** shows plain Markdown beside a rendered preview.
+
+![Source mode with the comrak preview](docs/screenshots/source.png)
 
 The toolbar (Live mode) sets headings, toggles bold, italic, strikethrough, inline
 code, lists, task lists, quotes, and code blocks, inserts tables, and adds, edits,

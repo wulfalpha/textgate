@@ -1,6 +1,6 @@
 # Textgate Markdown demo
 
-Use this document to try visual editing, source editing, and mode switching.
+Use this document to try Live and Source modes, Vim, and saving.
 
 *vim Mode*
 

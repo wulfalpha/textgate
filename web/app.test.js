@@ -20,6 +20,7 @@ test('app switches modes without rewriting Markdown and keeps one undo history',
 
   assert.equal(document.querySelector('main').dataset.mode, 'live');
   assert.ok(view.dom.classList.contains('cm-live'));
+  assert.ok(view.contentDOM.querySelector('.tok-strikethrough'), 'strikethrough is styled');
   assert.equal($('dirty').textContent, '');
   assert.equal($('vim').disabled, false);
   assert.equal($('editor-status').textContent, 'Live');

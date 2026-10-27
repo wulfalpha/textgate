@@ -5,7 +5,7 @@ import { syntaxHighlighting } from '@codemirror/language';
 import { fencedLanguage } from './source-language.js';
 import { indentWithTab, undo, redo, undoDepth, redoDepth } from '@codemirror/commands';
 import { openSearchPanel } from '@codemirror/search';
-import { classHighlighter } from '@lezer/highlight';
+import { classHighlighter, tagHighlighter, tags } from '@lezer/highlight';
 import { basicSetup } from 'codemirror';
 import { EditorState, Compartment } from '@codemirror/state';
 import { EditorView, keymap } from '@codemirror/view';
@@ -91,7 +91,7 @@ async function refreshPreview() {
 function report(error) { $('status').textContent = `Error: ${error.message ?? error}`; }
 async function canDiscard() {
   return !dirty() || (isTauri()
-    ? await confirm('Discard unsaved changes?', { title: 'Textgate', kind: 'warning' })
+    ? await confirm('Discard unsaved changes?', { title: 'Textgate', kind: 'warning', okLabel: 'Discard', cancelLabel: 'Keep editing' })
     : window.confirm('Discard unsaved changes?'));
 }
 function replaceDocument(text, nextPath, nextFormat = defaultFormat) {
@@ -106,7 +106,9 @@ function replaceDocument(text, nextPath, nextFormat = defaultFormat) {
 }
 function extensions() {
   return [vimMode.of(vimEnabled ? vim() : []), basicSetup,
-    syntaxHighlighting(classHighlighter), markdown({ base: markdownLanguage, codeLanguages: fencedLanguage }),
+    // classHighlighter has no class for strikethrough.
+    syntaxHighlighting(classHighlighter), syntaxHighlighting(tagHighlighter([{ tag: tags.strikethrough, class: 'tok-strikethrough' }])),
+    markdown({ base: markdownLanguage, codeLanguages: fencedLanguage }),
     liveMode.of(mode === 'live' ? livePreview({ render }) : []),
     keymap.of([indentWithTab,
       { key: 'Mod-b', run: (target) => { format.toggleInline(target, 'bold'); return true; } },
