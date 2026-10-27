@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 128 128">
+  <title>Textgate</title>
+  <!-- Small-size mark (16–32 px): thicker ring, wider cuts, plain omega feet. -->
+  <defs>
+    <mask id="segments">
+      <rect width="128" height="128" fill="white"/>
+      <path d="M64 56V0 M64 56L4 34 M64 56L124 34" stroke="black" stroke-width="7"/>
+    </mask>
+  </defs>
+  <rect x="2" y="2" width="124" height="124" rx="27" fill="#252729"/>
+  <path mask="url(#segments)" fill="#fafbf8" d="M34 90.9 A46 46 0 1 1 94 90.9 V94 H108 V106 H78 V80.2 A28 28 0 1 0 50 80.2 V106 H20 V94 H34 Z"/>
+</svg>

@@ -1,0 +1,28 @@
+/* Textgate CSS theme. Copy this file to make your own theme. */
+:root {
+  color-scheme: light;
+  --tg-background: #fafbf8;
+  --tg-surface: #ffffff;
+  --tg-sidebar: #f2f5ef;
+  --tg-text: #28332f;
+  --tg-muted: #677261;
+  --tg-border: #d9e0d6;
+  --tg-border-soft: #edf0e9;
+  --tg-hover: #eaf0e6;
+  --tg-accent: #356441;
+  --tg-on-accent: #ffffff;
+  --tg-focus: #487952;
+  --tg-warning: #b77632;
+  --tg-error: #9b422e;
+  --tg-code-background: #eef2ea;
+  --tg-gutter: #8b9785;
+  --tg-selection: #8da78455;
+  --tg-active-line: #3564410a;
+  --tg-backdrop: #15231955;
+  --tg-syntax-keyword: #7855a5;
+  --tg-syntax-string: #356441;
+  --tg-syntax-number: #98632f;
+  --tg-font-ui: Inter, system-ui, sans-serif;
+  --tg-font-mono: 'SFMono-Regular', Consolas, monospace;
+  --tg-font-document: var(--tg-font-ui);
+}

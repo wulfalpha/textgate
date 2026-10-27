@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 128 128">
+  <title>Textgate</title>
+  <!-- Single-bracket mark with V-notch chevron cuts pointing at the ring's centre. -->
+  <defs>
+    <mask id="chevrons">
+      <rect width="128" height="128" fill="white"/>
+      <path fill="black" d="M64 26.5L58 5.5H70Z M37.06 46.85L18.5 35.35L15.22 46.89Z M90.94 46.85L109.5 35.35L112.78 46.89Z"/>
+    </mask>
+  </defs>
+  <rect x="2" y="2" width="124" height="124" rx="27" fill="#252729"/>
+  <path mask="url(#chevrons)" fill="#fafbf8" d="M37 88 A43 43 0 1 1 91 88 V108 H75 V88 A30 30 0 1 0 53 88 V108 H37 Z"/>
+  <path d="M29 86L16 97.5L29 109 M99 86L112 97.5L99 109" fill="none" stroke="#fafbf8" stroke-width="6" stroke-linecap="square" stroke-linejoin="miter"/>
+</svg>

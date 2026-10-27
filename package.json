@@ -1,0 +1,36 @@
+{
+  "name": "textgate",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 1420 --strictPort",
+    "build": "vite build",
+    "test": "node --test web/*.test.js",
+    "icons": "node scripts/icons.mjs",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@codemirror/commands": "^6.11.1",
+    "@codemirror/lang-markdown": "^6.3.2",
+    "@codemirror/language": "^6.13.1",
+    "@codemirror/language-data": "^6.5.2",
+    "@codemirror/search": "^6.7.2",
+    "@codemirror/state": "^6.5.2",
+    "@codemirror/view": "^6.38.0",
+    "@lezer/highlight": "^1.2.5",
+    "@replit/codemirror-vim": "^6.3.0",
+    "@tauri-apps/api": "^2.0.0",
+    "@tauri-apps/plugin-dialog": "^2.0.0",
+    "@tauri-apps/plugin-fs": "^2.0.0",
+    "codemirror": "^6.0.2",
+    "dompurify": "^3.2.6",
+    "marked": "^16.0.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0",
+    "jsdom": "^26.1.0",
+    "vite": "^7.0.0"
+  }
+}

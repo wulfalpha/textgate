@@ -1,0 +1,23 @@
+/target
+/node_modules
+/dist
+/gen
+
+# Local credentials, environment, and assistant state
+.env
+.env.*
+!.env.example
+/.aws/
+/.codex/
+/.agents/
+
+# Editor and operating-system artifacts
+/.idea/
+/.vscode/
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+*.log
+/coverage/

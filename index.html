@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Textgate</title><link rel="icon" type="image/svg+xml" href="/icons/source-small.svg"><link rel="stylesheet" href="/web/style.css"></head>
+<body>
+  <header><img class="brand-icon" src="/icons/source-small.svg" alt=""><strong>Textgate</strong><span id="filename">Untitled.md</span><span id="dirty" aria-label="Unsaved changes"></span></header>
+  <nav id="menubar" aria-label="Application menu">
+    <details><summary>File</summary><div class="menu-popup">
+      <button id="new" data-shortcut="CmdOrCtrl+N">New</button><button id="open" data-shortcut="CmdOrCtrl+O">Open…</button><hr>
+      <button id="save" data-shortcut="CmdOrCtrl+S">Save</button><button id="save-as" data-shortcut="CmdOrCtrl+Shift+S">Save As…</button><hr><button id="quit" data-shortcut="CmdOrCtrl+Q">Quit</button>
+    </div></details>
+    <details><summary>Edit</summary><div class="menu-popup">
+      <button id="edit-undo">Undo</button><button id="edit-redo">Redo</button><hr>
+      <button id="find">Find…</button><button id="replace">Replace…</button>
+    </div></details>
+    <details><summary>View</summary><div class="menu-popup">
+      <button id="view-live" aria-pressed="true">Live preview</button><button id="view-source" aria-pressed="false">Source mode</button><hr>
+      <button id="toggle-preview" aria-pressed="true">Preview pane</button><button id="toggle-outline" aria-pressed="true">Outline</button><button id="vim" aria-pressed="false">Vim bindings</button><hr>
+      <button id="theme-info">Themes…</button>
+    </div></details>
+    <details><summary>Help</summary><div class="menu-popup"><button id="shortcuts">Keyboard shortcuts</button><button id="about">About Textgate</button></div></details>
+  </nav>
+  <div class="modebar"><div role="group" aria-label="Editing mode"><button id="mode-live" aria-pressed="true">Live</button><button id="mode-source" aria-pressed="false">Source</button></div><span id="mode-hint">Markdown styled as you write</span></div>
+  <main data-mode="live"><aside><h2>Outline</h2><nav id="outline" aria-label="Document outline"></nav></aside><section class="pane source-pane"><h2>Markdown</h2>
+      <div id="format-toolbar" role="group" aria-label="Formatting">
+        <select id="block-type" aria-label="Paragraph style"><option value="paragraph">Paragraph</option><option value="1">Heading 1</option><option value="2">Heading 2</option><option value="3">Heading 3</option><option value="4">Heading 4</option><option value="5">Heading 5</option><option value="6">Heading 6</option></select>
+        <button data-command="bold" aria-label="Bold" title="Bold (Ctrl/Cmd+B)"><b>B</b></button>
+        <button data-command="italic" aria-label="Italic" title="Italic (Ctrl/Cmd+I)"><i>I</i></button>
+        <button data-command="strike" aria-label="Strikethrough"><s>S</s></button>
+        <button data-command="code" aria-label="Inline code" title="Inline code">&lt;/&gt;</button>
+        <button data-command="bulletList" aria-label="Bullet list">Bullets</button>
+        <button data-command="orderedList" aria-label="Numbered list">Numbered</button>
+        <button data-command="taskList" aria-label="Task list">Tasks</button>
+        <button data-command="blockquote" aria-label="Blockquote">Quote</button>
+        <button data-command="codeBlock" aria-label="Code block">Code</button>
+        <button id="edit-link">Link</button>
+        <button data-command="table">Table</button>
+        <button data-command="undo" aria-label="Undo">Undo</button>
+        <button data-command="redo" aria-label="Redo">Redo</button>
+      </div>
+      <div id="editor"></div>
+    </section><section class="pane preview-pane"><h2>Preview</h2><article id="preview" aria-label="Markdown preview"></article></section>
+  </main>
+  <dialog id="link-dialog"><form id="link-form"><h3>Edit link</h3><label for="link-url">URL</label><input id="link-url" type="text" placeholder="https://example.com" autocomplete="off"><p id="link-error" role="alert"></p><div><button type="button" id="link-cancel">Cancel</button><button type="button" id="link-remove">Remove link</button><button type="submit">Apply</button></div></form></dialog>
+  <dialog id="theme-dialog"><h3>Themes</h3><div class="theme-controls"><label for="theme-select">Theme</label><select id="theme-select"><option value="">Default</option></select><button id="theme-reload">Reload</button></div><p>Add or edit a <code>.css</code> file in:</p><p id="theme-directory">Loading…</p><p>Copy <code>light.css</code> or <code>dark.css</code> to start. Click Reload to discover files and apply your latest changes.</p><p>Choose Default to reset. If a theme hides the controls, press Ctrl/Cmd+Alt+0.</p><button id="theme-close">Close</button></dialog>
+  <dialog id="shortcuts-dialog"><h3>Keyboard shortcuts</h3><dl><dt>Ctrl/Cmd+N / O / S</dt><dd>New / Open / Save</dd><dt>Ctrl/Cmd+Shift+S</dt><dd>Save As</dd><dt>Ctrl/Cmd+Z / Shift+Z</dt><dd>Undo / Redo</dd><dt>Ctrl/Cmd+B / I</dt><dd>Bold / Italic</dd><dt>Ctrl/Cmd+F</dt><dd>Find and replace</dd><dt>Tab / Shift+Tab</dt><dd>Indent / Unindent</dd><dt>Escape, then Tab</dt><dd>Move focus out of the editor</dd><dt>Ctrl/Cmd+Alt+0</dt><dd>Reset theme</dd></dl><p>Enable Vim in View. Escape returns to Normal mode.</p><form method="dialog"><button>Close</button></form></dialog>
+  <dialog id="about-dialog"><img class="about-logo" src="/icons/source.svg" alt="Textgate omega logo"><h3>Textgate</h3><p>A quiet place to write Markdown.</p><p>Version <span id="app-version"></span> · MIT License</p><p>Copyright © 2026 WulfAlpha and Textgate contributors</p><form method="dialog"><button>Close</button></form></dialog>
+  <footer><span id="editor-status">Live</span><span id="status" role="status">Ready</span><span id="stats"></span></footer>
+  <script type="module" src="/web/main.js"></script>
+</body>
+</html>

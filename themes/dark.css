@@ -1,0 +1,28 @@
+/* Textgate CSS theme. Dark palette. All normal CSS selectors are supported. */
+:root {
+  color-scheme: dark;
+  --tg-background: #181d1b;
+  --tg-surface: #202723;
+  --tg-sidebar: #1c221e;
+  --tg-text: #e0e8df;
+  --tg-muted: #a4b29f;
+  --tg-border: #3b483d;
+  --tg-border-soft: #303c33;
+  --tg-hover: #303e32;
+  --tg-accent: #9bc59d;
+  --tg-on-accent: #18241b;
+  --tg-focus: #b1d5a7;
+  --tg-warning: #e1b56d;
+  --tg-error: #f0a497;
+  --tg-code-background: #29332c;
+  --tg-gutter: #8d9f89;
+  --tg-selection: #9bc59d44;
+  --tg-active-line: #9bc59d0a;
+  --tg-backdrop: #00000088;
+  --tg-syntax-keyword: #c5a3ed;
+  --tg-syntax-string: #9bc59d;
+  --tg-syntax-number: #e1b56d;
+  --tg-font-ui: Inter, system-ui, sans-serif;
+  --tg-font-mono: 'SFMono-Regular', Consolas, monospace;
+  --tg-font-document: var(--tg-font-ui);
+}
