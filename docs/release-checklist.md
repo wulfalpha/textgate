@@ -69,7 +69,7 @@ remain before the intended first official release; keep the GitHub release a dra
 ## v0.1.3 first official release
 
 - [x] Update root version fields to 0.1.3 and write docs/releases/0.1.3.md.
-- [ ] Confirm all v0.1.3 release jobs and package uploads succeed.
-- [ ] Publish the release with the 0.1.3 notes as its description.
+- [x] Confirm all v0.1.3 release jobs and package uploads succeed.
+- [x] Publish the release with the 0.1.3 notes as its description (2026-10-28).
 - [ ] Smoke-test the published downloads on Linux, macOS and Windows: open, save,
       zoom, F6, System theme, relative line numbers with Vim counts.
