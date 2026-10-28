@@ -146,13 +146,28 @@ chmod +x Textgate_0.1.3_amd64.AppImage
 ./Textgate_0.1.3_amd64.AppImage
 ```
 
-Open the macOS DMG and copy Textgate to Applications. On Windows, run either
-installer. Builds are unsigned, and macOS builds are not notarized; operating
-system security checks may warn or block launching them. On macOS, right-click
-Textgate and choose **Open** the first time (or run `xattr -cr /Applications/Textgate.app`);
-on Windows, choose **More info → Run anyway** if SmartScreen warns. Linux packages still
-need compatible system libraries; an AppImage is not a guarantee of compatibility
-with every distribution.
+Open the macOS DMG and copy Textgate to Applications. Mac builds from the current
+source are explicitly ad-hoc signed in Tauri and their bundle signature is
+verified by the release workflow. They are not Developer ID signed or notarized,
+so Gatekeeper can still block a downloaded copy.
+
+For a trusted Textgate download, remove only its quarantine attribute after
+copying it to Applications, then open it normally:
+
+```sh
+xattr -dr com.apple.quarantine "/Applications/Textgate.app"
+```
+
+This is the interim installation workaround; manual re-signing is not part of
+the installation steps. It does not notarize the app or fix other launch errors.
+The explicit signing/verification change is after v0.1.3; existing release files
+are unchanged. Fresh M1 and M4 download tests are still needed for the new build.
+See [Tauri's ad-hoc signing guidance](https://tauri.app/distribute/sign/macos/#ad-hoc-signing).
+
+On Windows, run either installer. Windows installers are unsigned; if SmartScreen
+warns for a download you trust, choose **More info → Run anyway**. Linux packages
+still need compatible system libraries; an AppImage is not a guarantee of
+compatibility with every distribution.
 
 ## Build and run from source
 
@@ -179,7 +194,8 @@ npm run tauri build
 
 The last command builds the executable in `target/release/` and installers in
 `target/release/bundle/`: `.deb` and `.rpm` on Linux, `.app` and `.dmg` on macOS,
-and NSIS and MSI installers on Windows. Builds are unsigned.
+and NSIS and MSI installers on Windows. Mac bundles are ad-hoc signed without
+notarization; Windows installers are unsigned.
 
 The default local build does not produce an AppImage. The release workflow
 explicitly requests one and builds Linux packages on Ubuntu 22.04 to reduce the

@@ -379,3 +379,19 @@ drawn on. The 3.1 request, a View-menu hybrid relative-line-number option (actua
 number on the cursor line; relative distances elsewhere), is done in v0.1.2.
 The user's original addition above is preserved. Native save and scrolling smoke tests remain pending;
 the local Linux Open dialog and Live rendering were confirmed by the user.
+
+
+## macOS packaging follow-up (2026-10-28)
+
+Before command-line integration, make the interim Mac install path consistent:
+explicitly ad-hoc sign the bundle in Tauri, verify it in the Mac release jobs,
+and document only targeted quarantine removal for trusted downloads. Developer
+ID signing/notarization is deferred; no repair script or local re-signing step
+is required by the documented installation flow.
+
+The user confirmed the downloaded app runs on both M1 and M4, but the M1 required
+a script that re-signed the app and removed quarantine. Its original signature
+already verified and Gatekeeper rejected it both before and after the script.
+The exact reason for the machine-to-machine difference is not established.
+Fresh downloads must be tested on both machines after only quarantine removal;
+track this separately from successful builds and signature checks.

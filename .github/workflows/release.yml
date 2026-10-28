@@ -59,7 +59,20 @@ jobs:
         with:
           tagName: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
           releaseName: Textgate ${{ github.ref_name }}
-          releaseBody: Unsigned builds. See the README for install notes.
+          releaseBody: Mac builds are ad-hoc signed but not notarized; Windows installers are unsigned. See the README for install notes.
           releaseDraft: true
           uploadWorkflowArtifacts: ${{ github.ref_type != 'tag' }}
           args: ${{ matrix.args }}
+
+      - name: Verify macOS bundle signature
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          shopt -s nullglob
+          apps=(target/*/release/bundle/macos/Textgate.app)
+          if [ "${#apps[@]}" -ne 1 ]; then
+            echo "Expected one macOS app bundle, found ${#apps[@]}" >&2
+            exit 1
+          fi
+          codesign --verify --deep --strict --verbose=2 "${apps[0]}"
+          codesign --display --verbose=4 "${apps[0]}"

@@ -18,8 +18,9 @@
 - [ ] Try the AppImage on a non-rolling distribution.
 - [ ] Expand the release notes with changes and platform download guidance before publishing.
 
-Bundling is enabled (unsigned packages on every platform). Signing, crash recovery,
-and automatic updates are not part of this prototype.
+Bundling is enabled. Current-source Mac bundles use ad-hoc signatures; Windows
+installers are unsigned. Developer ID signing/notarization, crash recovery, and
+automatic updates are not configured.
 
 To release: set the version in `tauri.conf.json`, `Cargo.toml` and `package.json`,
 push a matching tag such as `v0.2.0`, check the draft release's packages, then publish it.
@@ -73,3 +74,19 @@ remain before the intended first official release; keep the GitHub release a dra
 - [x] Publish the release with the 0.1.3 notes as its description (2026-10-28).
 - [ ] Smoke-test the published downloads on Linux, macOS and Windows: open, save,
       zoom, F6, System theme, relative line numbers with Vim counts.
+
+
+## macOS installation follow-up after v0.1.3
+
+- [x] Record the M1/M4 report: downloaded app ran on M4; M1 runs after local
+      re-signing plus quarantine removal. The original signature verified, so
+      that combined repair does not isolate which step changed launch behavior.
+- [x] Configure explicit ad-hoc signing (`bundle.macOS.signingIdentity = "-"`).
+- [x] Add a strict bundle-signature verification step to both Mac release jobs.
+- [x] Document targeted quarantine removal as the only interim Terminal install step.
+- [ ] Run the updated release workflow and confirm both Mac signature checks pass.
+- [ ] Download a fresh build on M1 and M4; copy to Applications and verify launch
+      after only `xattr -dr com.apple.quarantine`, without manual re-signing.
+
+Developer ID signing/notarization is deferred by choice. Do not change existing
+release artifacts or claim the M1 installation issue resolved until tested.
