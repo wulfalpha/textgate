@@ -162,6 +162,32 @@ test('app switches modes without rewriting Markdown and keeps one undo history',
   assert.equal(press('Tab', 9).defaultPrevented, false);
   assert.equal(text(), beforeTab);
 
+  // F6 cycles outline → editor → preview; Shift+F6 goes back; hidden panes are skipped.
+  await flushDetails();
+  const f6 = (shiftKey = false) => {
+    const event = new window.KeyboardEvent('keydown', { key: 'F6', shiftKey, bubbles: true, cancelable: true });
+    document.activeElement.dispatchEvent(event);
+    assert.equal(event.defaultPrevented, true);
+  };
+  view.focus();
+  f6();
+  assert.ok($('outline').contains(document.activeElement));
+  f6();
+  assert.ok(view.hasFocus);
+  f6();
+  assert.ok($('outline').contains(document.activeElement), 'Live mode has no preview pane');
+  $('mode-source').click();
+  view.focus();
+  f6();
+  assert.equal(document.activeElement, $('preview'));
+  f6(true);
+  assert.ok(view.hasFocus);
+  $('toggle-outline').click();
+  f6(true);
+  assert.equal(document.activeElement, $('preview'), 'a hidden outline is skipped');
+  $('toggle-outline').click();
+  $('mode-live').click();
+
   // Large documents keep preview rendering explicit, and the outline is complete
   // even when headings lie beyond CodeMirror's currently parsed viewport.
   $('mode-source').click();

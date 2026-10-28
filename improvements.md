@@ -370,8 +370,12 @@ The 1 MB sample's cursor median fell from 121.56 ms to 1.35 ms and edit median f
 **Priority 3 is implemented after v0.1.2** (in source, not yet released): window
 zoom with remembered level, a System theme that follows OS dark mode, a keyboard
 task toggle (Ctrl/Cmd+Shift+X), right-to-left lines in the editor and preview, and
-screen-reader text for the unsaved marker and preview task symbols. An F6 pane
-cycle and a contrast audit of `--tg-muted` remain. The 3.1 request, a View-menu hybrid relative-line-number option (actual
+screen-reader text for the unsaved marker and preview task symbols. F6/Shift+F6
+cycle focus between the outline, editor and preview. A contrast audit raised the
+light theme's line numbers (3.06:1), muted text (4.36:1 on hover) and code-block
+numbers (4.45:1) to at least 4.6:1; `web/contrast.test.js` keeps every text colour
+in the built-in, light and dark themes at WCAG AA (4.5:1) on the backgrounds it is
+drawn on. The 3.1 request, a View-menu hybrid relative-line-number option (actual
 number on the cursor line; relative distances elsewhere), is done in v0.1.2.
 The user's original addition above is preserved. Native save and scrolling smoke tests remain pending;
 the local Linux Open dialog and Live rendering were confirmed by the user.

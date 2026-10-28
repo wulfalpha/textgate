@@ -210,6 +210,7 @@ remain visible; View controls the outline, preview pane, Vim bindings, line numb
 | Quit | Ctrl/Cmd+Q |
 | Zoom in / out / actual size | Ctrl/Cmd+= / - / 0 |
 | Check or uncheck tasks on the selected lines | Ctrl/Cmd+Shift+X |
+| Move between outline, editor and preview | F6 / Shift+F6 |
 
 Choose **View → Vim bindings** to enable Vim editing in either mode. The status
 bar shows the current Vim mode. **View → Relative line numbers** shows the
@@ -234,7 +235,6 @@ Next milestones:
 - Folder explorer and sidebar tabs.
 - Local image resolution and external link opening (preview links currently show
   their destination in the status bar; remote images are blocked in the desktop app).
-- Further accessibility work, such as moving focus between panes with F6.
 - Command-line/file-manager opening.
 - Continued package validation across supported platforms.
 

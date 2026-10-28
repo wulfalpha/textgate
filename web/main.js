@@ -275,8 +275,26 @@ $('view-source').onclick = () => $('mode-source').click();
 $('shortcuts').onclick = () => $('shortcuts-dialog').showModal();
 $('about').onclick = () => $('about-dialog').showModal();
 $('app-version').textContent = packageInfo.version;
+// F6 and Shift+F6 move focus between the visible panes, as in browsers and
+// many editors, so keyboard users need not Tab through every toolbar button.
+function cyclePanes(backwards) {
+  const main = document.querySelector('main');
+  const panes = [
+    !main.classList.contains('hide-outline') && [$('outline'), () => ($('outline').querySelector('button') ?? $('outline')).focus()],
+    [$('editor'), () => view.focus()],
+    previewVisible() && [$('preview'), () => $('preview').focus()],
+  ].filter(Boolean);
+  const current = panes.findIndex(([pane]) => pane.contains(document.activeElement));
+  const next = current === -1 ? (backwards ? panes.length - 1 : 0) : (current + (backwards ? panes.length - 1 : 1)) % panes.length;
+  panes[next][1]();
+}
 window.addEventListener('keydown', (event) => {
   if (appDialogOpen(document)) return;
+  if (event.key === 'F6' && !event.ctrlKey && !event.metaKey && !event.altKey) {
+    event.preventDefault();
+    cyclePanes(event.shiftKey);
+    return;
+  }
   if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
   const key = event.key.toLowerCase();
   // Many layouts need Shift for +, which the Ctrl/Cmd+= menu shortcut misses.
