@@ -47,20 +47,54 @@ function selectedLines(state) {
 
 // Replace a prefix of each selected line: edit(text, index) returns
 // [length of existing prefix to remove, replacement] or null to leave the line.
-function editPrefixes(view, edit) {
+function prefixChanges(lines, edit) {
   const changes = [];
-  selectedLines(view.state).forEach((line, index) => {
+  lines.forEach((line, index) => {
     const result = edit(line.text, index);
     if (result) changes.push({ from: line.from, to: line.from + result[0], insert: result[1] });
   });
-  view.dispatch({ changes, userEvent: 'input.format', scrollIntoView: true });
+  return changes;
+}
+
+function editPrefixes(view, edit) {
+  view.dispatch({ changes: prefixChanges(selectedLines(view.state), edit), userEvent: 'input.format', scrollIntoView: true });
+}
+
+// Setext headings (text underlined with === or ---) keep their style for
+// levels 1 and 2; other levels drop the underline.
+function setextChanges(state, node, level) {
+  const underline = node.getChildren('HeaderMark').at(-1);
+  if (level === 1 || level === 2) {
+    return [{ from: underline.from, to: underline.to, insert: (level === 1 ? '=' : '-').repeat(underline.to - underline.from) }];
+  }
+  const underlineLine = state.doc.lineAt(underline.from);
+  // The heading text may span several lines; join them so it stays one block.
+  const changes = [...state.sliceDoc(node.from, underlineLine.from - 1).matchAll(/\n[ \t]*/g)]
+    .map((match) => ({ from: node.from + match.index, to: node.from + match.index + match[0].length, insert: ' ' }));
+  changes.push({ from: underlineLine.from - 1, to: underlineLine.to });
+  if (level) changes.push({ from: node.from, insert: `${'#'.repeat(level)} ` });
+  return changes;
 }
 
 export function setHeading(view, level) {
-  editPrefixes(view, (text) => {
+  const { state } = view;
+  const changes = [];
+  const setextLines = new Set();
+  for (const range of state.selection.ranges) {
+    syntaxTree(state).iterate({ from: range.from, to: range.to, enter: ({ name, node, from, to }) => {
+      if (!/^SetextHeading/.test(name) || setextLines.has(state.doc.lineAt(from).number)) return;
+      for (let number = state.doc.lineAt(from).number; number <= state.doc.lineAt(to).number; number++) setextLines.add(number);
+      changes.push(...setextChanges(state, node, level));
+      return false;
+    } });
+  }
+  const lines = selectedLines(state).filter((line) => !setextLines.has(line.number));
+  changes.push(...prefixChanges(lines, (text) => {
+    if (!text.trim()) return null;
     const [, indent, existing] = /^( {0,3})(#{1,6}(?:[ \t]+|$))?/.exec(text);
     return [indent.length + (existing?.length ?? 0), level ? `${indent}${'#'.repeat(level)} ` : indent];
-  });
+  }));
+  view.dispatch({ changes, userEvent: 'input.format', scrollIntoView: true });
 }
 
 const listPatterns = {
@@ -86,8 +120,13 @@ export function toggleList(view, kind) {
 
 export function toggleQuote(view) {
   const quoted = /^ {0,3}> ?/;
-  const remove = selectedLines(view.state).every((line) => quoted.test(line.text));
-  editPrefixes(view, (text) => (remove ? [quoted.exec(text)[0].length, ''] : [0, text ? '> ' : '>']));
+  // Blank lines between quoted paragraphs don't decide whether to add or remove.
+  const lines = selectedLines(view.state).filter((line) => line.text.trim());
+  const remove = lines.length > 0 && lines.every((line) => quoted.test(line.text));
+  editPrefixes(view, (text) => {
+    if (remove) return quoted.test(text) ? [quoted.exec(text)[0].length, ''] : null;
+    return [0, text ? '> ' : '>'];
+  });
 }
 
 export function toggleCodeBlock(view) {
@@ -115,9 +154,12 @@ export function insertTable(view) {
   const before = line.text.trim() ? '\n\n' : '';
   const from = line.text.trim() ? line.to : line.from;
   const table = '| Column 1 | Column 2 |\n| --- | --- |\n|  |  |';
+  // A blank line after the table keeps the next paragraph out of it.
+  const next = line.number < state.doc.lines ? state.doc.line(line.number + 1).text : '';
+  const after = next.trim() ? '\n' : '';
   const cell = from + before.length + 2;
   view.dispatch({
-    changes: { from, to: line.text.trim() ? from : line.to, insert: before + table },
+    changes: { from, to: line.text.trim() ? from : line.to, insert: before + table + after },
     selection: EditorSelection.range(cell, cell + 'Column 1'.length),
     userEvent: 'input.format', scrollIntoView: true,
   });
@@ -131,6 +173,17 @@ export function linkAt(state) {
   return { node, url, href: url ? state.sliceDoc(url.from, url.to) : '' };
 }
 
+// Unbalanced brackets would end the label early; balanced ones (such as a
+// linked image) are valid and stay as written.
+function escapeLabel(label) {
+  let depth = 0;
+  for (const [bracket] of label.matchAll(/(?<!\\)[[\]]/g)) {
+    depth += bracket === '[' ? 1 : -1;
+    if (depth < 0) break;
+  }
+  return depth === 0 ? label : label.replace(/(?<!\\)[[\]]/g, '\\$&');
+}
+
 const destination = (href) => (/[\s()<>]/.test(href) ? `<${href.replace(/[<>]/g, encodeURIComponent)}>` : href);
 
 export function applyLink(view, href) {
@@ -140,7 +193,7 @@ export function applyLink(view, href) {
   if (link?.url) {
     view.dispatch({ changes: { from: link.url.from, to: link.url.to, insert: destination(href) }, userEvent: 'input.format' });
   } else if (!link) {
-    const label = from === to ? href : state.sliceDoc(from, to);
+    const label = escapeLabel(from === to ? href : state.sliceDoc(from, to));
     view.dispatch({ changes: { from, to, insert: `[${label}](${destination(href)})` }, userEvent: 'input.format' });
   } else return false;
   return true;

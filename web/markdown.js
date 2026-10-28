@@ -2,8 +2,9 @@ import { marked } from 'marked';
 import { ensureSyntaxTree, syntaxTree } from '@codemirror/language';
 
 // YAML front matter is not Markdown; return where the document body starts.
+// Only --- closes it, matching comrak's front_matter_delimiter.
 export function frontMatterEnd(text) {
-  return /^---\n[\s\S]*?\n(?:---|\.\.\.)[ \t]*(?:\n|$)/.exec(text)?.[0].length ?? 0;
+  return /^---\n[\s\S]*?\n---[ \t]*(?:\n|$)/.exec(text)?.[0].length ?? 0;
 }
 
 // Derive the outline from the editor's own syntax tree so it always matches

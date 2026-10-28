@@ -74,4 +74,6 @@ test('outline positions include reference definitions', () => {
 test('front matter is detected only at the start', () => {
   assert.equal(frontMatterEnd('---\na: 1\n---\nbody'), 13);
   assert.equal(frontMatterEnd('text\n---\na: 1\n---\n'), 0);
+  // comrak only accepts --- as the closing fence, so ... is not front matter.
+  assert.equal(frontMatterEnd('---\ntitle: x\n...\n# After'), 0);
 });

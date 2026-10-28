@@ -104,3 +104,47 @@ test('active formats reflect the cursor position', () => {
   assert.ok(format.activeFormats(view.state).active.has('orderedList'));
   view.destroy();
 });
+
+test('a table inserted above text keeps that text out of the table', () => {
+  const view = make('Intro\nNext paragraph', 2);
+  format.insertTable(view);
+  assert.equal(text(view), 'Intro\n\n| Column 1 | Column 2 |\n| --- | --- |\n|  |  |\n\nNext paragraph');
+  view.destroy();
+});
+
+test('setext headings keep their underline style or lose the underline', () => {
+  const cases = [
+    ['Title\n=====\n', 2, 'Title\n-----\n'],
+    ['Title\n-----\n', 1, 'Title\n=====\n'],
+    ['Title\n=====\n', 3, '### Title\n'],
+    ['Title\n=====\n', 0, 'Title\n'],
+    ['Two\nlines\n===\n', 4, '#### Two lines\n'],
+  ];
+  for (const [doc, level, expected] of cases) {
+    const view = make(doc, 2);
+    format.setHeading(view, level);
+    assert.equal(text(view), expected, `${JSON.stringify(doc)} → ${level}`);
+    view.destroy();
+  }
+  const view = make('Title\n=====\n\nPlain', 0, 18);
+  format.setHeading(view, 2);
+  assert.equal(text(view), 'Title\n-----\n\n## Plain');
+  view.destroy();
+});
+
+test('link labels escape unbalanced brackets but keep linked images', () => {
+  const view = make('a]b', 0, 3);
+  format.applyLink(view, 'https://x.example');
+  assert.equal(text(view), '[a\\]b](https://x.example)');
+  view.setState(EditorState.create({ doc: '![logo](logo.png)', selection: EditorSelection.single(0, 17), extensions: [markdown({ base: markdownLanguage })] }));
+  format.applyLink(view, 'https://x.example');
+  assert.equal(text(view), '[![logo](logo.png)](https://x.example)');
+  view.destroy();
+});
+
+test('quote toggle ignores blank lines between quoted paragraphs', () => {
+  const view = make('> a\n\n> b', 0, 8);
+  format.toggleQuote(view);
+  assert.equal(text(view), 'a\n\nb');
+  view.destroy();
+});
