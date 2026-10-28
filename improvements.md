@@ -367,8 +367,8 @@ See `docs/performance.md` for measurements, tradeoffs, and pending native checks
 The 1 MB sample's cursor median fell from 121.56 ms to 1.35 ms and edit median from
 143.79 ms to 24.65 ms in jsdom; these are not native paint-latency claims.
 
-**Next is priority 3:** zoom/accessibility, RTL support, system theme, and the
-user's saved 3.1 request for a View-menu hybrid relative-line-number option (actual
-number on the cursor line; relative distances elsewhere). The user's original
-addition above is preserved. Native save and scrolling smoke tests remain pending;
+**Next is the rest of priority 3:** zoom/accessibility, RTL support, and system
+theme. The 3.1 request, a View-menu hybrid relative-line-number option (actual
+number on the cursor line; relative distances elsewhere), is done in v0.1.2.
+The user's original addition above is preserved. Native save and scrolling smoke tests remain pending;
 the local Linux Open dialog and Live rendering were confirmed by the user.

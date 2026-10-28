@@ -227,7 +227,7 @@ Next milestones:
 - Folder explorer and sidebar tabs.
 - Local image resolution and external link opening (preview links currently show
   their destination in the status bar; remote images are blocked in the desktop app).
-- Zoom, accessibility, RTL text, a system-theme choice, and optional hybrid relative line numbers.
+- Zoom, accessibility, RTL text, and a system-theme choice.
 - Command-line/file-manager opening.
 - Continued package validation across supported platforms.
 

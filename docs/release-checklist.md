@@ -53,7 +53,8 @@ JavaScript tests cover exact disk baselines and confirmation/retry behavior.
 ## v0.1.2 performance milestone
 
 - [x] Confirm native Open and Live rendering in the user's local Linux build (screenshot of improvements.md).
-- [x] Preserve the user's saved hybrid-relative-line-number request for priority 3.
+- [x] Add the hybrid relative line numbers from priority 3 (View → Relative line numbers).
+- [ ] Check relative line numbers with Vim counts (e.g. `5j`) in packaged apps on each platform.
 - [x] Complete priority 2 and record reproducible before/after measurements in docs/performance.md.
 - [x] Update root version fields to 0.1.2 and prepare docs/releases/0.1.2.md.
 - [ ] Confirm hosted Checks passes for the v0.1.2 source commit.
@@ -62,5 +63,5 @@ JavaScript tests cover exact disk baselines and confirmation/retry behavior.
 - [ ] Check large-document manual Refresh and background outline/count updates in packaged apps.
 - [ ] Complete the native save-integrity checks above with the new build.
 
-The v0.1.2 tag is a milestone for review. Priority 3 and pending package tests
+The v0.1.2 tag is a milestone for review. The rest of priority 3 and pending package tests
 remain before the intended first official release; keep the GitHub release a draft.
