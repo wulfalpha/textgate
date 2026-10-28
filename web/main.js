@@ -14,6 +14,7 @@ import { vim, getCM } from '@replit/codemirror-vim';
 import createDOMPurify from 'dompurify';
 import { isTauri, invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { open, save, confirm } from '@tauri-apps/plugin-dialog';
 import { createDocumentStore } from './document-store.js';
 import { createActionRunner } from './action-runner.js';
@@ -22,6 +23,8 @@ import { createRenderer } from './markdown.js';
 import { createDocumentDetails, updateOutline, detailsDelay, largeDocument } from './document-details.js';
 import { livePreview } from './live-preview.js';
 import { relativeLineNumbers } from './line-numbers.js';
+import { createZoom } from './zoom.js';
+import { textDirection } from './text-direction.js';
 import * as format from './markdown-commands.js';
 const DOMPurify = createDOMPurify(window);
 const render = createRenderer({ desktop: isTauri(), invoke, purifier: DOMPurify });
@@ -65,7 +68,9 @@ function refresh() {
   updateEditorStatus();
   const changed = dirty();
   $('filename').textContent = name();
-  $('dirty').textContent = changed ? '●' : '';
+  // Screen readers ignore aria-label on a plain span; give them real text.
+  $('dirty').replaceChildren(...(changed ? [Object.assign(document.createElement('span'), { textContent: '●', ariaHidden: 'true' }),
+    Object.assign(document.createElement('span'), { className: 'visually-hidden', textContent: 'Unsaved changes' })] : []));
   const next = `${changed ? '• ' : ''}${name()} — Textgate`;
   if (next !== title) {
     title = document.title = next;
@@ -160,7 +165,9 @@ function extensions() {
     liveMode.of(mode === 'live' ? livePreview({ render }) : []),
     keymap.of([indentWithTab,
       { key: 'Mod-b', run: (target) => { format.toggleInline(target, 'bold'); return true; } },
-      { key: 'Mod-i', run: (target) => { format.toggleInline(target, 'italic'); return true; } }]),
+      { key: 'Mod-i', run: (target) => { format.toggleInline(target, 'italic'); return true; } },
+      { key: 'Mod-Shift-x', run: (target) => format.toggleTask(target) }]),
+    textDirection(),
     EditorView.lineWrapping,
     EditorView.contentAttributes.of({ 'aria-label': 'Markdown document' }),
     EditorView.updateListener.of((update) => {
@@ -207,6 +214,19 @@ $('new').onclick = () => run(async () => { if (await canDiscard()) { replaceDocu
 $('open').onclick = () => run(openDocument);
 $('save').onclick = () => run(() => saveDocument());
 $('save-as').onclick = () => run(() => saveDocument(true));
+// The browser-only dev server leaves zoom to the browser itself.
+const zoom = createZoom({
+  setZoom: (level) => getCurrentWebview().setZoom(level),
+  storage: (() => { try { return window.localStorage; } catch { return null; } })(),
+  onChange: (level) => { $('status').textContent = `Zoom ${Math.round(level * 100)}%`; },
+});
+for (const [id, action] of [['zoom-in', 'in'], ['zoom-out', 'out'], ['zoom-reset', 'reset']]) {
+  $(id).onclick = () => {
+    if (!isTauri()) { $('status').textContent = 'Use your browser\'s zoom in browser-only development.'; return; }
+    zoom[action]().catch(report);
+  };
+}
+if (isTauri()) zoom.restore().catch(report);
 $('relative-numbers').onclick = () => {
   relativeNumbers = !relativeNumbers;
   view.dispatch({ effects: numbersMode.reconfigure(relativeNumbers ? relativeLineNumbers() : []) });
@@ -256,9 +276,17 @@ $('shortcuts').onclick = () => $('shortcuts-dialog').showModal();
 $('about').onclick = () => $('about-dialog').showModal();
 $('app-version').textContent = packageInfo.version;
 window.addEventListener('keydown', (event) => {
-  if (nativeMenus || appDialogOpen(document)) return;
+  if (appDialogOpen(document)) return;
   if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
   const key = event.key.toLowerCase();
+  // Many layouts need Shift for +, which the Ctrl/Cmd+= menu shortcut misses.
+  if (key === '+' && isTauri()) { event.preventDefault(); $('zoom-in').click(); return; }
+  if (nativeMenus) return;
+  if (isTauri() && ['=', '-', '0'].includes(key)) {
+    event.preventDefault();
+    $({ '=': 'zoom-in', '-': 'zoom-out', 0: 'zoom-reset' }[key]).click();
+    return;
+  }
   if (!['n', 'o', 's', 'q'].includes(key)) return;
   event.preventDefault();
   if (key === 'n') $('new').click();

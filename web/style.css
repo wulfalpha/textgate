@@ -33,6 +33,7 @@ body { margin: 0; height: 100vh; display: flex; flex-direction: column; }
 header { height: 64px; display: flex; align-items: center; padding: 0 24px; gap: 12px; border-bottom: 1px solid var(--tg-border); }
 header strong { font-size: 18px; letter-spacing: -.5px; } header strong span { color: var(--tg-muted); margin-left: 12px; }
 #filename { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } #dirty { color: var(--tg-warning); }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 header nav { margin-left: auto; display: flex; gap: 6px; flex-shrink: 0; }
 button { font: inherit; font-size: 12px; color: inherit; background: transparent; border: 1px solid var(--tg-border); border-radius: 5px; padding: 7px 12px; cursor: pointer; }
 button:hover { background: var(--tg-hover); } button:focus-visible { outline: 2px solid var(--tg-focus); outline-offset: 2px; } button[aria-pressed=true] { color: var(--tg-on-accent); background: var(--tg-accent); border-color: var(--tg-accent); }

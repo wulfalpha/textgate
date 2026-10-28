@@ -44,8 +44,14 @@ export function sanitize(html, purifier) {
     const checked = input.hasAttribute('checked');
     const symbol = fragment.ownerDocument.createElement('span');
     symbol.textContent = checked ? '☑' : '☐';
+    // A labelled image role, since screen readers ignore aria-label on a plain span.
+    symbol.setAttribute('role', 'img');
     symbol.setAttribute('aria-label', checked ? 'Completed task' : 'Incomplete task');
     input.replaceWith(symbol);
+  }
+  // Right-to-left paragraphs (Arabic, Hebrew) take their direction from their text.
+  for (const block of fragment.querySelectorAll('p, li, h1, h2, h3, h4, h5, h6, blockquote, td, th, dt, dd, summary')) {
+    if (!block.hasAttribute('dir')) block.setAttribute('dir', 'auto');
   }
   return fragment;
 }

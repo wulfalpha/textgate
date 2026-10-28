@@ -21,7 +21,7 @@ test('browser fallback renders GFM tables and strikethrough', async () => {
 test('desktop rendering goes through the Rust command', async () => {
   const calls = [];
   const render = createRenderer({ desktop: true, purifier, invoke: async (command, args) => { calls.push([command, args]); return '<p>ok</p>'; } });
-  assert.equal(html(await render('ok')), '<p>ok</p>');
+  assert.equal(html(await render('ok')), '<p dir="auto">ok</p>');
   assert.deepEqual(calls, [['render_markdown', { source: 'ok' }]]);
 });
 
@@ -55,6 +55,16 @@ test('task checkboxes become symbols', () => {
   assert.match(output, /☐/);
   assert.match(output, /☑/);
   assert.doesNotMatch(output, /<input/);
+  assert.match(output, /<span role="img" aria-label="Incomplete task">☐<\/span>/);
+});
+
+test('blocks take their direction from their text unless the document sets one', () => {
+  const output = html(sanitize('<p>مرحبا</p><h2>שלום</h2><p dir="ltr">kept</p><ul><li>item</li></ul><table><tr><td>cell</td></tr></table>', purifier));
+  assert.match(output, /<p dir="auto">مرحبا<\/p>/);
+  assert.match(output, /<h2 dir="auto">/);
+  assert.match(output, /<p dir="ltr">kept<\/p>/);
+  assert.match(output, /<li dir="auto">/);
+  assert.match(output, /<td dir="auto">/);
 });
 
 test('outline excludes code and front matter and preserves source positions', () => {

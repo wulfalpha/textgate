@@ -23,9 +23,20 @@ fn seed(path: &Path, css: &str) -> Result<(), String> {
     }
 }
 
+// Follows the operating system: the built-in light styles, plus dark.css
+// whenever the system prefers dark. Theme files all end in .css, so this name
+// cannot collide with one.
+pub const SYSTEM: &str = "system";
+
 fn read_theme(directory: &Path, name: &str) -> Result<String, String> {
     if name.is_empty() {
         return Ok(String::new());
+    }
+    if name == SYSTEM {
+        let dark = read_theme(directory, "dark.css")?;
+        return Ok(format!(
+            "@media (prefers-color-scheme: dark) {{\n{dark}\n}}\n"
+        ));
     }
     if name.contains(['/', '\\']) || !name.ends_with(".css") || name == ".css" {
         return Err("Choose a CSS filename in the themes directory.".into());
@@ -141,6 +152,31 @@ mod tests {
         assert!(load(&root.0, None).unwrap().css.contains("red"));
         load(&root.0, Some(String::new())).unwrap();
         assert!(load(&root.0, None).unwrap().css.is_empty());
+    }
+
+    #[test]
+    fn system_theme_applies_dark_css_only_when_the_system_is_dark() {
+        let root = TestDir::new();
+        load(&root.0, None).unwrap();
+        fs::write(
+            root.0.join("themes/dark.css"),
+            ":root { --tg-text: white; }",
+        )
+        .unwrap();
+        let state = load(&root.0, Some(SYSTEM.into())).unwrap();
+        assert_eq!(state.selected, SYSTEM);
+        assert!(
+            state
+                .css
+                .starts_with("@media (prefers-color-scheme: dark) {")
+        );
+        assert!(state.css.contains("--tg-text: white"));
+        assert_eq!(load(&root.0, None).unwrap().selected, SYSTEM);
+        // A deleted dark.css is seeded again, so System keeps working.
+        fs::remove_file(root.0.join("themes/dark.css")).unwrap();
+        let state = load(&root.0, None).unwrap();
+        assert!(state.warning.is_none());
+        assert!(state.css.contains("color-scheme: dark"));
     }
 
     #[test]

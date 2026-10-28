@@ -90,6 +90,8 @@ so they are approximate character counts, not file sizes in bytes.
 Open **View → Themes…** and use the **Theme** picker. Textgate creates editable `light.css`
 and `dark.css` files on first use, preserving existing files. **Default** always
 restores the built-in light appearance, even if you have edited `light.css`.
+**System (light or dark)** follows your operating system: the built-in light
+appearance, switching to your `dark.css` whenever the system is in dark mode.
 
 Theme files live in:
 
@@ -206,11 +208,16 @@ remain visible; View controls the outline, preview pane, Vim bindings, line numb
 | Save | Ctrl/Cmd+S |
 | Save as | Ctrl/Cmd+Shift+S |
 | Quit | Ctrl/Cmd+Q |
+| Zoom in / out / actual size | Ctrl/Cmd+= / - / 0 |
+| Check or uncheck tasks on the selected lines | Ctrl/Cmd+Shift+X |
 
 Choose **View → Vim bindings** to enable Vim editing in either mode. The status
 bar shows the current Vim mode. **View → Relative line numbers** shows the
 cursor line's number and every other line's distance from it, as Vim's
 `number` plus `relativenumber` does; it also shows the numbers in Live mode.
+**View → Zoom In/Out** scales the whole window and is remembered on this device.
+Lines in right-to-left scripts such as Arabic and Hebrew read right to left
+in the editor and the preview.
 Standard CodeMirror editing,
 undo, search, and selection shortcuts are available otherwise.
 Fenced code blocks use their language label (such as `python`, `py`, or `rust`)
@@ -227,7 +234,7 @@ Next milestones:
 - Folder explorer and sidebar tabs.
 - Local image resolution and external link opening (preview links currently show
   their destination in the status bar; remote images are blocked in the desktop app).
-- Zoom, accessibility, RTL text, and a system-theme choice.
+- Further accessibility work, such as moving focus between panes with F6.
 - Command-line/file-manager opening.
 - Continued package validation across supported platforms.
 

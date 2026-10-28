@@ -45,7 +45,9 @@ test('app switches modes without rewriting Markdown and keeps one undo history',
   view.dispatch({ changes: { from: 2, insert: 'Edited ' } });
   $('mode-source').click();
   assert.match(text(), /^# Edited Welcome/);
-  assert.equal($('dirty').textContent, '●');
+  // The dot is decoration; screen readers get words instead.
+  assert.equal($('dirty').querySelector('[aria-hidden="true"]').textContent, '●');
+  assert.equal($('dirty').querySelector('.visually-hidden').textContent, 'Unsaved changes');
   await flushDetails();
   assert.match($('outline').textContent, /Edited Welcome/);
   assert.match($('preview').textContent, /Edited Welcome/);

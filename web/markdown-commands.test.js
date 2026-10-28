@@ -148,3 +148,14 @@ test('quote toggle ignores blank lines between quoted paragraphs', () => {
   assert.equal(text(view), 'a\n\nb');
   view.destroy();
 });
+
+test('task toggle checks a selection, then unchecks it, changing one character per task', () => {
+  const view = make('- [ ] one\n- [x] two\n1. [X] three\nplain\n', 0, 30);
+  assert.equal(format.toggleTask(view), true);
+  assert.equal(text(view), '- [x] one\n- [x] two\n1. [X] three\nplain\n');
+  format.toggleTask(view);
+  assert.equal(text(view), '- [ ] one\n- [ ] two\n1. [ ] three\nplain\n');
+  view.dispatch({ selection: { anchor: text(view).indexOf('plain') } });
+  assert.equal(format.toggleTask(view), false, 'lines without tasks are left alone');
+  view.destroy();
+});

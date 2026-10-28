@@ -2,7 +2,7 @@
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Textgate</title><link rel="icon" type="image/svg+xml" href="/icons/source-small.svg"><link rel="stylesheet" href="/web/style.css"></head>
 <body>
-  <header><img class="brand-icon" src="/icons/source-small.svg" alt=""><strong>Textgate</strong><span id="filename">Untitled.md</span><span id="dirty" aria-label="Unsaved changes"></span></header>
+  <header><img class="brand-icon" src="/icons/source-small.svg" alt=""><strong>Textgate</strong><span id="filename">Untitled.md</span><span id="dirty"></span></header>
   <nav id="menubar" aria-label="Application menu">
     <details><summary>File</summary><div class="menu-popup">
       <button id="new" data-shortcut="CmdOrCtrl+N">New</button><button id="open" data-shortcut="CmdOrCtrl+O">Open…</button><hr>
@@ -15,6 +15,7 @@
     <details><summary>View</summary><div class="menu-popup">
       <button id="view-live" aria-pressed="true">Live preview</button><button id="view-source" aria-pressed="false">Source mode</button><hr>
       <button id="toggle-preview" aria-pressed="true">Preview pane</button><button id="toggle-outline" aria-pressed="true">Outline</button><button id="vim" aria-pressed="false">Vim bindings</button><button id="relative-numbers" aria-pressed="false">Relative line numbers</button><hr>
+      <button id="zoom-in" data-shortcut="CmdOrCtrl+=">Zoom In</button><button id="zoom-out" data-shortcut="CmdOrCtrl+-">Zoom Out</button><button id="zoom-reset" data-shortcut="CmdOrCtrl+0">Actual Size</button><hr>
       <button id="theme-info">Themes…</button>
     </div></details>
     <details><summary>Help</summary><div class="menu-popup"><button id="shortcuts">Keyboard shortcuts</button><button id="about">About Textgate</button></div></details>
@@ -42,7 +43,7 @@
   </main>
   <dialog id="link-dialog"><form id="link-form"><h3>Edit link</h3><label for="link-url">URL</label><input id="link-url" type="text" placeholder="https://example.com" autocomplete="off"><p id="link-error" role="alert"></p><div><button type="button" id="link-cancel">Cancel</button><button type="button" id="link-remove">Remove link</button><button type="submit">Apply</button></div></form></dialog>
   <dialog id="theme-dialog"><h3>Themes</h3><div class="theme-controls"><label for="theme-select">Theme</label><select id="theme-select"><option value="">Default</option></select><button id="theme-reload">Reload</button></div><p>Add or edit a <code>.css</code> file in:</p><p id="theme-directory">Loading…</p><p>Copy <code>light.css</code> or <code>dark.css</code> to start. Click Reload to discover files and apply your latest changes.</p><p>Choose Default to reset. If a theme hides the controls, press Ctrl/Cmd+Alt+0.</p><button id="theme-close">Close</button></dialog>
-  <dialog id="shortcuts-dialog"><h3>Keyboard shortcuts</h3><dl><dt>Ctrl/Cmd+N / O / S</dt><dd>New / Open / Save</dd><dt>Ctrl/Cmd+Shift+S</dt><dd>Save As</dd><dt>Ctrl/Cmd+Z / Shift+Z</dt><dd>Undo / Redo</dd><dt>Ctrl/Cmd+B / I</dt><dd>Bold / Italic</dd><dt>Ctrl/Cmd+F</dt><dd>Find and replace</dd><dt>Tab / Shift+Tab</dt><dd>Indent / Unindent</dd><dt>Escape, then Tab</dt><dd>Move focus out of the editor</dd><dt>Ctrl/Cmd+Alt+0</dt><dd>Reset theme</dd></dl><p>Enable Vim in View. Escape returns to Normal mode.</p><form method="dialog"><button>Close</button></form></dialog>
+  <dialog id="shortcuts-dialog"><h3>Keyboard shortcuts</h3><dl><dt>Ctrl/Cmd+N / O / S</dt><dd>New / Open / Save</dd><dt>Ctrl/Cmd+Shift+S</dt><dd>Save As</dd><dt>Ctrl/Cmd+Z / Shift+Z</dt><dd>Undo / Redo</dd><dt>Ctrl/Cmd+B / I</dt><dd>Bold / Italic</dd><dt>Ctrl/Cmd+Shift+X</dt><dd>Check or uncheck tasks</dd><dt>Ctrl/Cmd+= / - / 0</dt><dd>Zoom in / out / actual size</dd><dt>Ctrl/Cmd+F</dt><dd>Find and replace</dd><dt>Tab / Shift+Tab</dt><dd>Indent / Unindent</dd><dt>Escape, then Tab</dt><dd>Move focus out of the editor</dd><dt>Ctrl/Cmd+Alt+0</dt><dd>Reset theme</dd></dl><p>Enable Vim in View. Escape returns to Normal mode.</p><form method="dialog"><button>Close</button></form></dialog>
   <dialog id="about-dialog"><img class="about-logo" src="/icons/source.svg" alt="Textgate omega logo"><h3>Textgate</h3><p>A quiet place to write Markdown.</p><p>Version <span id="app-version"></span> · MIT License</p><p>Copyright © 2026 WulfAlpha and Textgate contributors</p><form method="dialog"><button>Close</button></form></dialog>
   <footer><span id="editor-status">Live</span><span id="status" role="status">Ready</span><span id="stats"></span></footer>
   <script type="module" src="/web/main.js"></script>

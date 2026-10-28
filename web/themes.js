@@ -26,7 +26,7 @@ export function setupThemes({ document, desktop, invoke }) {
     picker.disabled = reload.disabled = true;
     try {
       const state = await invoke('theme_state', { selection });
-      const options = [['', 'Default'], ...state.themes.map((name) => [name, name])];
+      const options = [['', 'Default'], ['system', 'System (light or dark)'], ...state.themes.map((name) => [name, name])];
       picker.replaceChildren(...options.map(([value, label]) => {
         const option = document.createElement('option');
         option.value = value; option.textContent = label; return option;
@@ -35,7 +35,7 @@ export function setupThemes({ document, desktop, invoke }) {
       picker.value = selected;
       applyTheme(document, state.css);
       $('theme-directory').textContent = state.directory;
-      if (state.warning || announce) $('status').textContent = state.warning ?? `Theme: ${selected || 'Default'}`;
+      if (state.warning || announce) $('status').textContent = state.warning ?? `Theme: ${picker.selectedOptions[0]?.textContent ?? 'Default'}`;
     } catch (error) {
       picker.value = selected;
       $('status').textContent = `Theme error: ${error.message ?? error}`;

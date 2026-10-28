@@ -118,6 +118,19 @@ export function toggleList(view, kind) {
   });
 }
 
+// Check or uncheck the tasks on the selected lines, changing one character
+// each. A mixed selection is checked first, so repeating the command unchecks.
+const taskBox = /^(\s*(?:[-*+]|\d{1,9}[.)])[ \t]+\[)([ xX])\]/;
+export function toggleTask(view) {
+  const tasks = selectedLines(view.state).map((line) => [line, taskBox.exec(line.text)]).filter(([, match]) => match);
+  if (!tasks.length) return false;
+  const mark = tasks.some(([, match]) => match[2] === ' ') ? 'x' : ' ';
+  const changes = tasks.filter(([, match]) => (match[2] === ' ') !== (mark === ' '))
+    .map(([line, match]) => ({ from: line.from + match[1].length, to: line.from + match[1].length + 1, insert: mark }));
+  view.dispatch({ changes, userEvent: 'input.toggle' });
+  return true;
+}
+
 export function toggleQuote(view) {
   const quoted = /^ {0,3}> ?/;
   // Blank lines between quoted paragraphs don't decide whether to add or remove.
