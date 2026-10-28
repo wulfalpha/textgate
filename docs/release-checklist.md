@@ -12,5 +12,10 @@
 - [x] Capture an app screenshot and add it to the README.
 - [ ] Check CRLF and BOM files save byte-identical on Windows.
 
-Bundling is enabled (unsigned `.app`/`.dmg` on macOS). Signing, crash recovery,
+- [ ] Run the release workflow by hand (Actions → Release) and try the AppImage on a non-rolling distro.
+
+Bundling is enabled (unsigned packages on every platform). Signing, crash recovery,
 and automatic updates are not part of this prototype.
+
+To release: set the version in `tauri.conf.json`, `Cargo.toml` and `package.json`,
+push a matching tag such as `v0.2.0`, check the draft release's packages, then publish it.

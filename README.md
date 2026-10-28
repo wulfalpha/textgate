@@ -110,8 +110,14 @@ cargo clippy --locked --all-targets -- -D warnings
 npm run tauri build
 ```
 
-Bundling installers is disabled for this milestone. The last command builds the
-native executable in `target/release/`.
+The last command builds the executable in `target/release/` and installers in
+`target/release/bundle/`: `.deb` and `.rpm` on Linux, `.app` and `.dmg` on macOS,
+and NSIS and MSI installers on Windows. Builds are unsigned.
+
+AppImages are built only by the release workflow, on Ubuntu 22.04: an AppImage
+runs only on systems whose glibc is at least as new as the build machine's.
+Pushing a `v*` tag builds every platform and attaches the packages to a draft
+GitHub Release.
 
 ## Keyboard shortcuts
 
