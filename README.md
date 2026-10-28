@@ -197,7 +197,7 @@ JavaScript, Rust, formatting, and Clippy checks on Linux.
 The desktop app has native **File**, **Edit**, **View**, and **Help** menus.
 On macOS, About and Quit appear in the application menu. Browser-only development
 uses an in-page menu bar. The Live/Source switch and formatting toolbar
-remain visible; View controls the outline, preview pane, Vim bindings, and themes.
+remain visible; View controls the outline, preview pane, Vim bindings, line numbers, and themes.
 
 | Action | Shortcut |
 | --- | --- |
@@ -208,7 +208,10 @@ remain visible; View controls the outline, preview pane, Vim bindings, and theme
 | Quit | Ctrl/Cmd+Q |
 
 Choose **View → Vim bindings** to enable Vim editing in either mode. The status
-bar shows the current Vim mode. Standard CodeMirror editing,
+bar shows the current Vim mode. **View → Relative line numbers** shows the
+cursor line's number and every other line's distance from it, as Vim's
+`number` plus `relativenumber` does; it also shows the numbers in Live mode.
+Standard CodeMirror editing,
 undo, search, and selection shortcuts are available otherwise.
 Fenced code blocks use their language label (such as `python`, `py`, or `rust`)
 for syntax highlighting; language parsers load on demand from bundled assets.

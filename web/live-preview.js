@@ -1,6 +1,6 @@
 import { syntaxTree } from '@codemirror/language';
-import { StateEffect, StateField } from '@codemirror/state';
-import { Decoration, EditorView, ViewPlugin, WidgetType } from '@codemirror/view';
+import { RangeSet, StateEffect, StateField } from '@codemirror/state';
+import { Decoration, EditorView, GutterMarker, ViewPlugin, WidgetType, gutterLineClass } from '@codemirror/view';
 import { frontMatterEnd } from './markdown.js';
 
 // Live preview styles Markdown in place and hides its markup away from the
@@ -204,11 +204,31 @@ const padded = (state, range) => ({
   to: Math.min(state.doc.length, range.to + padding),
 });
 
+// Live headings are taller than other lines. When line numbers are shown, a
+// class on the heading's gutter element lets CSS line the number up with it.
+class GutterClass extends GutterMarker {
+  constructor(level) { super(); this.elementClass = `cm-lp-gutter-h${level}`; }
+}
+const gutterClasses = [1, 2, 3, 4, 5, 6].map((level) => new GutterClass(level));
+function headingGutter(state, range) {
+  const markers = [];
+  syntaxTree(state).iterate({ from: range.from, to: range.to, enter: ({ name, from }) => {
+    const heading = /^(?:ATX|Setext)Heading(\d)$/.exec(name);
+    if (heading) markers.push(gutterClasses[heading[1] - 1].range(state.doc.lineAt(from).from));
+    // Headings sit at the top level or inside quotes and lists; skip other blocks.
+    return name === 'Document' || name === 'Blockquote' || name === 'BulletList' || name === 'OrderedList' || name === 'ListItem';
+  } });
+  return RangeSet.of(markers, true);
+}
+const layout = (state, render, range) => ({
+  range, decorations: buildLiveDecorations(state, render, [range], true), gutter: headingGutter(state, range),
+});
+
 export function livePreview({ render } = {}) {
   const field = StateField.define({
     create(state) {
       const range = padded(state, { from: 0, to: Math.min(4000, state.doc.length) });
-      return { range, decorations: buildLiveDecorations(state, render, [range], true) };
+      return layout(state, render, range);
     },
     update(value, tr) {
       let range = tr.docChanged ? {
@@ -221,11 +241,14 @@ export function livePreview({ render } = {}) {
       }
       for (const effect of tr.effects) if (effect.is(viewportRange)) range = effect.value;
       if (tr.docChanged || tr.selection || range !== value.range || syntaxTree(tr.state) !== syntaxTree(tr.startState)) {
-        return { range, decorations: buildLiveDecorations(tr.state, render, [range], true) };
+        return layout(tr.state, render, range);
       }
       return value;
     },
-    provide: (value) => EditorView.decorations.from(value, (value) => value.decorations),
+    provide: (value) => [
+      EditorView.decorations.from(value, (value) => value.decorations),
+      gutterLineClass.from(value, (value) => value.gutter),
+    ],
   });
   const plugin = ViewPlugin.fromClass(class {
     constructor(view) {

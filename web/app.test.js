@@ -143,6 +143,17 @@ test('app switches modes without rewriting Markdown and keeps one undo history',
   assert.match(view.state.doc.line(2).text, /^\s+def greet/);
   press('Escape', 27);
   $('vim').click();
+  // Relative line numbers switch on and off in place and survive a mode change.
+  $('relative-numbers').click();
+  assert.equal($('relative-numbers').getAttribute('aria-pressed'), 'true');
+  assert.ok(view.dom.classList.contains('cm-relative-numbers'));
+  assert.ok(view.dom.querySelector('.cm-lineNumber-current'));
+  $('mode-source').click();
+  assert.ok(view.dom.classList.contains('cm-relative-numbers'));
+  $('mode-live').click();
+  $('relative-numbers').click();
+  assert.ok(!view.dom.classList.contains('cm-relative-numbers'));
+  assert.equal(view.dom.querySelector('.cm-lineNumber-current'), null);
   // Escape then Tab is CodeMirror's built-in keyboard-focus escape hatch.
   press('Escape', 27);
   const beforeTab = text();

@@ -129,7 +129,18 @@ main[data-mode="live"] .preview-pane, main[data-mode="live"] .source-pane > h2 {
 main[data-mode="live"] .source-pane { grid-column: 2 / -1; }
 main[data-mode="source"] #format-toolbar { display: none; }
 .cm-live .cm-scroller { font-family: var(--tg-font-document) !important; font-size: 14px; line-height: 1.75; }
-.cm-live .cm-gutters { display: none; }
+/* Live mode hides the gutter unless relative numbers are on (useful for Vim counts). */
+.cm-live:not(.cm-relative-numbers) .cm-gutters { display: none; }
+/* CodeMirror shows every gutter with display: flex !important. */
+.cm-live .cm-foldGutter { display: none !important; }
+/* Line up numbers with Live headings: same line box and top padding.
+   The selectors outrank CodeMirror's `.cm-lineNumbers .cm-gutterElement` padding. */
+.cm-live .cm-gutter .cm-gutterElement.cm-lp-gutter-h1 { line-height: 42px; }
+.cm-live .cm-gutter .cm-gutterElement.cm-lp-gutter-h2 { padding-top: 12.6px; line-height: 33.6px; }
+.cm-live .cm-gutter .cm-gutterElement.cm-lp-gutter-h3 { padding-top: 6.8px; line-height: 29.75px; }
+.cm-live .cm-gutter .cm-gutterElement:is(.cm-lp-gutter-h4, .cm-lp-gutter-h5, .cm-lp-gutter-h6) { line-height: 26.25px; }
+/* As in Vim, the cursor line's real number sits at the left of the column. */
+.cm-relative-numbers .cm-lineNumbers .cm-lineNumber-current { text-align: left; }
 .cm-live .cm-content { width: min(100%, 850px); margin: 0 auto; padding: 32px 48px 100px; }
 .cm-live .cm-activeLine { background: transparent; }
 .cm-live .tok-heading { color: var(--tg-text); }

@@ -21,6 +21,7 @@ import { decodeDocument, encodeDocument, defaultFormat, lineEndingLabel } from '
 import { createRenderer } from './markdown.js';
 import { createDocumentDetails, updateOutline, detailsDelay, largeDocument } from './document-details.js';
 import { livePreview } from './live-preview.js';
+import { relativeLineNumbers } from './line-numbers.js';
 import * as format from './markdown-commands.js';
 const DOMPurify = createDOMPurify(window);
 const render = createRenderer({ desktop: isTauri(), invoke, purifier: DOMPurify });
@@ -37,6 +38,7 @@ let path = null;
 let fileFormat = defaultFormat;
 let savedDoc;
 let vimEnabled = false;
+let relativeNumbers = false;
 let mode = 'live';
 let nativeMenus = null;
 let title = '';
@@ -47,6 +49,7 @@ let previewBusy = false;
 let previewPromise = null;
 const details = createDocumentDetails();
 const vimMode = new Compartment();
+const numbersMode = new Compartment();
 const liveMode = new Compartment();
 const filters = [{ name: 'Markdown', extensions: ['md', 'markdown', 'txt'] }];
 const view = new EditorView({
@@ -150,7 +153,7 @@ function replaceDocument(text, nextPath, nextFormat = defaultFormat) {
   view.focus();
 }
 function extensions() {
-  return [vimMode.of(vimEnabled ? vim() : []), basicSetup,
+  return [vimMode.of(vimEnabled ? vim() : []), basicSetup, numbersMode.of(relativeNumbers ? relativeLineNumbers() : []),
     // classHighlighter has no class for strikethrough.
     syntaxHighlighting(classHighlighter), syntaxHighlighting(tagHighlighter([{ tag: tags.strikethrough, class: 'tok-strikethrough' }])),
     markdown({ base: markdownLanguage, codeLanguages: fencedLanguage }),
@@ -204,6 +207,12 @@ $('new').onclick = () => run(async () => { if (await canDiscard()) { replaceDocu
 $('open').onclick = () => run(openDocument);
 $('save').onclick = () => run(() => saveDocument());
 $('save-as').onclick = () => run(() => saveDocument(true));
+$('relative-numbers').onclick = () => {
+  relativeNumbers = !relativeNumbers;
+  view.dispatch({ effects: numbersMode.reconfigure(relativeNumbers ? relativeLineNumbers() : []) });
+  $('relative-numbers').setAttribute('aria-pressed', String(relativeNumbers));
+  view.focus();
+};
 $('vim').onclick = () => {
   vimEnabled = !vimEnabled;
   view.dispatch({ effects: vimMode.reconfigure(vimEnabled ? vim() : []) });
