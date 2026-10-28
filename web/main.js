@@ -15,20 +15,26 @@ import createDOMPurify from 'dompurify';
 import { isTauri, invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { open, save, confirm } from '@tauri-apps/plugin-dialog';
-import { readFile, writeTextFile } from '@tauri-apps/plugin-fs';
+import { createDocumentStore } from './document-store.js';
+import { createActionRunner } from './action-runner.js';
 import { decodeDocument, encodeDocument, defaultFormat, lineEndingLabel } from './document-format.js';
 import { headings, createRenderer } from './markdown.js';
 import { livePreview } from './live-preview.js';
 import * as format from './markdown-commands.js';
 const DOMPurify = createDOMPurify(window);
 const render = createRenderer({ desktop: isTauri(), invoke, purifier: DOMPurify });
+const documents = createDocumentStore({ invoke, confirmOverwrite: (destination, missing) => confirm(
+  missing
+    ? `The file was deleted or moved outside Textgate:\n${destination}\n\nRecreate it with your editor contents?`
+    : `The file changed outside Textgate:\n${destination}\n\nOverwrite it with your editor contents? Cancel keeps both versions unchanged; use Save As to keep a separate copy.`,
+  { title: 'File changed on disk', kind: 'warning', okLabel: missing ? 'Recreate' : 'Overwrite', cancelLabel: 'Cancel' },
+) });
 
 const $ = (id) => document.getElementById(id);
 const initial = '# Welcome to Textgate\n\nA quiet place to write Markdown.\n\n## Start writing\n\nOpen a document or create a new one. Your preview updates as you type.\n\n- **Bold**, *italic*, and ~~strikethrough~~\n- Keyboard-friendly editing\n- Optional Vim keybindings\n- [x] Your Markdown is never rewritten\n\n## Tables\n\n| Feature | Status |\n| --- | --- |\n| Live preview | Ready |\n| GFM tables | Ready |\n\n```rust\nfn main() {\n    println!("Hello, Textgate!");\n}\n```\n';
 let path = null;
 let fileFormat = defaultFormat;
 let savedText = initial;
-let busy = false;
 let vimEnabled = false;
 let mode = 'live';
 let nativeMenus = null;
@@ -120,21 +126,22 @@ function extensions() {
       if (update.docChanged || update.selectionSet) updateToolbar();
     })];
 }
-async function run(action) {
-  if (busy) return;
-  busy = true;
-  try { await action(); } catch (error) { report(error); } finally { busy = false; }
-}
+const run = createActionRunner({
+  onBusy: () => { $('status').textContent = 'A file operation is still in progress. Finish or cancel it, then try again.'; },
+  onError: report,
+});
 async function openDocument() {
   if (!isTauri()) { $('status').textContent = 'Run npm run tauri dev to open and save local files.'; return; }
   const beforeOpen = source();
   if (!await canDiscard()) return;
   const selected = await open({ multiple: false, filters });
   if (!selected) return;
-  const { text, format: opened } = decodeDocument(await readFile(selected));
+  const bytes = await documents.read(selected);
+  const { text, format: opened } = decodeDocument(bytes);
   // Editing can continue while the dialog is open; recheck before replacing it.
   if (source() !== beforeOpen && !await canDiscard()) return;
   replaceDocument(text, selected, opened);
+  documents.remember(selected, bytes);
   $('status').textContent = opened.mixed
     ? `Opened ${name()}. It mixes line endings; saving will use ${lineEndingLabel(opened)} throughout.`
     : `Opened ${name()}`;
@@ -144,7 +151,10 @@ async function saveDocument(saveAs = false) {
   const destination = !path || saveAs ? await save({ defaultPath: path ?? 'Untitled.md', filters }) : path;
   if (!destination) return;
   const snapshot = source();
-  await writeTextFile(destination, encodeDocument(snapshot, fileFormat));
+  if (!await documents.save(destination, encodeDocument(snapshot, fileFormat))) {
+    $('status').textContent = 'Save cancelled. Your edits are still in the editor.';
+    return;
+  }
   path = destination;
   savedText = snapshot;
   refresh();

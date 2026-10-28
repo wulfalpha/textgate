@@ -2,9 +2,13 @@
 
 A lightweight desktop Markdown editor built with Rust, Tauri 2, CodeMirror 6, and comrak.
 
-**Status: early prototype.** Native cross-platform release validation is still
-pending. See the [release checklist](docs/release-checklist.md) and
-[contributor guide](CONTRIBUTING.md).
+**Status: early prototype.** v0.1.1 built successfully on Linux, Windows, and
+macOS (Apple Silicon and Intel). Package smoke testing is ongoing; see the
+[release checklist](docs/release-checklist.md) and [contributor guide](CONTRIBUTING.md).
+
+This README describes the current source tree. Atomic saves, external-change
+checks, and busy-operation feedback are changes after v0.1.1 and are not included
+in its downloads.
 
 ![Textgate in Live mode: headings, task list, link, and table rendered in place](docs/screenshots/live.png)
 
@@ -13,10 +17,28 @@ with code-bracket feet, with a vector master and desktop icon exports.
 
 **Your Markdown file is the document.** Textgate never re-serializes it: the only
 changes saved are the ones you type or the formatting commands you run, and those
-touch only the markup they add or remove. Line endings (LF, CRLF or CR) and a
-UTF-8 byte order mark are preserved on save. Files that are not valid UTF-8 are
+touch only the markup they add or remove. Consistent line endings (LF, CRLF or CR)
+and a UTF-8 byte order mark are preserved on save. Mixed line endings are
+normalized to the most frequent style; an opening status message reports this. Files that are not valid UTF-8 are
 refused rather than opened lossily. The app uses vanilla JavaScript and CSS with
 Vite; no UI framework is required.
+
+## Saving documents
+
+Saves write and flush a temporary file in the document's directory before
+replacing the original. Existing file permissions are preserved. Before saving,
+Textgate compares the disk bytes with the version last opened or saved. If the
+file changed or disappeared, you can cancel or explicitly overwrite/recreate it.
+Cancel keeps your edits in the editor; Save As lets you keep a separate copy.
+If you try another file action or close the window while an operation is running,
+the status bar asks you to finish or cancel that operation and try again. Closing
+is not queued, and unsaved-change confirmation still applies on retry.
+
+This detects external changes but does not lock out other editors during the
+final replacement. Directory syncing is best effort. Symbolic links, special
+files, and (on Unix) files with multiple hard links are rejected; choose a regular
+file instead. Replacement preserves ordinary permissions, but does not promise
+to preserve ownership, extended attributes, or every platform's ACL metadata.
 
 ## Live and Source modes
 
@@ -41,7 +63,8 @@ lists and quotes.
 The preview is rendered in Rust by [comrak](https://github.com/kivikakk/comrak),
 a port of GitHub's cmark-gfm, with tables, task lists, strikethrough, autolinks,
 footnotes, GitHub alerts (`> [!NOTE]`), and heading anchors; YAML front matter is
-not rendered. Output is sanitized with DOMPurify. Browser-only `npm run dev` has no
+not rendered when enclosed by `---` lines at the start of the document.
+Output is sanitized with DOMPurify. Browser-only `npm run dev` has no
 Rust backend and falls back to `marked`, which can differ in edge cases.
 
 ## CSS themes
@@ -87,9 +110,35 @@ self-contained: relative config-directory assets/imports are not resolved and th
 app's existing content security policy still restricts external resources.
 Browser-only `npm run dev` uses Default; config-file themes require the desktop app.
 
-## Run
+## Install a release
 
-Install a current Rust toolchain, Node.js 22.12+ (or 24+), and the
+Packages appear on the [GitHub Releases page](https://github.com/wulfalpha/textgate/releases)
+after a release is published. Draft downloads are visible only to repository
+collaborators with access.
+
+| Platform | Download |
+| --- | --- |
+| Linux x86-64 | `.AppImage`, `.deb` for Debian/Ubuntu, or `.rpm` for RPM-based distributions |
+| macOS Apple Silicon | `aarch64.dmg` |
+| macOS Intel | `x64.dmg` |
+| Windows x64 | `x64-setup.exe` or `x64_en-US.msi` |
+
+For the Linux AppImage, make the downloaded file executable and run it:
+
+```sh
+chmod +x Textgate_0.1.1_amd64.AppImage
+./Textgate_0.1.1_amd64.AppImage
+```
+
+Open the macOS DMG and copy Textgate to Applications. On Windows, run either
+installer. Builds are unsigned, and macOS builds are not notarized; operating
+system security checks may warn or block launching them. Linux packages still
+need compatible system libraries; an AppImage is not a guarantee of compatibility
+with every distribution.
+
+## Build and run from source
+
+Install a current stable Rust toolchain, Node.js 24 (used in CI), and the
 [Tauri platform prerequisites](https://v2.tauri.app/start/prerequisites/).
 On Linux these include GTK 3 and WebKitGTK 4.1 development packages.
 
@@ -114,10 +163,16 @@ The last command builds the executable in `target/release/` and installers in
 `target/release/bundle/`: `.deb` and `.rpm` on Linux, `.app` and `.dmg` on macOS,
 and NSIS and MSI installers on Windows. Builds are unsigned.
 
-AppImages are built only by the release workflow, on Ubuntu 22.04: an AppImage
-runs only on systems whose glibc is at least as new as the build machine's.
-Pushing a `v*` tag builds every platform and attaches the packages to a draft
-GitHub Release.
+The default local build does not produce an AppImage. The release workflow
+explicitly requests one and builds Linux packages on Ubuntu 22.04 to reduce the
+minimum glibc requirement. Building successfully on a newer local distribution
+does not establish that an AppImage will run on older distributions.
+
+Pushing a `v*` tag builds Linux x86-64, Windows x64, and both Mac architectures,
+runs the JavaScript tests on each runner, and attaches packages to a draft GitHub
+Release. Running the release workflow manually produces workflow artifacts
+without creating a release. The separate push/PR Checks workflow runs the full
+JavaScript, Rust, formatting, and Clippy checks on Linux.
 
 ## Keyboard shortcuts
 
@@ -148,11 +203,12 @@ out of the editor, press Escape followed by Tab.
 Next milestones:
 
 - Table row/column commands for Live mode.
-- Atomic saves (write to a temporary file, then rename).
 - Folder explorer and sidebar tabs.
 - Local image resolution and external link opening (preview links currently show
   their destination in the status bar; remote images are blocked in the desktop app).
-- Cross-platform packaging and validation (a Linux CI workflow is included).
+- Large-document performance: limit decoration and derived-view work.
+- Command-line/file-manager opening, zoom, and accessibility improvements.
+- Continued package validation across supported platforms.
 
 Only a single document is open at a time. New/open/close ask before discarding
 unsaved changes. There is no crash recovery or autosave yet. File permissions are

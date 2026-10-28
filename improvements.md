@@ -280,3 +280,72 @@ When you add link opening, use `tauri-plugin-opener` with an allowlist (http, ht
 4. Add the safe-save trio: detect external changes, atomic save, open from argv.
 5. Add the RTL, zoom and system-theme fixes.
 6. Packaging: release workflow and macOS/Windows CI.
+
+
+---
+
+## Current status and suggestions (2026-10-27, after v0.1.1)
+
+The review above is retained as a historical review of `4189440`. This addendum
+reflects the current source; changes after v0.1.1 are not in its release artifacts.
+
+### Completed
+
+- [x] Preview isolation and malformed fragment handling (1.1–1.3, 2.1):
+  sanitizer allowlists, DOMPurify ID prefixing, app-only dialog checks, safe decoding.
+- [x] Formatting fixes (1.4–1.8): table separation, Setext conversion, basic
+  link-label escaping, quote toggling across blank lines, consistent front-matter fences.
+- [x] Real comrak output fixture checked in Rust and sanitized by JavaScript tests.
+- [x] Release packaging for Linux, Windows, and both Mac architectures. The v0.1.1
+  release workflow and Checks succeeded at `feffc6a`; nine artifacts were attached.
+  Release runners also execute JavaScript tests. Ordinary push/PR checks remain Linux-only.
+- [x] Atomic saves and external-change detection: scoped Rust commands write and
+  sync a same-directory temporary file, compare exact disk bytes, then replace the
+  original. Changes/deletion require confirmation; cancellation retains editor edits.
+- [x] Busy-operation feedback (1.9): overlapping file actions, including close,
+  show a status message. Close is not queued; retry still checks unsaved changes.
+- [x] README updated with download choices, local/release build differences,
+  mixed-line-ending behavior, and the distinction between source and v0.1.1.
+
+Local validation passed: JavaScript tests, frontend build, Rust tests, rustfmt,
+and Clippy. These checks do not establish native dialog behavior or runtime
+compatibility on every platform. See `docs/release-checklist.md` for pending tests.
+
+### Next priorities
+
+1. **Validate the new save path on all three platforms.** Test BOM/CRLF round trips,
+   overwrite cancellation, deletion/recreation, Save As, permissions, access scope,
+   and close attempts during dialogs/writes. The user's v0.1.1 AppImage test checks
+   the existing release, not these later source changes. Add Windows/macOS Rust
+   test coverage to CI so filesystem changes receive ongoing platform checks.
+2. **Reduce large-document work (3.1–3.2).** Profile current desktop behavior,
+   move suitable inline decorations to visible ranges, and reduce outline/count
+   rebuilding. Keep layout-affecting replacements in state: tables and hidden
+   Setext underlines need care. Preserve correct dirty state when undo returns to
+   saved content; a simple edit counter is insufficient.
+3. **Improve zoom and accessibility.** Add font scaling, task-symbol semantics,
+   keyboard task toggling, RTL handling, and an explicit system-theme choice.
+4. **Add command-line/file-manager opening.** This remains separate from safe
+   saving, followed by recent files and drag-and-drop support.
+5. **Finish smaller correctness and maintenance items.** Review link escaping
+   around backslashes, partially formatted selections, clear UTF-16 errors,
+   mixed-line-ending confirmation, lazy loading of `marked`, declared toolchain
+   requirements, and consistent dev-server addresses.
+6. **Release polish.** Expand release notes, validate package installation,
+   include third-party notices, and consider dependency automation and caching.
+   Do not treat successful packaging as completed native smoke testing.
+
+### Qualifications to the original proposals
+
+- Prefix IDs in one layer. DOMPurify already adds `user-content-`; adding it in
+  comrak as well requires coordinated anchor changes and otherwise double-prefixes IDs.
+- comrak's tag filter is not a dangerous-URL filter. Every HTML display/export path
+  must have an appropriate sanitization boundary; the current preview uses DOMPurify.
+- Checking metadata after opening a theme file does not by itself prevent following
+  a symlink. Any race hardening needs platform-aware file-opening behavior.
+- Save conflict detection is not an interprocess lock: another program can race the
+  final replacement. Directory syncing is best effort. Ordinary permissions are
+  preserved, but ownership, extended attributes, and complete platform ACL metadata
+  are not guaranteed. Symbolic/special files and Unix hard links are rejected.
+- Whole-file byte baselines are deliberately simple and exact. If profiling shows
+  memory or IPC pressure, consider backend-owned baselines or strong content hashes.

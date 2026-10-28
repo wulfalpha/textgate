@@ -3,5 +3,5 @@
   "identifier": "main",
   "description": "Editor window with access to files selected through native dialogs.",
   "windows": ["main"],
-  "permissions": ["core:default", "core:window:allow-set-title", "core:window:allow-destroy", "dialog:allow-open", "dialog:allow-save", "dialog:allow-confirm", "fs:allow-read-file", "fs:allow-write-text-file"]
+  "permissions": ["core:default", "core:window:allow-set-title", "core:window:allow-destroy", "dialog:allow-open", "dialog:allow-save", "dialog:allow-confirm"]
 }

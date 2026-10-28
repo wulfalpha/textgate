@@ -18,8 +18,10 @@ cargo test --locked
 cargo clippy --locked --all-targets -- -D warnings
 ```
 
-The GitHub Actions workflow runs these checks on Linux. It does not exercise
-native dialogs, interactive Vim behavior, or macOS/Windows packaging.
+The Checks workflow runs these checks on Linux. The Release workflow runs
+JavaScript tests and packages the app on Linux, Windows, and both Mac
+architectures. Neither workflow exercises native dialogs or interactive Vim
+behavior.
 
 For changes to editor behavior, open `examples/markdown-demo.md` in the desktop
 app and check Live/Source switching, Vim editing, undo/redo, save/reopen, and
@@ -32,6 +34,8 @@ For theme changes, check both built-in themes and the Default reset shortcut.
 - `web/menus.js`: native menus and keyboard-accessible browser fallback.
 - `web/live-preview.js`: Live mode decorations (styling and hidden markup).
 - `web/markdown-commands.js`: toolbar formatting commands on Markdown text.
+- `web/document-store.js`: disk baselines and overwrite confirmation flow.
+- `src/documents.rs`: scoped file access, conflict checks, and atomic saves.
 - `web/document-format.js`: strict UTF-8 decoding, line endings, and BOM.
 - `web/markdown.js`: preview rendering, sanitizing, and outline.
 - `src/markdown.rs`: comrak preview rendering.

@@ -151,6 +151,9 @@ test('app switches modes without rewriting Markdown and keeps one undo history',
 
   window.confirm = () => false;
   $('new').click();
+  // Quit arriving before the discard operation settles must give feedback.
+  $('quit').click();
+  assert.match($('status').textContent, /file operation is still in progress/);
   await new Promise((resolve) => setTimeout(resolve, 0));
   assert.match(text(), /greet/);
   window.confirm = () => true;
