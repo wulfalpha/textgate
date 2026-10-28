@@ -149,13 +149,31 @@ test('app switches modes without rewriting Markdown and keeps one undo history',
   assert.equal(press('Tab', 9).defaultPrevented, false);
   assert.equal(text(), beforeTab);
 
+  // Large documents keep preview rendering explicit, and the outline is complete
+  // even when headings lie beyond CodeMirror's currently parsed viewport.
+  $('mode-source').click();
+  replace('# Large\n\n' + 'ordinary words '.repeat(72000) + '\n\n# Last heading\n');
+  await flushDetails();
+  assert.match($('preview-note').textContent, /updates on request/);
+  assert.match($('outline').textContent, /Last heading/);
+  await $('refresh-preview').onclick();
+  assert.equal($('preview-note').hidden, true);
+  assert.match($('preview').textContent, /Last heading/);
+  const firstOutlineButton = $('outline').firstChild;
+  await flushDetails();
+  assert.equal($('outline').firstChild, firstOutlineButton, 'unchanged outline buttons are retained');
+  replace('small again');
+  await flushDetails();
+  assert.equal($('preview-note').hidden, true);
+  assert.equal($('preview').textContent.trim(), 'small again');
+
   window.confirm = () => false;
   $('new').click();
   // Quit arriving before the discard operation settles must give feedback.
   $('quit').click();
   assert.match($('status').textContent, /file operation is still in progress/);
   await new Promise((resolve) => setTimeout(resolve, 0));
-  assert.match(text(), /greet/);
+  assert.equal(text(), 'small again');
   window.confirm = () => true;
   $('new').click();
   await new Promise((resolve) => setTimeout(resolve, 0));

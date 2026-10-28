@@ -6,9 +6,10 @@ A lightweight desktop Markdown editor built with Rust, Tauri 2, CodeMirror 6, an
 macOS (Apple Silicon and Intel). Package smoke testing is ongoing; see the
 [release checklist](docs/release-checklist.md) and [contributor guide](CONTRIBUTING.md).
 
-This README describes the current source tree. Atomic saves, external-change
-checks, and busy-operation feedback are changes after v0.1.1 and are not included
-in its downloads.
+This README describes the v0.1.2 source. It adds atomic saves, external-change
+checks, busy-operation feedback, and large-document performance improvements.
+These changes are not included in v0.1.1 downloads. See the
+[v0.1.2 notes](docs/releases/0.1.2.md) and [performance measurements](docs/performance.md).
 
 ![Textgate in Live mode: headings, task list, link, and table rendered in place](docs/screenshots/live.png)
 
@@ -66,6 +67,23 @@ footnotes, GitHub alerts (`> [!NOTE]`), and heading anchors; YAML front matter i
 not rendered when enclosed by `---` lines at the start of the document.
 Output is sanitized with DOMPurify. Browser-only `npm run dev` has no
 Rust backend and falls back to `marked`, which can differ in edge cases.
+
+## Large documents
+
+Live-mode styling is limited to visible text and a nearby margin. Tables and
+multiline markup still reveal their source when selected. Tables larger than
+50,000 characters stay as editable source in Live mode to avoid creating a huge
+widget; the Source preview can render them on request.
+
+Word counts and complete outlines are computed in a background worker after a
+typing pause (120 ms for small documents, 300 ms from 100,000 characters, and
+600 ms from 1,000,000). Outdated jobs are cancelled. Outline buttons are reused,
+and long outlines initially show 250 headings with a **Show more headings** button.
+
+At 1,000,000 characters or more, the Source preview updates only when you click
+**Refresh**. The preview notice identifies when it needs updating. Smaller
+documents retain automatic preview updates. These limits count UTF-16 code units,
+so they are approximate character counts, not file sizes in bytes.
 
 ## CSS themes
 
@@ -126,8 +144,8 @@ collaborators with access.
 For the Linux AppImage, make the downloaded file executable and run it:
 
 ```sh
-chmod +x Textgate_0.1.1_amd64.AppImage
-./Textgate_0.1.1_amd64.AppImage
+chmod +x Textgate_0.1.2_amd64.AppImage
+./Textgate_0.1.2_amd64.AppImage
 ```
 
 Open the macOS DMG and copy Textgate to Applications. On Windows, run either
@@ -206,8 +224,8 @@ Next milestones:
 - Folder explorer and sidebar tabs.
 - Local image resolution and external link opening (preview links currently show
   their destination in the status bar; remote images are blocked in the desktop app).
-- Large-document performance: limit decoration and derived-view work.
-- Command-line/file-manager opening, zoom, and accessibility improvements.
+- Zoom, accessibility, RTL text, a system-theme choice, and optional hybrid relative line numbers.
+- Command-line/file-manager opening.
 - Continued package validation across supported platforms.
 
 Only a single document is open at a time. New/open/close ask before discarding

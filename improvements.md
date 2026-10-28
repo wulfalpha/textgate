@@ -325,13 +325,14 @@ compatibility on every platform. See `docs/release-checklist.md` for pending tes
    saved content; a simple edit counter is insufficient.
 3. **Improve zoom and accessibility.** Add font scaling, task-symbol semantics,
    keyboard task toggling, RTL handling, and an explicit system-theme choice.
-4. **Add command-line/file-manager opening.** This remains separate from safe
+   3.1 Include option in view menu for relative line numbering (relative with the line where the cursor is at showing actual line number. IE the hybrid approach to relative line numbers.)
+5. **Add command-line/file-manager opening.** This remains separate from safe
    saving, followed by recent files and drag-and-drop support.
-5. **Finish smaller correctness and maintenance items.** Review link escaping
+6. **Finish smaller correctness and maintenance items.** Review link escaping
    around backslashes, partially formatted selections, clear UTF-16 errors,
    mixed-line-ending confirmation, lazy loading of `marked`, declared toolchain
    requirements, and consistent dev-server addresses.
-6. **Release polish.** Expand release notes, validate package installation,
+7. **Release polish.** Expand release notes, validate package installation,
    include third-party notices, and consider dependency automation and caching.
    Do not treat successful packaging as completed native smoke testing.
 
@@ -349,3 +350,25 @@ compatibility on every platform. See `docs/release-checklist.md` for pending tes
   are not guaranteed. Symbolic/special files and Unix hard links are rejected.
 - Whole-file byte baselines are deliberately simple and exact. If profiling shows
   memory or IPC pressure, consider backend-owned baselines or strong content hashes.
+
+
+## v0.1.2 update: priority 2 completed
+
+The large-document work in the current-priorities list is implemented:
+
+- [x] Viewport-limited inline/line decorations with state-backed layout replacements.
+- [x] Immutable saved-document comparison with correct undo-to-saved dirty state.
+- [x] Background, cancellable full-outline parsing and word counting.
+- [x] Retained outline nodes, 250-heading pages, and size-dependent debounce delays.
+- [x] Explicit preview refresh from 1,000,000 characters; stale render rejection.
+- [x] Regression coverage and reproducible 100 KB / 1 MB / 5 MB microbenchmarks.
+
+See `docs/performance.md` for measurements, tradeoffs, and pending native checks.
+The 1 MB sample's cursor median fell from 121.56 ms to 1.35 ms and edit median from
+143.79 ms to 24.65 ms in jsdom; these are not native paint-latency claims.
+
+**Next is priority 3:** zoom/accessibility, RTL support, system theme, and the
+user's saved 3.1 request for a View-menu hybrid relative-line-number option (actual
+number on the cursor line; relative distances elsewhere). The user's original
+addition above is preserved. Native save and scrolling smoke tests remain pending;
+the local Linux Open dialog and Live rendering were confirmed by the user.

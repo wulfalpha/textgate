@@ -38,7 +38,7 @@
         <button data-command="redo" aria-label="Redo">Redo</button>
       </div>
       <div id="editor"></div>
-    </section><section class="pane preview-pane"><h2>Preview</h2><article id="preview" aria-label="Markdown preview"></article></section>
+    </section><section class="pane preview-pane"><h2>Preview <button id="refresh-preview" type="button">Refresh</button></h2><p id="preview-note" role="status" hidden></p><article id="preview" aria-label="Markdown preview"></article></section>
   </main>
   <dialog id="link-dialog"><form id="link-form"><h3>Edit link</h3><label for="link-url">URL</label><input id="link-url" type="text" placeholder="https://example.com" autocomplete="off"><p id="link-error" role="alert"></p><div><button type="button" id="link-cancel">Cancel</button><button type="button" id="link-remove">Remove link</button><button type="submit">Apply</button></div></form></dialog>
   <dialog id="theme-dialog"><h3>Themes</h3><div class="theme-controls"><label for="theme-select">Theme</label><select id="theme-select"><option value="">Default</option></select><button id="theme-reload">Reload</button></div><p>Add or edit a <code>.css</code> file in:</p><p id="theme-directory">Loading…</p><p>Copy <code>light.css</code> or <code>dark.css</code> to start. Click Reload to discover files and apply your latest changes.</p><p>Choose Default to reset. If a theme hides the controls, press Ctrl/Cmd+Alt+0.</p><button id="theme-close">Close</button></dialog>

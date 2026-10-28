@@ -33,7 +33,7 @@ flow with a fresh build; the v0.1.1 downloads do not include it.
 - [x] Add visible feedback when close/file actions arrive during a busy operation.
 - [x] Pass local JavaScript tests, frontend build, Rust tests, rustfmt, and Clippy.
 - [x] Update the README and append current recommendations to improvements.md.
-- [ ] Confirm hosted Checks passes for the commit containing these changes.
+- [x] Confirm hosted Checks passed for save-integrity commit `fcae4a9`.
 - [ ] Run Rust file-operation tests on Windows and macOS.
 
 
@@ -48,3 +48,19 @@ flow with a fresh build; the v0.1.1 downloads do not include it.
 Automated Rust tests cover replacement, same-size external edits, deletions,
 partial-write failure, temporary-file cleanup, and Unix permissions/link handling.
 JavaScript tests cover exact disk baselines and confirmation/retry behavior.
+
+
+## v0.1.2 performance milestone
+
+- [x] Confirm native Open and Live rendering in the user's local Linux build (screenshot of improvements.md).
+- [x] Preserve the user's saved hybrid-relative-line-number request for priority 3.
+- [x] Complete priority 2 and record reproducible before/after measurements in docs/performance.md.
+- [x] Update root version fields to 0.1.2 and prepare docs/releases/0.1.2.md.
+- [ ] Confirm hosted Checks passes for the v0.1.2 source commit.
+- [ ] Confirm all v0.1.2 release jobs and package uploads succeed.
+- [ ] Smoke-test scrolling, outline jumps, viewport-edge selections, tables, and Setext headings on each platform.
+- [ ] Check large-document manual Refresh and background outline/count updates in packaged apps.
+- [ ] Complete the native save-integrity checks above with the new build.
+
+The v0.1.2 tag is a milestone for review. Priority 3 and pending package tests
+remain before the intended first official release; keep the GitHub release a draft.

@@ -1,6 +1,6 @@
 import { syntaxTree } from '@codemirror/language';
-import { StateField } from '@codemirror/state';
-import { Decoration, EditorView, WidgetType } from '@codemirror/view';
+import { StateEffect, StateField } from '@codemirror/state';
+import { Decoration, EditorView, ViewPlugin, WidgetType } from '@codemirror/view';
 import { frontMatterEnd } from './markdown.js';
 
 // Live preview styles Markdown in place and hides its markup away from the
@@ -70,17 +70,26 @@ const hidden = Decoration.replace({});
 const bullet = Decoration.replace({ widget: new BulletWidget() });
 const rule = Decoration.replace({ widget: new RuleWidget() });
 
-function build(state, render) {
+export function buildLiveDecorations(state, render, ranges, layout = false) {
   const decorations = [];
   const { doc, selection } = state;
   const touches = (from, to) => selection.ranges.some((range) => range.from <= to && range.to >= from);
   const linesTouch = (from, to) => touches(doc.lineAt(from).from, doc.lineAt(to).to);
-  const hide = (from, to) => { if (to > from) decorations.push(hidden.range(from, to)); };
-  const mark = (from, to, className) => { if (to > from) decorations.push(Decoration.mark({ class: className }).range(from, to)); };
+  const hide = (from, to) => {
+    // View-provided replacements cannot cross line breaks. Keep those and block
+    // widgets in state, including multiline link destinations and Setext marks.
+    if (to > from && (doc.lineAt(from).number !== doc.lineAt(to).number) === layout) decorations.push(hidden.range(from, to));
+  };
+  const mark = (from, to, className) => { if (!layout && to > from) decorations.push(Decoration.mark({ class: className }).range(from, to)); };
   const lines = (from, to, className) => {
-    for (let line = doc.lineAt(from); ; line = doc.line(line.number + 1)) {
-      decorations.push(Decoration.line({ class: className }).range(line.from));
-      if (line.to >= to || line.number === doc.lines) break;
+    if (layout) return;
+    for (const range of ranges) {
+      const first = Math.max(from, range.from), last = Math.min(to, range.to);
+      if (first > last) continue;
+      for (let line = doc.lineAt(first); ; line = doc.line(line.number + 1)) {
+        decorations.push(Decoration.line({ class: className }).range(line.from));
+        if (line.to >= last || line.number === doc.lines) break;
+      }
     }
   };
   const isSpace = (pos) => pos >= 0 && pos < doc.length && /[ \t]/.test(doc.sliceString(pos, pos + 1));
@@ -88,9 +97,13 @@ function build(state, render) {
   const start = frontMatterEnd(doc.sliceString(0, Math.min(doc.length, 65536)));
   if (start) lines(0, start - 1, 'cm-lp-source');
 
-  syntaxTree(state).iterate({ from: start, enter: (ref) => {
+  const seen = new Set();
+  for (const range of ranges) syntaxTree(state).iterate({ from: Math.max(start, range.from), to: range.to, enter: (ref) => {
     const { name, from, to, node } = ref;
     if (from < start) return;
+    const key = `${name}:${from}:${to}`;
+    if (seen.has(key)) return;
+    seen.add(key);
     const heading = /^(ATX|Setext)Heading(\d)$/.exec(name);
     if (heading) {
       lines(from, to, `cm-lp-h${heading[2]}`);
@@ -142,18 +155,18 @@ function build(state, render) {
       if (linesTouch(from, to)) return;
       const task = node.parent?.getChild('Task')?.getChild('TaskMarker');
       if (task && doc.lineAt(task.from).number === doc.lineAt(from).number) hide(from, task.from);
-      else if (node.parent?.parent?.name === 'BulletList') decorations.push(bullet.range(from, to));
+      else if (!layout && node.parent?.parent?.name === 'BulletList') decorations.push(bullet.range(from, to));
       return;
     }
     if (name === 'TaskMarker') {
-      if (!linesTouch(from, to)) {
+      if (!layout && !linesTouch(from, to)) {
         const checked = doc.sliceString(from + 1, from + 2) !== ' ';
         decorations.push(Decoration.replace({ widget: new CheckboxWidget(checked) }).range(from, to));
       }
       return;
     }
     if (name === 'HorizontalRule') {
-      if (!linesTouch(from, to)) decorations.push(rule.range(from, to));
+      if (!layout && !linesTouch(from, to)) decorations.push(rule.range(from, to));
       return false;
     }
     if (name === 'FencedCode' || name === 'CodeBlock') {
@@ -166,8 +179,8 @@ function build(state, render) {
     if (name === 'Table') {
       const tableFrom = doc.lineAt(from).from;
       const tableTo = doc.lineAt(to).to;
-      if (render && !touches(tableFrom, tableTo)) {
-        decorations.push(Decoration.replace({ widget: new TableWidget(doc.sliceString(tableFrom, tableTo), render), block: true }).range(tableFrom, tableTo));
+      if (render && tableTo - tableFrom <= 50000 && !touches(tableFrom, tableTo)) {
+        if (layout) decorations.push(Decoration.replace({ widget: new TableWidget(doc.sliceString(tableFrom, tableTo), render), block: true }).range(tableFrom, tableTo));
       } else lines(from, to, 'cm-lp-source');
       return false;
     }
@@ -179,14 +192,69 @@ function build(state, render) {
   return Decoration.set(decorations, true);
 }
 
+// Layout decorations use a padded viewport stored in state. This avoids a
+// full-document index/rebuild while satisfying CodeMirror's requirement that
+// block widgets and replacements spanning lines be supplied directly by state.
+const viewportRange = StateEffect.define({ map: (range, changes) => ({
+  from: changes.mapPos(range.from, -1), to: changes.mapPos(range.to, 1),
+}) });
+const padding = 2000;
+const padded = (state, range) => ({
+  from: Math.max(0, range.from - padding),
+  to: Math.min(state.doc.length, range.to + padding),
+});
+
 export function livePreview({ render } = {}) {
   const field = StateField.define({
-    create: (state) => build(state, render),
-    update(decorations, tr) {
-      if (tr.docChanged || tr.selection || syntaxTree(tr.state) !== syntaxTree(tr.startState)) return build(tr.state, render);
-      return decorations;
+    create(state) {
+      const range = padded(state, { from: 0, to: Math.min(4000, state.doc.length) });
+      return { range, decorations: buildLiveDecorations(state, render, [range], true) };
     },
-    provide: (value) => EditorView.decorations.from(value),
+    update(value, tr) {
+      let range = tr.docChanged ? {
+        from: tr.changes.mapPos(value.range.from, -1), to: tr.changes.mapPos(value.range.to, 1),
+      } : value.range;
+      // A paste replacing the entire document must not expand the old viewport
+      // range into a full-document decoration pass.
+      if (range.to - range.from > value.range.to - value.range.from + padding * 2) {
+        range = padded(tr.state, { from: tr.state.selection.main.head, to: tr.state.selection.main.head });
+      }
+      for (const effect of tr.effects) if (effect.is(viewportRange)) range = effect.value;
+      if (tr.docChanged || tr.selection || range !== value.range || syntaxTree(tr.state) !== syntaxTree(tr.startState)) {
+        return { range, decorations: buildLiveDecorations(tr.state, render, [range], true) };
+      }
+      return value;
+    },
+    provide: (value) => EditorView.decorations.from(value, (value) => value.decorations),
   });
-  return [field, EditorView.editorAttributes.of({ class: 'cm-live' })];
+  const plugin = ViewPlugin.fromClass(class {
+    constructor(view) {
+      this.view = view;
+      this.decorations = buildLiveDecorations(view.state, render, view.visibleRanges);
+      this.syncViewport();
+    }
+    update(update) {
+      if (update.docChanged || update.selectionSet || update.viewportChanged ||
+          syntaxTree(update.state) !== syntaxTree(update.startState) ||
+          update.state.field(field) !== update.startState.field(field)) {
+        this.decorations = buildLiveDecorations(update.state, render, update.view.visibleRanges);
+      }
+      this.syncViewport();
+    }
+    syncViewport() {
+      if (this.pending) return;
+      const current = this.view.state.field(field).range, visible = this.view.viewport;
+      if (current.from <= visible.from && current.to >= visible.to &&
+          current.to - current.from <= visible.to - visible.from + padding * 4) return;
+      this.pending = true;
+      queueMicrotask(() => {
+        this.pending = false;
+        if (this.destroyed) return;
+        const view = this.view;
+        view.dispatch({ effects: viewportRange.of(padded(view.state, view.viewport)) });
+      });
+    }
+    destroy() { this.destroyed = true; }
+  }, { decorations: (value) => value.decorations });
+  return [field, plugin, EditorView.editorAttributes.of({ class: 'cm-live' })];
 }

@@ -32,7 +32,10 @@ For theme changes, check both built-in themes and the Default reset shortcut.
 
 - `web/main.js`: application events, editor synchronization, and native file calls.
 - `web/menus.js`: native menus and keyboard-accessible browser fallback.
-- `web/live-preview.js`: Live mode decorations (styling and hidden markup).
+- `web/live-preview.js`: viewport-limited styling and state-backed layout replacements.
+- `web/document-analysis.js`, `web/document-worker.js`: background word counts and outline parsing.
+- `web/document-details.js`: cancel obsolete analyses and reconcile outline buttons.
+- `scripts/benchmark-editor.mjs`: reproducible jsdom editor microbenchmark (`npm run benchmark`).
 - `web/markdown-commands.js`: toolbar formatting commands on Markdown text.
 - `web/document-store.js`: disk baselines and overwrite confirmation flow.
 - `src/documents.rs`: scoped file access, conflict checks, and atomic saves.

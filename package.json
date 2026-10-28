@@ -1,6 +1,6 @@
 {
   "name": "textgate",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "license": "MIT",
   "type": "module",
@@ -9,7 +9,8 @@
     "build": "vite build",
     "test": "node --test web/*.test.js",
     "icons": "node scripts/icons.mjs",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "benchmark": "node --max-old-space-size=2048 scripts/benchmark-editor.mjs"
   },
   "dependencies": {
     "@codemirror/commands": "^6.11.1",
@@ -26,7 +27,8 @@
     "@tauri-apps/plugin-fs": "^2.0.0",
     "codemirror": "^6.0.2",
     "dompurify": "^3.2.6",
-    "marked": "^16.0.0"
+    "marked": "^16.0.0",
+    "@lezer/markdown": "^1.8.0"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.0.0",

@@ -18,7 +18,8 @@ import { open, save, confirm } from '@tauri-apps/plugin-dialog';
 import { createDocumentStore } from './document-store.js';
 import { createActionRunner } from './action-runner.js';
 import { decodeDocument, encodeDocument, defaultFormat, lineEndingLabel } from './document-format.js';
-import { headings, createRenderer } from './markdown.js';
+import { createRenderer } from './markdown.js';
+import { createDocumentDetails, updateOutline, detailsDelay, largeDocument } from './document-details.js';
 import { livePreview } from './live-preview.js';
 import * as format from './markdown-commands.js';
 const DOMPurify = createDOMPurify(window);
@@ -34,13 +35,17 @@ const $ = (id) => document.getElementById(id);
 const initial = '# Welcome to Textgate\n\nA quiet place to write Markdown.\n\n## Start writing\n\nOpen a document or create a new one. Your preview updates as you type.\n\n- **Bold**, *italic*, and ~~strikethrough~~\n- Keyboard-friendly editing\n- Optional Vim keybindings\n- [x] Your Markdown is never rewritten\n\n## Tables\n\n| Feature | Status |\n| --- | --- |\n| Live preview | Ready |\n| GFM tables | Ready |\n\n```rust\nfn main() {\n    println!("Hello, Textgate!");\n}\n```\n';
 let path = null;
 let fileFormat = defaultFormat;
-let savedText = initial;
+let savedDoc;
 let vimEnabled = false;
 let mode = 'live';
 let nativeMenus = null;
 let title = '';
 let detailsTimer = null;
 let previewVersion = 0;
+let previewRenderedDoc = null;
+let previewBusy = false;
+let previewPromise = null;
+const details = createDocumentDetails();
 const vimMode = new Compartment();
 const liveMode = new Compartment();
 const filters = [{ name: 'Markdown', extensions: ['md', 'markdown', 'txt'] }];
@@ -48,8 +53,8 @@ const view = new EditorView({
   parent: $('editor'),
   state: EditorState.create({ doc: initial, extensions: extensions() }),
 });
-const source = () => view.state.doc.toString();
-const dirty = () => source() !== savedText;
+savedDoc = view.state.doc;
+const dirty = () => !view.state.doc.eq(savedDoc);
 const name = () => path?.split(/[\\/]/).pop() ?? 'Untitled.md';
 const previewVisible = () => mode === 'source' && $('toggle-preview').getAttribute('aria-pressed') === 'true';
 
@@ -65,34 +70,65 @@ function refresh() {
   }
   // Outline, statistics and preview are derived views; batch them while typing.
   clearTimeout(detailsTimer);
-  detailsTimer = setTimeout(refreshDetails, 120);
+  detailsTimer = setTimeout(refreshDetails, detailsDelay(view.state.doc.length));
 }
-function refreshDetails() {
+async function refreshDetails() {
   clearTimeout(detailsTimer);
-  $('outline').replaceChildren();
-  for (const heading of headings(view.state)) {
-    const button = document.createElement('button');
-    button.textContent = heading.text;
-    button.style.paddingLeft = `${12 + (heading.depth - 1) * 12}px`;
-    button.addEventListener('click', () => {
-      view.dispatch({ selection: { anchor: heading.offset }, effects: EditorView.scrollIntoView(heading.offset, { y: 'center' }) });
-      view.focus();
-    });
-    $('outline').append(button);
-  }
-  if (!$('outline').childElementCount) $('outline').textContent = 'Headings appear here.';
-  const words = source().trim().split(/\s+/).filter(Boolean).length;
-  $('stats').textContent = `${words} words · ${view.state.doc.lines} lines · ${lineEndingLabel(fileFormat)}`;
-  return refreshPreview();
-}
-async function refreshPreview() {
-  if (!previewVisible()) return;
-  const version = ++previewVersion;
+  const doc = view.state.doc;
+  // Preview need not wait for word counting or outline parsing.
+  const preview = refreshPreview();
   try {
-    const fragment = await render(source());
-    // Renders can finish out of order; only show the newest one.
-    if (version === previewVersion) $('preview').replaceChildren(fragment);
-  } catch (error) { report(error); }
+    const result = await details.get(doc);
+    if (result && view.state.doc === doc) {
+      updateOutline($('outline'), result.headings, (offset) => {
+        view.dispatch({ selection: { anchor: offset }, effects: EditorView.scrollIntoView(offset, { y: 'center' }) });
+        view.focus();
+      });
+      $('stats').textContent = `${result.words} words · ${doc.lines} lines · ${lineEndingLabel(fileFormat)}`;
+    }
+  } catch (error) { if (view.state.doc === doc) report(error); }
+  return preview;
+}
+function previewNote(message) {
+  $('preview-note').textContent = message;
+  $('preview-note').hidden = !message;
+}
+async function refreshPreview(force = false) {
+  if (!previewVisible()) return;
+  const doc = view.state.doc;
+  if (previewRenderedDoc === doc) { previewNote(''); return; }
+  if (doc.length >= largeDocument && !force) {
+    previewNote('Large document: preview updates on request. Choose Refresh to show your latest edits.');
+    return;
+  }
+  if (previewBusy) {
+    await previewPromise.catch(() => {});
+    return refreshPreview(force);
+  }
+  const version = previewVersion;
+  previewBusy = true;
+  $('refresh-preview').disabled = true;
+  previewNote('Updating preview…');
+  try {
+    previewPromise = render(doc.toString());
+    const fragment = await previewPromise;
+    // Invalidate on edits immediately, even before the debounce timer fires.
+    if (version === previewVersion && doc === view.state.doc && previewVisible()) {
+      $('preview').replaceChildren(fragment);
+      previewRenderedDoc = doc;
+      previewNote('');
+    }
+  } catch (error) { if (version === previewVersion) { previewNote('Preview could not be updated. Choose Refresh to retry.'); report(error); } }
+  finally {
+    previewBusy = false;
+    $('refresh-preview').disabled = false;
+  }
+}
+function documentChanged() {
+  previewVersion++;
+  details.invalidate(view.state.doc);
+  if (view.state.doc.length >= largeDocument) previewNote('Large document: preview updates on request. Choose Refresh to show your latest edits.');
+  refresh();
 }
 function report(error) { $('status').textContent = `Error: ${error.message ?? error}`; }
 async function canDiscard() {
@@ -105,8 +141,11 @@ function replaceDocument(text, nextPath, nextFormat = defaultFormat) {
   fileFormat = nextFormat;
   // New state intentionally clears undo history between documents.
   view.setState(EditorState.create({ doc: text, extensions: extensions() }));
-  savedText = source();
-  refresh();
+  savedDoc = view.state.doc;
+  previewRenderedDoc = null;
+  $('preview').replaceChildren();
+  delete $('outline').dataset.outlineLimit;
+  documentChanged();
   updateToolbar();
   view.focus();
 }
@@ -122,7 +161,7 @@ function extensions() {
     EditorView.lineWrapping,
     EditorView.contentAttributes.of({ 'aria-label': 'Markdown document' }),
     EditorView.updateListener.of((update) => {
-      if (update.docChanged) refresh();
+      if (update.docChanged) documentChanged();
       if (update.docChanged || update.selectionSet) updateToolbar();
     })];
 }
@@ -132,14 +171,14 @@ const run = createActionRunner({
 });
 async function openDocument() {
   if (!isTauri()) { $('status').textContent = 'Run npm run tauri dev to open and save local files.'; return; }
-  const beforeOpen = source();
+  const beforeOpen = view.state.doc;
   if (!await canDiscard()) return;
   const selected = await open({ multiple: false, filters });
   if (!selected) return;
   const bytes = await documents.read(selected);
   const { text, format: opened } = decodeDocument(bytes);
   // Editing can continue while the dialog is open; recheck before replacing it.
-  if (source() !== beforeOpen && !await canDiscard()) return;
+  if (!view.state.doc.eq(beforeOpen) && !await canDiscard()) return;
   replaceDocument(text, selected, opened);
   documents.remember(selected, bytes);
   $('status').textContent = opened.mixed
@@ -150,13 +189,13 @@ async function saveDocument(saveAs = false) {
   if (!isTauri()) { $('status').textContent = 'Run npm run tauri dev to open and save local files.'; return; }
   const destination = !path || saveAs ? await save({ defaultPath: path ?? 'Untitled.md', filters }) : path;
   if (!destination) return;
-  const snapshot = source();
-  if (!await documents.save(destination, encodeDocument(snapshot, fileFormat))) {
+  const snapshot = view.state.doc;
+  if (!await documents.save(destination, encodeDocument(snapshot.toString(), fileFormat))) {
     $('status').textContent = 'Save cancelled. Your edits are still in the editor.';
     return;
   }
   path = destination;
-  savedText = snapshot;
+  savedDoc = snapshot;
   refresh();
   $('status').textContent = `Saved ${name()}`;
 }
@@ -200,6 +239,7 @@ for (const part of ['preview', 'outline']) {
     refreshPreview();
   };
 }
+$('refresh-preview').onclick = () => refreshPreview(true);
 $('view-live').onclick = () => $('mode-live').click();
 $('view-source').onclick = () => $('mode-source').click();
 $('shortcuts').onclick = () => $('shortcuts-dialog').showModal();
@@ -237,6 +277,7 @@ if (isTauri()) {
   }).catch(report);
 }
 function setMode(next) {
+  previewVersion++;
   mode = next;
   view.dispatch({ effects: liveMode.reconfigure(mode === 'live' ? livePreview({ render }) : []) });
   document.querySelector('main').dataset.mode = mode;
