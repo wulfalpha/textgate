@@ -1,33 +1,28 @@
-// Keep the exact disk bytes separate from the normalized editor text. In
-// particular, BOMs and mixed line endings must not trigger false conflicts.
+// The Rust side keeps the exact disk bytes of the open document and checks
+// them before each save, so BOMs and mixed line endings never cause false
+// conflicts and large files are not sent back and forth to compare.
 export function createDocumentStore({ invoke, confirmOverwrite }) {
-  let baselinePath = null;
-  let baseline = null;
   return {
     async read(path) {
-      const bytes = await invoke('document_snapshot', { path });
-      if (bytes === null) throw new Error('The file no longer exists.');
-      return new Uint8Array(bytes);
+      return new Uint8Array(await invoke('open_document', { path }));
     },
-    remember(path, bytes) {
-      baselinePath = path;
-      baseline = bytes === null ? null : Array.from(bytes);
+    // Call once the editor shows the opened document; opening can still be cancelled.
+    remember(path) {
+      return invoke('keep_document', { path });
     },
-    async save(path, contents) {
-      let expected = path === baselinePath
-        ? baseline : await invoke('document_snapshot', { path });
+    // `chosen` means the native Save dialog picked the path and confirmed replacing it.
+    async save(path, contents, { chosen = false } = {}) {
+      let mode = chosen ? 'replace' : 'save';
       while (true) {
         try {
-          await invoke('save_document', { path, contents, expected });
-          baselinePath = path;
-          baseline = Array.from(new TextEncoder().encode(contents));
+          await invoke('save_document', { path, contents, mode });
           return true;
         } catch (error) {
           if (error?.kind !== 'conflict') throw error;
-          // Read before asking: the retry approves exactly this disk version.
-          // A further external edit produces another conflict, never a force-save.
-          expected = await invoke('document_snapshot', { path });
-          if (!await confirmOverwrite(path, expected === null)) return false;
+          // Approval covers the disk version seen by this conflict only; a further
+          // outside edit produces another conflict, never a forced save.
+          if (!await confirmOverwrite(path, error.missing)) return false;
+          mode = 'overwrite';
         }
       }
     },

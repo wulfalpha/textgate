@@ -179,18 +179,19 @@ async function openDocument() {
   const { text, format: opened } = decodeDocument(bytes);
   // Editing can continue while the dialog is open; recheck before replacing it.
   if (!view.state.doc.eq(beforeOpen) && !await canDiscard()) return;
+  await documents.remember(selected);
   replaceDocument(text, selected, opened);
-  documents.remember(selected, bytes);
   $('status').textContent = opened.mixed
     ? `Opened ${name()}. It mixes line endings; saving will use ${lineEndingLabel(opened)} throughout.`
     : `Opened ${name()}`;
 }
 async function saveDocument(saveAs = false) {
   if (!isTauri()) { $('status').textContent = 'Run npm run tauri dev to open and save local files.'; return; }
-  const destination = !path || saveAs ? await save({ defaultPath: path ?? 'Untitled.md', filters }) : path;
+  const chosen = !path || saveAs;
+  const destination = chosen ? await save({ defaultPath: path ?? 'Untitled.md', filters }) : path;
   if (!destination) return;
   const snapshot = view.state.doc;
-  if (!await documents.save(destination, encodeDocument(snapshot.toString(), fileFormat))) {
+  if (!await documents.save(destination, encodeDocument(snapshot.toString(), fileFormat), { chosen })) {
     $('status').textContent = 'Save cancelled. Your edits are still in the editor.';
     return;
   }
