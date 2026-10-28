@@ -2,14 +2,10 @@
 
 A lightweight desktop Markdown editor built with Rust, Tauri 2, CodeMirror 6, and comrak.
 
-**Status: early prototype.** v0.1.1 built successfully on Linux, Windows, and
-macOS (Apple Silicon and Intel). Package smoke testing is ongoing; see the
-[release checklist](docs/release-checklist.md) and [contributor guide](CONTRIBUTING.md).
-
-This README describes the v0.1.2 source. It adds atomic saves, external-change
-checks, busy-operation feedback, and large-document performance improvements.
-These changes are not included in v0.1.1 downloads. See the
-[v0.1.2 notes](docs/releases/0.1.2.md) and [performance measurements](docs/performance.md).
+**Status: early release.** v0.1.3 is the first official release, with downloads
+for Linux, Windows, and macOS (Apple Silicon and Intel). See the
+[v0.1.3 notes](docs/releases/0.1.3.md), the [release checklist](docs/release-checklist.md),
+and the [contributor guide](CONTRIBUTING.md).
 
 ![Textgate in Live mode: headings, task list, link, and table rendered in place](docs/screenshots/live.png)
 
@@ -146,13 +142,15 @@ collaborators with access.
 For the Linux AppImage, make the downloaded file executable and run it:
 
 ```sh
-chmod +x Textgate_0.1.2_amd64.AppImage
-./Textgate_0.1.2_amd64.AppImage
+chmod +x Textgate_0.1.3_amd64.AppImage
+./Textgate_0.1.3_amd64.AppImage
 ```
 
 Open the macOS DMG and copy Textgate to Applications. On Windows, run either
 installer. Builds are unsigned, and macOS builds are not notarized; operating
-system security checks may warn or block launching them. Linux packages still
+system security checks may warn or block launching them. On macOS, right-click
+Textgate and choose **Open** the first time (or run `xattr -cr /Applications/Textgate.app`);
+on Windows, choose **More info → Run anyway** if SmartScreen warns. Linux packages still
 need compatible system libraries; an AppImage is not a guarantee of compatibility
 with every distribution.
 
