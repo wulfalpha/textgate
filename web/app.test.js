@@ -81,6 +81,25 @@ test('app switches modes without rewriting Markdown and keeps one undo history',
   $('mode-live').click();
   assert.equal(text(), rich);
 
+  // Document content can't take over app elements, block shortcuts, or throw.
+  $('mode-source').click();
+  replace('<span id="status">Doc</span>\n\n<dialog open>Trap</dialog>\n\n[bad](#%E0%A4%A) [jump](#target)\n\n<span id="target">Target</span>\n');
+  await flushDetails();
+  assert.ok($('status').closest('footer'));
+  assert.equal($('preview').querySelector('dialog'), null);
+  const errors = [];
+  window.addEventListener('error', (event) => errors.push(event.message));
+  $('preview').querySelector('a[href^="#%E0"]').click();
+  assert.deepEqual(errors, []);
+  assert.equal($('status').textContent, 'Link: #%E0%A4%A');
+  let scrolled = null;
+  window.HTMLElement.prototype.scrollIntoView = function () { scrolled = this.id; };
+  $('preview').querySelector('a[href="#target"]').click();
+  assert.equal(scrolled, 'user-content-target');
+  const save = new window.KeyboardEvent('keydown', { key: 's', ctrlKey: true, bubbles: true, cancelable: true });
+  window.dispatchEvent(save);
+  assert.equal(save.defaultPrevented, true);
+
   $('mode-source').click();
   assert.equal(fencedLanguage('unknown-language'), null);
   assert.equal(fencedLanguage(''), null);

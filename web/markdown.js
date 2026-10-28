@@ -37,11 +37,25 @@ export function createRenderer({ desktop, invoke, purifier }) {
   return async (source) => sanitize(await html(source), purifier);
 }
 
+// Only what GitHub-flavored Markdown produces. Form controls, dialogs and media
+// are dropped: preview content must never be interactive or control the app.
+const allowedTags = ['a', 'abbr', 'b', 'blockquote', 'br', 'cite', 'code', 'dd', 'del', 'details', 'div', 'dl', 'dt',
+  'em', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'i', 'img', 'input', 'ins', 'kbd', 'li', 'mark', 'ol', 'p', 'pre',
+  'q', 's', 'samp', 'section', 'small', 'span', 'strong', 'sub', 'summary', 'sup', 'table', 'tbody', 'td', 'tfoot',
+  'th', 'thead', 'tr', 'u', 'ul', 'var'];
+const allowedAttributes = ['align', 'alt', 'checked', 'class', 'colspan', 'dir', 'disabled', 'height', 'href', 'id',
+  'lang', 'open', 'rowspan', 'src', 'start', 'title', 'type', 'width'];
+
 export function sanitize(html, purifier) {
   const fragment = purifier.sanitize(html, {
     RETURN_DOM_FRAGMENT: true,
-    FORBID_TAGS: ['style', 'form', 'iframe'],
-    FORBID_ATTR: ['style'],
+    ALLOWED_TAGS: allowedTags,
+    ALLOWED_ATTR: allowedAttributes,
+    ALLOW_DATA_ATTR: false,
+    // Prefix ids so document content can never shadow the app's own elements.
+    SANITIZE_NAMED_PROPS: true,
+    // http(s), mailto, #anchors and relative paths; no other schemes.
+    ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto):|[^a-z]|[a-z+.-]+(?:[^a-z+.\-:]|$))/i,
   });
   // Preview content is never interactive: show task state as symbols.
   for (const input of fragment.querySelectorAll('input')) {

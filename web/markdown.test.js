@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
 import createDOMPurify from 'dompurify';
 import { EditorState } from '@codemirror/state';
@@ -27,6 +28,26 @@ test('desktop rendering goes through the Rust command', async () => {
 test('sanitizing removes executable HTML and javascript links', () => {
   const output = html(sanitize('<script>alert(1)</script><img src=x onerror=alert(1)><a href="javascript:alert(1)">bad</a><form><input type="text"></form>', purifier));
   assert.doesNotMatch(output, /<script|onerror|href="javascript:|<input|<form/);
+});
+
+test('real comrak output keeps GFM and drops anything interactive or unsafe', () => {
+  // Pinned by the matches_the_sanitizer_fixture test in src/markdown.rs.
+  const fragment = sanitize(readFileSync(new URL('./fixtures/comrak-sample.html', import.meta.url), 'utf8'), purifier);
+  const ids = [...fragment.querySelectorAll('[id]')].map((element) => element.id);
+  assert.ok(ids.length > 0);
+  assert.ok(ids.every((id) => id.startsWith('user-content-')), ids.join());
+  for (const selector of ['dialog', 'textarea', 'button', 'select', 'video', 'input', '[data-footnote-ref]']) {
+    assert.equal(fragment.querySelector(selector), null, selector);
+  }
+  const hrefs = [...fragment.querySelectorAll('a')].map((a) => a.getAttribute('href'));
+  for (const kept of ['https://example.com', 'mailto:a@example.com', './notes.md', '#status', '#fn-1']) assert.ok(hrefs.includes(kept), kept);
+  assert.ok(!hrefs.some((href) => /^(javascript|ftp):/i.test(href ?? '')), hrefs.join());
+  assert.equal(fragment.querySelector('img').getAttribute('src'), './image.png');
+  assert.equal(fragment.querySelector('td[align="right"]').textContent, 'b');
+  assert.ok(fragment.querySelector('ul.contains-task-list'));
+  assert.ok(fragment.querySelector('.markdown-alert-title'));
+  assert.ok(fragment.querySelector('details > summary'));
+  assert.ok(fragment.querySelector('section.footnotes li#user-content-fn-1'));
 });
 
 test('task checkboxes become symbols', () => {

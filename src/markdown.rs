@@ -46,4 +46,19 @@ mod tests {
         assert!(html.contains("footnote"));
         assert!(html.contains("markdown-alert"));
     }
+
+    #[test]
+    fn matches_the_sanitizer_fixture() {
+        // web/markdown.test.js sanitizes this exact output. When comrak's output
+        // changes, review it and regenerate with TEXTGATE_UPDATE_FIXTURES=1.
+        let html = render(include_str!("../web/fixtures/comrak-sample.md"));
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/web/fixtures/comrak-sample.html"
+        );
+        if std::env::var_os("TEXTGATE_UPDATE_FIXTURES").is_some() {
+            std::fs::write(path, &html).unwrap();
+        }
+        assert_eq!(html, std::fs::read_to_string(path).unwrap());
+    }
 }

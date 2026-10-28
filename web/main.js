@@ -1,5 +1,5 @@
 import { setupThemes } from './themes.js';
-import { setupMenus } from './menus.js';
+import { setupMenus, appDialogOpen } from './menus.js';
 import packageInfo from '../package.json' with { type: 'json' };
 import { syntaxHighlighting } from '@codemirror/language';
 import { fencedLanguage } from './source-language.js';
@@ -196,7 +196,7 @@ $('shortcuts').onclick = () => $('shortcuts-dialog').showModal();
 $('about').onclick = () => $('about-dialog').showModal();
 $('app-version').textContent = packageInfo.version;
 window.addEventListener('keydown', (event) => {
-  if (nativeMenus || document.querySelector('dialog[open]')) return;
+  if (nativeMenus || appDialogOpen(document)) return;
   if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
   const key = event.key.toLowerCase();
   if (!['n', 'o', 's', 'q'].includes(key)) return;
@@ -207,12 +207,15 @@ window.addEventListener('keydown', (event) => {
   if (key === 'q') $('quit').click();
 }, true);
 // Preview links must not navigate away from the editor; in-page anchors scroll.
+// Sanitizing prefixes document ids with user-content-, as GitHub does.
 $('preview').addEventListener('click', (event) => {
   const link = event.target.closest('a');
   if (!link) return;
   event.preventDefault();
   const href = link.getAttribute('href') ?? '';
-  const target = href.startsWith('#') && $('preview').querySelector(`[id="${CSS.escape(decodeURIComponent(href.slice(1)))}"]`);
+  let fragment = href.slice(1);
+  try { fragment = decodeURIComponent(fragment); } catch { /* malformed escape: use it as written */ }
+  const target = href.startsWith('#') && [...$('preview').querySelectorAll('[id]')].find((element) => element.id === `user-content-${fragment}`);
   if (target) target.scrollIntoView({ block: 'start' });
   else $('status').textContent = `Link: ${href}`;
 });

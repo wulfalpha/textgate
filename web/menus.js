@@ -1,3 +1,7 @@
+// Only the app's own dialogs count as modal: document content in the preview
+// must never be able to block menus and shortcuts.
+export const appDialogOpen = (document) => Boolean(document.querySelector('body > dialog[open]'));
+
 // Both the browser fallback and native menu invoke the same application actions.
 export async function setupMenus({ document, desktop, native, onError }) {
   const bar = document.getElementById('menubar');
@@ -45,7 +49,7 @@ export async function setupMenus({ document, desktop, native, onError }) {
           enabled: !element.disabled, ...(checked ? { checked: element.getAttribute('aria-pressed') === 'true' } : {}),
           accelerator: element.dataset.shortcut,
           action: () => {
-            if (!document.querySelector('dialog[open]')) element.click();
+            if (!appDialogOpen(document)) element.click();
           },
         });
         handles.push(item);
@@ -81,7 +85,7 @@ export async function setupMenus({ document, desktop, native, onError }) {
   let pending = Promise.resolve();
   const observer = new document.defaultView.MutationObserver(() => {
     pending = pending.then(async () => {
-      const modal = Boolean(document.querySelector('dialog[open]'));
+      const modal = appDialogOpen(document);
       for (const { element, item, checked } of bindings) {
         await item.setEnabled(!element.disabled && !modal);
         if (checked) await item.setChecked(element.getAttribute('aria-pressed') === 'true');
