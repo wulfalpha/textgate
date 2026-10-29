@@ -37,3 +37,19 @@ test('a failed file operation reports its error and allows the next action', asy
   assert.deepEqual(reported, [error]);
   assert.equal(retried, true);
 });
+
+test('native opens queue behind a write and preserve order after an error', async () => {
+  let finish;
+  const order = [], errors = [];
+  let notices = 0;
+  const run = createActionRunner({ onBusy: assert.fail, onError: (error) => errors.push(error.message), onQueued: () => notices++ });
+  const saving = run(() => new Promise((resolve) => { finish = () => { order.push('saved'); resolve(); }; }));
+  const first = run.enqueue(() => { order.push('first'); throw new Error('bad file'); });
+  const second = run.enqueue(() => { order.push('second'); });
+  assert.deepEqual(order, []);
+  assert.equal(notices, 2);
+  finish();
+  await Promise.all([saving, first, second]);
+  assert.deepEqual(order, ['saved', 'first', 'second']);
+  assert.deepEqual(errors, ['bad file']);
+});

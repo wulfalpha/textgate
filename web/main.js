@@ -12,13 +12,16 @@ import { EditorView, keymap } from '@codemirror/view';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { vim, getCM } from '@replit/codemirror-vim';
 import createDOMPurify from 'dompurify';
+import { listen } from '@tauri-apps/api/event';
+import { createDocumentOpener } from './document-opener.js';
+import { setupExternalOpen } from './external-open.js';
 import { isTauri, invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { open, save, confirm } from '@tauri-apps/plugin-dialog';
 import { createDocumentStore } from './document-store.js';
 import { createActionRunner } from './action-runner.js';
-import { decodeDocument, encodeDocument, defaultFormat, lineEndingLabel } from './document-format.js';
+import { encodeDocument, defaultFormat, lineEndingLabel } from './document-format.js';
 import { createRenderer } from './markdown.js';
 import { createDocumentDetails, updateOutline, detailsDelay, largeDocument } from './document-details.js';
 import { livePreview } from './live-preview.js';
@@ -178,6 +181,15 @@ function extensions() {
 const run = createActionRunner({
   onBusy: () => { $('status').textContent = 'A file operation is still in progress. Finish or cancel it, then try again.'; },
   onError: report,
+  onQueued: () => { $('status').textContent = 'File open request queued until the current operation finishes.'; },
+});
+const openPath = createDocumentOpener({
+  documents, snapshot: () => view.state.doc, canDiscard, replace: replaceDocument,
+  opened: (_path, opened) => {
+    $('status').textContent = opened.mixed
+      ? `Opened ${name()}. It mixes line endings; saving will use ${lineEndingLabel(opened)} throughout.`
+      : `Opened ${name()}`;
+  },
 });
 async function openDocument() {
   if (!isTauri()) { $('status').textContent = 'Run npm run tauri dev to open and save local files.'; return; }
@@ -185,15 +197,7 @@ async function openDocument() {
   if (!await canDiscard()) return;
   const selected = await open({ multiple: false, filters });
   if (!selected) return;
-  const bytes = await documents.read(selected);
-  const { text, format: opened } = decodeDocument(bytes);
-  // Editing can continue while the dialog is open; recheck before replacing it.
-  if (!view.state.doc.eq(beforeOpen) && !await canDiscard()) return;
-  await documents.remember(selected);
-  replaceDocument(text, selected, opened);
-  $('status').textContent = opened.mixed
-    ? `Opened ${name()}. It mixes line endings; saving will use ${lineEndingLabel(opened)} throughout.`
-    : `Opened ${name()}`;
+  await openPath(selected, { approved: beforeOpen });
 }
 async function saveDocument(saveAs = false) {
   if (!isTauri()) { $('status').textContent = 'Run npm run tauri dev to open and save local files.'; return; }
@@ -407,6 +411,12 @@ $('link-form').onsubmit = (event) => {
 setMode('live');
 updateToolbar();
 
+setupExternalOpen({ desktop: isTauri(), listen, invoke, run, report,
+  openPath: async (selected, options) => {
+    if (selected === path) { view.focus(); return; }
+    await openPath(selected, options);
+  },
+}).catch(report);
 setupThemes({ document, desktop: isTauri(), invoke });
 setupMenus({ document, desktop: isTauri(), onError: report }).then((menus) => { nativeMenus = menus; }).catch(report);
 

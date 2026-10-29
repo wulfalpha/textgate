@@ -212,16 +212,32 @@ impl Documents {
 
     fn target(&self, path: &Path) -> Result<PathBuf, SaveError> {
         if !path.is_absolute() || !self.granted.lock().unwrap().contains(&normalize(path)) {
-            return Err(failure("Choose the file through Open or Save As first."));
+            return Err(failure(
+                "Choose the file through Open, Save As, or a native file-open request first.",
+            ));
         }
         Ok(resolve(path)?)
     }
 
     fn open(&self, path: &Path) -> Result<Vec<u8>, SaveError> {
+        self.open_with(path, false)
+    }
+
+    fn open_with(&self, path: &Path, allow_missing: bool) -> Result<Vec<u8>, SaveError> {
         let target = self.target(path)?;
-        let bytes = snapshot(&target)?.ok_or_else(|| failure("The file no longer exists."))?;
-        *self.opening.lock().unwrap() = Some((target, Some(bytes.clone())));
-        Ok(bytes)
+        let bytes = snapshot(&target)?;
+        if bytes.is_none() {
+            if !allow_missing {
+                return Err(failure("The file no longer exists."));
+            }
+            if !target.parent().is_some_and(Path::is_dir) {
+                return Err(failure(
+                    "The parent folder does not exist. Create it before opening a new file.",
+                ));
+            }
+        }
+        *self.opening.lock().unwrap() = Some((target, bytes.clone()));
+        Ok(bytes.unwrap_or_default())
     }
 
     // Opening can still be cancelled after reading (unsaved-changes prompt), so
@@ -283,10 +299,16 @@ async fn blocking<T: Send + 'static>(
 pub async fn open_document(
     app: tauri::AppHandle,
     path: PathBuf,
+    allow_missing: Option<bool>,
 ) -> Result<tauri::ipc::Response, SaveError> {
     use tauri::Manager;
     blocking(move || {
-        let bytes = app.state::<Documents>().open(&path)?;
+        let documents = app.state::<Documents>();
+        let bytes = if allow_missing.unwrap_or(false) {
+            documents.open_with(&path, true)?
+        } else {
+            documents.open(&path)?
+        };
         Ok(tauri::ipc::Response::new(bytes))
     })
     .await
@@ -422,6 +444,41 @@ mod tests {
         ));
         documents.save(&path, b"four", SaveMode::Overwrite).unwrap();
         assert_eq!(fs::read(&path).unwrap(), b"four");
+    }
+
+    #[test]
+    fn native_grants_are_exact_and_missing_files_are_created_only_on_save() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("new.md");
+        let documents = Documents::default();
+        assert!(documents.open_with(&path, true).is_err());
+        documents.granter()(&path);
+        assert!(documents.open(&path).is_err());
+        assert_eq!(documents.open_with(&path, true).unwrap(), b"");
+        assert!(!path.exists());
+        documents.keep(&path).unwrap();
+        // Another program can create the file while the empty buffer is open.
+        fs::write(&path, b"outside").unwrap();
+        assert!(matches!(
+            documents.save(&path, b"mine", SaveMode::Save),
+            Err(SaveError::Conflict { missing: false })
+        ));
+        assert_eq!(fs::read(&path).unwrap(), b"outside");
+        documents.save(&path, b"mine", SaveMode::Overwrite).unwrap();
+        assert_eq!(fs::read(&path).unwrap(), b"mine");
+        let other = dir.path().join("unselected.md");
+        assert!(documents.open_with(&other, true).is_err());
+        let missing_parent = dir.path().join("missing/new.md");
+        documents.granter()(&missing_parent);
+        assert!(documents.open_with(&missing_parent, true).is_err());
+        let empty = dir.path().join("empty.md");
+        documents.granter()(&empty);
+        documents.open_with(&empty, true).unwrap();
+        documents.keep(&empty).unwrap();
+        documents
+            .save(&empty, b"first save", SaveMode::Save)
+            .unwrap();
+        assert_eq!(fs::read(&empty).unwrap(), b"first save");
     }
 
     #[test]

@@ -90,3 +90,26 @@ remain before the intended first official release; keep the GitHub release a dra
 
 Developer ID signing/notarization is deferred by choice. Do not change existing
 release artifacts or claim the M1 installation issue resolved until tested.
+
+
+## v0.1.4 CLI milestone (unreleased)
+
+- [x] Add CLI path parsing, help/version, local file URLs, and `--` handling.
+- [x] Queue startup and second-instance requests using the sender's working directory.
+- [x] Reuse discard-safe opening and exact file grants for native requests.
+- [x] Support missing files without creating them until Save; preserve conflict checks.
+- [x] Add native macOS file-open handling and Markdown bundle associations.
+- [x] Prepare cross-platform Checks jobs and CLI/open-flow regression tests.
+- [x] Update root package versions, README, improvements, and release notes to prepare 0.1.4.
+- [x] Pass local JavaScript tests, 19 Rust unit tests, two headless CLI integration tests, formatting, and Clippy.
+- [x] Build the Linux DEB and inspect its Markdown MIME association and file argument forwarding.
+- [ ] Confirm hosted Checks succeeds on Linux, macOS, and Windows.
+- [ ] Verify `textgate notes.md` both on first launch and while already running.
+- [ ] Invoke from another working directory; test spaces, Unicode, `-- -name.md`, and file URLs.
+- [ ] With unsaved edits or an active Save dialog, send a new file; test both Keep editing and Discard.
+- [ ] Open a new filename, verify no disk file until Save, then test an external creation conflict.
+- [ ] Test Finder Open With / `open -a`, Explorer Open With, and Linux installed desktop integration.
+- [ ] Test `.md` and `.markdown` associations; reject multi-file requests clearly.
+- [ ] Verify CLI help/version in Windows terminals and Mac/Linux shells.
+- [ ] Complete fresh M1/M4 quarantine-only install checks and signature checks above.
+- [ ] Build, inspect, and publish v0.1.4 only after release review.

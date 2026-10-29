@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main",
-  "description": "Editor window with access to files selected through native dialogs.",
+  "description": "Editor window with access to files selected through native dialogs or native file-open requests.",
   "windows": ["main"],
   "permissions": ["core:default", "core:window:allow-set-title", "core:window:allow-destroy", "core:webview:allow-set-webview-zoom", "dialog:allow-open", "dialog:allow-save", "dialog:allow-confirm"]
 }

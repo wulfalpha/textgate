@@ -7,6 +7,10 @@ for Linux, Windows, and macOS (Apple Silicon and Intel). See the
 [v0.1.3 notes](docs/releases/0.1.3.md), the [release checklist](docs/release-checklist.md),
 and the [contributor guide](CONTRIBUTING.md).
 
+The current source prepares **v0.1.4** with command-line/file-manager opening and
+explicit Mac ad-hoc signing. These changes are not in the v0.1.3 downloads.
+See the [0.1.4 release notes](docs/releases/0.1.4.md).
+
 ![Textgate in Live mode: headings, task list, link, and table rendered in place](docs/screenshots/live.png)
 
 The [Textgate logo](docs/branding/README.md) combines a segmented omega
@@ -27,9 +31,10 @@ replacing the original. Existing file permissions are preserved. Before saving,
 Textgate compares the disk bytes with the version last opened or saved. If the
 file changed or disappeared, you can cancel or explicitly overwrite/recreate it.
 Cancel keeps your edits in the editor; Save As lets you keep a separate copy.
-If you try another file action or close the window while an operation is running,
-the status bar asks you to finish or cancel that operation and try again. Closing
-is not queued, and unsaved-change confirmation still applies on retry.
+If you try another menu file action or close the window while an operation is
+running, the status bar asks you to finish or cancel that operation and try again.
+Closing is not queued. Incoming command-line/file-manager opens do queue and ask
+before replacing unsaved work once the current operation finishes.
 
 This detects external changes but does not lock out other editors during the
 final replacement. Directory syncing is best effort. Symbolic links, special
@@ -169,6 +174,58 @@ warns for a download you trust, choose **More info → Run anyway**. Linux packa
 still need compatible system libraries; an AppImage is not a guarantee of
 compatibility with every distribution.
 
+## Command-line and file-manager opening (0.1.4)
+
+Textgate opens one file per invocation in a single editor window:
+
+```sh
+textgate notes.md
+textgate "notes with spaces.md"
+textgate ../project/notes.md
+textgate -- -notes.md
+textgate --help
+textgate --version
+```
+
+Use the executable's full path if it is not on your PATH. This feature does not
+install a shell command or change your PATH. From a source build, use
+`./target/release/textgate notes.md`; an AppImage accepts the same arguments.
+On Windows, invoke the installed `textgate.exe` (quote its path if needed).
+
+On macOS, existing files can be opened through Launch Services:
+
+```sh
+open -a Textgate "/absolute/path/to/notes.md"
+```
+
+To use CLI options or prepare a file that does not exist yet, invoke the bundle
+executable directly:
+
+```sh
+/Applications/Textgate.app/Contents/MacOS/textgate new.md
+```
+
+Relative paths are resolved against the invoking process's working directory,
+including when Textgate is already running. Local `file://` URLs are accepted.
+A missing file opens as an empty named document and is created only when saved;
+its parent folder must already exist. If another program creates it first, the
+save-conflict prompt protects that new disk version. Non-UTF-8 content is rejected.
+
+Launching again brings the existing window forward. A request for the same path
+already shown keeps your edits; it does not reload from disk. Requests received
+during a save/dialog wait and then use the usual unsaved-change confirmation.
+No arguments just launches or focuses the app. Multiple paths, stdin, `--wait`,
+and opening at a line/column are not supported in this release. Help/version and
+invalid-argument errors exit without opening a window; a forwarded file request
+returns before the user completes any prompts in the existing window.
+
+Bundles register `.md` and `.markdown` file associations. Use your file manager's
+**Open With → Textgate** or choose Textgate as the default in OS settings. Finder
+uses native file-open events; Windows and Linux pass launch arguments. Installed
+DEB/RPM and Windows packages supply the integration; a standalone AppImage still
+needs desktop integration to appear in Open With. File-manager behavior must be
+verified on each packaged platform before release.
+
 ## Build and run from source
 
 Install a current stable Rust toolchain, Node.js 24 (used in CI), and the
@@ -206,7 +263,7 @@ Pushing a `v*` tag builds Linux x86-64, Windows x64, and both Mac architectures,
 runs the JavaScript tests on each runner, and attaches packages to a draft GitHub
 Release. Running the release workflow manually produces workflow artifacts
 without creating a release. The separate push/PR Checks workflow runs the full
-JavaScript, Rust, formatting, and Clippy checks on Linux.
+JavaScript, Rust, formatting, and Clippy checks on Linux, macOS, and Windows.
 
 ## Keyboard shortcuts
 
@@ -249,13 +306,12 @@ Next milestones:
 - Folder explorer and sidebar tabs.
 - Local image resolution and external link opening (preview links currently show
   their destination in the status bar; remote images are blocked in the desktop app).
-- Command-line/file-manager opening.
 - Continued package validation across supported platforms.
 
 Only a single document is open at a time. New/open/close ask before discarding
 unsaved changes. There is no crash recovery or autosave yet. File permissions are
-restricted to paths granted through the native file dialogs, plus the dedicated
-Textgate theme configuration handled by the Rust backend.
+restricted to paths granted through native file dialogs or native launch/file-open
+requests, plus the dedicated Textgate theme configuration handled by the Rust backend.
 
 ## License
 
