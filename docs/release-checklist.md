@@ -104,6 +104,9 @@ release artifacts or claim the M1 installation issue resolved until tested.
 - [x] Pass local JavaScript tests, 19 Rust unit tests, two headless CLI integration tests, formatting, and Clippy.
 - [x] Build the Linux DEB and inspect its Markdown MIME association and file argument forwarding.
 - [ ] Confirm hosted Checks succeeds on Linux, macOS, and Windows.
+- [x] Diagnose the first 0.1.4 Checks run: macOS/Linux passed; Windows compiled
+      but failed the renderer fixture comparison after CRLF checkout conversion.
+      Pin both renderer fixtures to LF; a fresh hosted Windows run remains pending.
 - [ ] Verify `textgate notes.md` both on first launch and while already running.
 - [ ] Invoke from another working directory; test spaces, Unicode, `-- -name.md`, and file URLs.
 - [ ] With unsaved edits or an active Save dialog, send a new file; test both Keep editing and Discard.

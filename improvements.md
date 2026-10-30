@@ -418,3 +418,12 @@ navigation, automatic PATH installation, recent files, or drag-and-drop. The
 macOS ad-hoc-signing/quarantine-only installation change is included in this
 upcoming release; M1/M4 download testing remains pending. Version fields are
 0.1.4; this source preparation does not publish or retag existing releases.
+
+### CI follow-up (2026-10-29)
+
+The first 0.1.4 Checks run passed on macOS and Linux. Windows compiled but failed
+the exact renderer-fixture comparison because checkout converted the fixtures
+to CRLF. Pinning those two fixtures to LF in `.gitattributes` preserves the strict
+comparison without changing application rendering or document line endings.
+Rerun hosted Checks after pushing this fix, then continue native CLI and
+file-manager smoke tests on Windows and macOS.
