@@ -1,2 +1,4 @@
-# comrak emits LF; its byte-exact output fixture must match on Windows too.
+# These fixtures are compared byte-for-byte with generated renderer output.
+# Keep them identical on Windows even when core.autocrlf is enabled.
+web/fixtures/comrak-sample.md text eol=lf
 web/fixtures/comrak-sample.html text eol=lf

@@ -18,8 +18,9 @@
 - [ ] Try the AppImage on a non-rolling distribution.
 - [ ] Expand the release notes with changes and platform download guidance before publishing.
 
-Bundling is enabled (unsigned packages on every platform). Signing, crash recovery,
-and automatic updates are not part of this prototype.
+Bundling is enabled. Current-source Mac bundles use ad-hoc signatures; Windows
+installers are unsigned. Developer ID signing/notarization, crash recovery, and
+automatic updates are not configured.
 
 To release: set the version in `tauri.conf.json`, `Cargo.toml` and `package.json`,
 push a matching tag such as `v0.2.0`, check the draft release's packages, then publish it.
@@ -69,11 +70,52 @@ remain before the intended first official release; keep the GitHub release a dra
 ## v0.1.3 first official release
 
 - [x] Update root version fields to 0.1.3 and write docs/releases/0.1.3.md.
-- [ ] Confirm all v0.1.3 release jobs and package uploads succeed.
-- [ ] Publish the release with the 0.1.3 notes as its description.
+- [x] Confirm all v0.1.3 release jobs and package uploads succeed.
+- [x] Publish the release with the 0.1.3 notes as its description (2026-10-28).
 - [ ] Smoke-test the published downloads on Linux, macOS and Windows: open, save,
       zoom, F6, System theme, relative line numbers with Vim counts.
 
+
+## macOS installation follow-up after v0.1.3
+
+- [x] Record the M1/M4 report: downloaded app ran on M4; M1 runs after local
+      re-signing plus quarantine removal. The original signature verified, so
+      that combined repair does not isolate which step changed launch behavior.
+- [x] Configure explicit ad-hoc signing (`bundle.macOS.signingIdentity = "-"`).
+- [x] Add a strict bundle-signature verification step to both Mac release jobs.
+- [x] Document targeted quarantine removal as the only interim Terminal install step.
+- [ ] Run the updated release workflow and confirm both Mac signature checks pass.
+- [ ] Download a fresh build on M1 and M4; copy to Applications and verify launch
+      after only `xattr -dr com.apple.quarantine`, without manual re-signing.
+
+Developer ID signing/notarization is deferred by choice. Do not change existing
+release artifacts or claim the M1 installation issue resolved until tested.
+
+
+## v0.1.4 CLI milestone (unreleased)
+
+- [x] Add CLI path parsing, help/version, local file URLs, and `--` handling.
+- [x] Queue startup and second-instance requests using the sender's working directory.
+- [x] Reuse discard-safe opening and exact file grants for native requests.
+- [x] Support missing files without creating them until Save; preserve conflict checks.
+- [x] Add native macOS file-open handling and Markdown bundle associations.
+- [x] Prepare cross-platform Checks jobs and CLI/open-flow regression tests.
+- [x] Update root package versions, README, improvements, and release notes to prepare 0.1.4.
+- [x] Pass local JavaScript tests, 19 Rust unit tests, two headless CLI integration tests, formatting, and Clippy.
+- [x] Build the Linux DEB and inspect its Markdown MIME association and file argument forwarding.
+- [ ] Confirm hosted Checks succeeds on Linux, macOS, and Windows.
+- [x] Diagnose the first 0.1.4 Checks run: macOS/Linux passed; Windows compiled
+      but failed the renderer fixture comparison after CRLF checkout conversion.
+      Pin both renderer fixtures to LF; a fresh hosted Windows run remains pending.
+- [ ] Verify `textgate notes.md` both on first launch and while already running.
+- [ ] Invoke from another working directory; test spaces, Unicode, `-- -name.md`, and file URLs.
+- [ ] With unsaved edits or an active Save dialog, send a new file; test both Keep editing and Discard.
+- [ ] Open a new filename, verify no disk file until Save, then test an external creation conflict.
+- [ ] Test Finder Open With / `open -a`, Explorer Open With, and Linux installed desktop integration.
+- [ ] Test `.md` and `.markdown` associations; reject multi-file requests clearly.
+- [ ] Verify CLI help/version in Windows terminals and Mac/Linux shells.
+- [ ] Complete fresh M1/M4 quarantine-only install checks and signature checks above.
+- [ ] Build, inspect, and publish v0.1.4 only after release review.
 
 ## v0.1.4 stabilization (in progress)
 

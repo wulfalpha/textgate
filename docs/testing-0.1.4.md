@@ -40,6 +40,13 @@ On Windows, `Get-FileHash -Algorithm SHA256 <file>` can also be compared with
 
 ## Native regression checks
 
+- Launch the packaged binary with `--help` and `--version` (must report 0.1.4).
+  Open a Markdown path on first launch and through a second invocation. Check
+  spaces, Unicode, a different working directory, `-- -name.md`, and file URLs.
+- Send a file-open request while a Save dialog or discard prompt is active;
+  the request must queue and protect newer text edits and normalization changes.
+- Test Finder/Explorer/Linux file-manager opening and `.md`/`.markdown`
+  associations. A missing path must stay absent until Save.
 - Open/save through a symlink or linked folder (where available): the link stays
   intact and the target file receives the edit.
 - Modify or delete the open file externally: Cancel preserves editor and disk;

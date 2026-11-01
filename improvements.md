@@ -379,3 +379,51 @@ drawn on. The 3.1 request, a View-menu hybrid relative-line-number option (actua
 number on the cursor line; relative distances elsewhere), is done in v0.1.2.
 The user's original addition above is preserved. Native save and scrolling smoke tests remain pending;
 the local Linux Open dialog and Live rendering were confirmed by the user.
+
+
+## macOS packaging follow-up (2026-10-28)
+
+Before command-line integration, make the interim Mac install path consistent:
+explicitly ad-hoc sign the bundle in Tauri, verify it in the Mac release jobs,
+and document only targeted quarantine removal for trusted downloads. Developer
+ID signing/notarization is deferred; no repair script or local re-signing step
+is required by the documented installation flow.
+
+The user confirmed the downloaded app runs on both M1 and M4, but the M1 required
+a script that re-signed the app and removed quarantine. Its original signature
+already verified and Gatekeeper rejected it both before and after the script.
+The exact reason for the machine-to-machine difference is not established.
+Fresh downloads must be tested on both machines after only quarantine removal;
+track this separately from successful builds and signature checks.
+
+
+## v0.1.4 source update: command-line/file-manager opening
+
+Implemented the next opening milestone: one path per invocation; relative paths
+resolved in the sender's directory; quoted/Unicode paths and local file URLs;
+help/version and `--`; forwarding to an existing window; native Finder events;
+and Markdown associations in packaged installers. Missing files remain in memory
+until saved. Startup requests survive webview initialization, and opens arriving
+during dialogs/writes queue instead of being lost. All entry points use exact
+native grants, discard confirmation, strict UTF-8 decoding, and the same Rust
+save baselines. Edits during confirmation are checked again before replacement.
+
+Checks is now configured for Linux, macOS, and Windows. Binary CLI tests and
+Rust/JavaScript regressions cover argument validation, request ordering, scoped
+access, cancelled/error opens, and create-on-save conflicts. Hosted matrix checks
+and actual installed-app/Finder/Explorer tests remain on the release checklist.
+
+Not included: multiple documents per invocation, stdin, `--wait`, line/column
+navigation, automatic PATH installation, recent files, or drag-and-drop. The
+macOS ad-hoc-signing/quarantine-only installation change is included in this
+upcoming release; M1/M4 download testing remains pending. Version fields are
+0.1.4; this source preparation does not publish or retag existing releases.
+
+### CI follow-up (2026-10-29)
+
+The first 0.1.4 Checks run passed on macOS and Linux. Windows compiled but failed
+the exact renderer-fixture comparison because checkout converted the fixtures
+to CRLF. Pinning those two fixtures to LF in `.gitattributes` preserves the strict
+comparison without changing application rendering or document line endings.
+Rerun hosted Checks after pushing this fix, then continue native CLI and
+file-manager smoke tests on Windows and macOS.

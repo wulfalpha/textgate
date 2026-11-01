@@ -114,3 +114,11 @@ export function normalizeLineEndings(view, lineEnding) {
   }));
   return true;
 }
+
+
+// Discard approval must cover format-only edits as well as visible text.
+export function snapshotDocument(state) {
+  const doc = state.doc;
+  const format = state.field(documentFormat);
+  return { doc, format, eq: (other) => doc.eq(other.doc) && sameDocumentFormat(format, other.format, doc) };
+}

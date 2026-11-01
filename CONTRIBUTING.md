@@ -19,7 +19,7 @@ cargo test --locked
 cargo clippy --locked --all-targets -- -D warnings
 ```
 
-The Checks workflow runs these checks on Linux. The Release workflow runs
+The Checks workflow runs these checks on Linux, macOS and Windows. The Release workflow runs
 version consistency, JavaScript tests and Rust tests on each build runner before
 packaging for Linux, Windows and both Mac architectures. The Intel Mac package is
 cross-compiled on the macOS runner; its Rust tests execute on the runner's native
@@ -47,6 +47,9 @@ For theme changes, check both built-in themes and the Default reset shortcut.
 - `web/markdown-commands.js`: toolbar formatting commands on Markdown text.
 - `web/document-store.js`: disk baselines and overwrite confirmation flow.
 - `src/documents.rs`: scoped file access, conflict checks, and atomic saves.
+- `src/launch.rs`: CLI parsing, native file grants, and the startup/open-request queue.
+- `web/document-opener.js`, `web/external-open.js`: shared discard-safe opening and native request delivery.
+- `tests/cli.rs`: actual binary help/version/error tests without a display.
 - `web/document-format.js`: strict UTF-8 decoding, line endings, and BOM.
 - `web/markdown.js`: preview rendering, sanitizing, and outline.
 - `src/markdown.rs`: comrak preview rendering.

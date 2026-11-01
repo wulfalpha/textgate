@@ -7,8 +7,11 @@ for Linux, Windows, and macOS (Apple Silicon and Intel). See the
 [v0.1.3 notes](docs/releases/0.1.3.md), the [release checklist](docs/release-checklist.md),
 and the [contributor guide](CONTRIBUTING.md).
 
-The upcoming [0.1.4 stabilization build](docs/releases/0.1.4.md) is being prepared;
-see its [package testing guide](docs/testing-0.1.4.md).
+The current source prepares **v0.1.4** with command-line/file-manager opening and
+explicit Mac ad-hoc signing, plus mixed-line-ending preservation and optional
+normalization. These changes are not in the v0.1.3 downloads. See the
+[0.1.4 release notes](docs/releases/0.1.4.md) and
+[package testing guide](docs/testing-0.1.4.md).
 
 ![Textgate in Live mode: headings, task list, link, and table rendered in place](docs/screenshots/live.png)
 
@@ -39,9 +42,10 @@ replacing the original. Existing file permissions are preserved. Before saving,
 Textgate compares the disk bytes with the version last opened or saved. If the
 file changed or disappeared, you can cancel or explicitly overwrite/recreate it.
 Cancel keeps your edits in the editor; Save As lets you keep a separate copy.
-If you try another file action or close the window while an operation is running,
-the status bar asks you to finish or cancel that operation and try again. Closing
-is not queued, and unsaved-change confirmation still applies on retry.
+If you try another menu file action or close the window while an operation is
+running, the status bar asks you to finish or cancel that operation and try again.
+Closing is not queued. Incoming command-line/file-manager opens do queue and ask
+before replacing unsaved work once the current operation finishes.
 
 This detects external changes but does not lock out other editors during the
 final replacement. Directory syncing is best effort. Symbolic links and linked folders are followed when opening and saving; the
@@ -158,13 +162,80 @@ chmod +x Textgate_0.1.3_amd64.AppImage
 ./Textgate_0.1.3_amd64.AppImage
 ```
 
-Open the macOS DMG and copy Textgate to Applications. On Windows, run either
-installer. Builds are unsigned, and macOS builds are not notarized; operating
-system security checks may warn or block launching them. On macOS, right-click
-Textgate and choose **Open** the first time (or run `xattr -cr /Applications/Textgate.app`);
-on Windows, choose **More info → Run anyway** if SmartScreen warns. Linux packages still
-need compatible system libraries; an AppImage is not a guarantee of compatibility
-with every distribution.
+Open the macOS DMG and copy Textgate to Applications. Mac builds from the current
+source are explicitly ad-hoc signed in Tauri and their bundle signature is
+verified by the release workflow. They are not Developer ID signed or notarized,
+so Gatekeeper can still block a downloaded copy.
+
+For a trusted Textgate download, remove only its quarantine attribute after
+copying it to Applications, then open it normally:
+
+```sh
+xattr -dr com.apple.quarantine "/Applications/Textgate.app"
+```
+
+This is the interim installation workaround; manual re-signing is not part of
+the installation steps. It does not notarize the app or fix other launch errors.
+The explicit signing/verification change is after v0.1.3; existing release files
+are unchanged. Fresh M1 and M4 download tests are still needed for the new build.
+See [Tauri's ad-hoc signing guidance](https://tauri.app/distribute/sign/macos/#ad-hoc-signing).
+
+On Windows, run either installer. Windows installers are unsigned; if SmartScreen
+warns for a download you trust, choose **More info → Run anyway**. Linux packages
+still need compatible system libraries; an AppImage is not a guarantee of
+compatibility with every distribution.
+
+## Command-line and file-manager opening (0.1.4)
+
+Textgate opens one file per invocation in a single editor window:
+
+```sh
+textgate notes.md
+textgate "notes with spaces.md"
+textgate ../project/notes.md
+textgate -- -notes.md
+textgate --help
+textgate --version
+```
+
+Use the executable's full path if it is not on your PATH. This feature does not
+install a shell command or change your PATH. From a source build, use
+`./target/release/textgate notes.md`; an AppImage accepts the same arguments.
+On Windows, invoke the installed `textgate.exe` (quote its path if needed).
+
+On macOS, existing files can be opened through Launch Services:
+
+```sh
+open -a Textgate "/absolute/path/to/notes.md"
+```
+
+To use CLI options or prepare a file that does not exist yet, invoke the bundle
+executable directly:
+
+```sh
+/Applications/Textgate.app/Contents/MacOS/textgate new.md
+```
+
+Relative paths are resolved against the invoking process's working directory,
+including when Textgate is already running. Local `file://` URLs are accepted.
+A missing file opens as an empty named document and is created only when saved;
+its parent folder must already exist. If another program creates it first, the
+save-conflict prompt protects that new disk version. Non-UTF-8 content is rejected.
+
+Launching again brings the existing window forward. A request for the same path
+already shown keeps your edits; it does not reload from disk. Requests received
+during a save/dialog wait and then use the usual unsaved-change confirmation.
+No arguments just launches or focuses the app. Multiple paths, stdin, `--wait`,
+and opening at a line/column are not supported in this release. Help/version and
+invalid-argument errors exit without opening a window; a forwarded file request
+returns before the user completes any prompts in the existing window.
+
+Bundles register `.md` and `.markdown` file associations. Use your file manager's
+**Open With → Textgate** or choose Textgate as the default in OS settings. Finder
+uses native file-open events; Windows and Linux pass launch arguments. Installed
+DEB/RPM and Windows packages supply the integration; a standalone AppImage still
+needs desktop integration to appear in Open With. File-manager behavior must be
+verified on each packaged platform before release.
 
 ## Build and run from source
 
@@ -192,7 +263,8 @@ npm run tauri build
 
 The last command builds the executable in `target/release/` and installers in
 `target/release/bundle/`: `.deb` and `.rpm` on Linux, `.app` and `.dmg` on macOS,
-and NSIS and MSI installers on Windows. Builds are unsigned.
+and NSIS and MSI installers on Windows. Mac bundles are ad-hoc signed without
+notarization; Windows installers are unsigned.
 
 The default local build does not produce an AppImage. The release workflow
 explicitly requests one and builds Linux packages on Ubuntu 22.04 to reduce the
@@ -204,7 +276,7 @@ checks manifest/lockfile versions against the tag, runs JavaScript and Rust
 tests on each runner, and attaches packages to a draft GitHub
 Release. Running the release workflow manually produces workflow artifacts
 without creating a release. The separate push/PR Checks workflow runs the full
-JavaScript, Rust, formatting, and Clippy checks on Linux.
+JavaScript, Rust, formatting, and Clippy checks on Linux, macOS, and Windows.
 
 ## Keyboard shortcuts
 
@@ -247,13 +319,12 @@ Next milestones:
 - Folder explorer and sidebar tabs.
 - Local image resolution and external link opening (preview links currently show
   their destination in the status bar; remote images are blocked in the desktop app).
-- Command-line/file-manager opening.
 - Continued package validation across supported platforms.
 
 Only a single document is open at a time. New/open/close ask before discarding
 unsaved changes. There is no crash recovery or autosave yet. File permissions are
-restricted to paths granted through the native file dialogs, plus the dedicated
-Textgate theme configuration handled by the Rust backend.
+restricted to paths granted through native file dialogs or native launch/file-open
+requests, plus the dedicated Textgate theme configuration handled by the Rust backend.
 
 ## License
 

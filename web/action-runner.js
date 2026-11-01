@@ -1,12 +1,25 @@
-// Native dialogs and writes can outlive the event that started them. Reject
-// overlapping file actions visibly, and always release the guard after errors.
-export function createActionRunner({ onBusy, onError }) {
+// User menu actions still reject overlaps visibly. Native file-open requests
+// queue behind dialogs/writes so a second launch cannot silently lose its file.
+export function createActionRunner({ onBusy, onError, onQueued = () => {} }) {
   let busy = false;
-  return async (action) => {
-    if (busy) { onBusy(); return; }
+  const pending = [];
+  async function execute(action) {
     busy = true;
     try { await action(); }
     catch (error) { onError(error); }
-    finally { busy = false; }
+    finally {
+      busy = false;
+      const next = pending.shift();
+      if (next) void execute(next.action).finally(next.resolve);
+    }
+  }
+  const run = async (action) => {
+    if (busy) { onBusy(); return; }
+    await execute(action);
   };
+  run.enqueue = (action) => new Promise((resolve) => {
+    if (busy) { pending.push({ action, resolve }); onQueued(); }
+    else void execute(action).finally(resolve);
+  });
+  return run;
 }

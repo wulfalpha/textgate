@@ -55,3 +55,10 @@ test('I/O failures propagate without prompting', async () => {
   const env = setup([{ kind: 'io', message: 'Disk full' }], () => assert.fail());
   await assert.rejects(env.store.save('/a', 'new'), { kind: 'io', message: 'Disk full' });
 });
+
+test('missing-file creation is explicit and omitted for ordinary dialog opens', async () => {
+  const env = setup([new ArrayBuffer(0), new ArrayBuffer(0)]);
+  await env.store.read('/new.md', { create: true });
+  await env.store.read('/old.md');
+  assert.deepEqual(env.calls.map((call) => call.allowMissing), [true, false]);
+});

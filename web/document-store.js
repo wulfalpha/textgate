@@ -3,8 +3,8 @@
 // conflicts and large files are not sent back and forth to compare.
 export function createDocumentStore({ invoke, confirmOverwrite }) {
   return {
-    async read(path) {
-      return new Uint8Array(await invoke('open_document', { path }));
+    async read(path, { create = false } = {}) {
+      return new Uint8Array(await invoke('open_document', { path, allowMissing: create }));
     },
     // Call once the editor shows the opened document; opening can still be cancelled.
     remember(path) {
