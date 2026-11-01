@@ -108,6 +108,11 @@ release artifacts or claim the M1 installation issue resolved until tested.
 - [x] Diagnose the first 0.1.4 Checks run: macOS/Linux passed; Windows compiled
       but failed the renderer fixture comparison after CRLF checkout conversion.
       Pin both renderer fixtures to LF; the fresh hosted Windows run now passes.
+- [x] Check the packaged M4 binary: `--help`, `--version` (0.1.4), and exit-2
+      diagnostics for unknown flags, multiple files, bare `--`, remote URLs and
+      incomplete file URLs. All five launch-parser unit tests pass.
+- [x] Inspect the packaged M4 Info.plist: `.md` and `.markdown` document types
+      use Editor role and Alternate rank.
 - [ ] Verify `textgate notes.md` both on first launch and while already running.
 - [ ] Invoke from another working directory; test spaces, Unicode, `-- -name.md`, and file URLs.
 - [ ] With unsaved edits or an active Save dialog, send a new file; test both Keep editing and Discard.

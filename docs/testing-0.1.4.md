@@ -79,3 +79,30 @@ release checklist.
 
 Keep the GitHub release a draft until package uploads and the agreed smoke tests
 have been reviewed. Draft downloads require repository collaborator access.
+
+
+## M4 command-line follow-up
+
+The packaged 0.1.4 binary passed `--help`, `--version` and exit-2 error checks
+for unknown options, multiple files, bare `--`, remote URLs and incomplete file
+URLs. All five Rust launch-parser tests pass. Its Info.plist contains `.md` and
+`.markdown` Editor associations with Alternate rank.
+
+Interactive launch/forwarding checks remain pending: the desktop automation
+connection was unavailable during this pass, including after reconnecting.
+From the repository root, with the generated fixture directory present:
+
+```sh
+textgate_bin="$PWD/target/aarch64-apple-darwin/release/bundle/macos/Textgate.app/Contents/MacOS/textgate"
+"$textgate_bin" target/save-fixtures-0.1.4/mixed-bom.md
+```
+
+On first launch, the mixed/BOM fixture should open. In another Terminal tab, use
+the same absolute binary path to open `crlf-bom.md`. It should reach the existing
+window. Repeat with an unsaved edit: Keep editing must preserve the current
+buffer, while Discard must open the requested file. Repeat with an active Save
+As dialog and confirm the incoming request waits for that operation to finish.
+
+Also run from a different working directory and test a path with spaces/Unicode,
+`-- -name.md`, a local file URL and Finder Open With. Inspect the actual document
+and dirty marker before marking those checklist items complete.
