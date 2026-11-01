@@ -73,3 +73,21 @@ remain before the intended first official release; keep the GitHub release a dra
 - [ ] Publish the release with the 0.1.3 notes as its description.
 - [ ] Smoke-test the published downloads on Linux, macOS and Windows: open, save,
       zoom, F6, System theme, relative line numbers with Vim counts.
+
+
+## v0.1.4 stabilization (in progress)
+
+- [x] Preserve mixed line endings by default, with undo/redo metadata.
+- [x] Add explicit Edit → Normalize line endings for LF, CRLF and CR.
+- [x] Include format-only changes in dirty tracking and saved snapshots.
+- [x] Document the source-preservation policy and correct symbolic-link guidance.
+- [ ] In packaged apps on Linux, macOS and Windows, open a BOM/mixed-ending file,
+      save without editing and compare bytes; repeat after editing one word.
+- [ ] Normalize to each offered style, save/reopen, and verify Undo/Redo and
+      unsaved-change prompts, including normalization while a save is pending.
+- [x] Add cross-platform Rust tests and tag/version consistency validation.
+- [x] Set all version fields and lockfiles to 0.1.4; prepare the draft release notes.
+- [x] Add a package testing guide and byte-exact fixture generator.
+- [ ] Complete local Mac package checks and create/push the v0.1.4 tag.
+- [ ] Confirm hosted tests and all package uploads; review the draft downloads.
+- [ ] Record Windows/Linux smoke-test results before publishing the release.

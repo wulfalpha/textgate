@@ -59,6 +59,25 @@ test('app switches modes without rewriting Markdown and keeps one undo history',
   assert.match(text(), /# Edited Welcome/);
   $('edit-undo').click();
 
+  // Format-only changes must participate in dirty tracking and Undo/Redo.
+  const endingsDialog = $('line-endings-dialog');
+  endingsDialog.showModal = () => endingsDialog.setAttribute('open', '');
+  endingsDialog.close = () => endingsDialog.removeAttribute('open');
+  $('normalize-endings').click();
+  assert.ok(endingsDialog.hasAttribute('open'));
+  assert.equal($('line-ending-style').value, 'lf');
+  $('line-ending-style').value = 'crlf';
+  $('apply-line-endings').click();
+  assert.equal(text(), original);
+  assert.ok(!endingsDialog.hasAttribute('open'));
+  assert.match($('dirty').textContent, /Unsaved changes/);
+  $('edit-undo').click();
+  assert.equal($('dirty').textContent, '');
+  $('edit-redo').click();
+  assert.match($('dirty').textContent, /Unsaved changes/);
+  $('edit-undo').click();
+  assert.equal($('dirty').textContent, '');
+
   // Toolbar commands edit only their markup.
   replace('Title\n=====\n\n__Hello__ there\n\n* untouched\n');
   view.dispatch({ selection: { anchor: text().indexOf('there'), head: text().indexOf('there') + 5 } });

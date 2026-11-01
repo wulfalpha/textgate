@@ -1,0 +1,2 @@
+# comrak emits LF; its byte-exact output fixture must match on Windows too.
+web/fixtures/comrak-sample.html text eol=lf

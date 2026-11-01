@@ -1,13 +1,14 @@
 {
   "name": "textgate",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "private": true,
   "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 1420 --strictPort",
     "build": "vite build",
-    "test": "node --test web/*.test.js",
+    "test": "node --test web/*.test.js scripts/*.test.mjs",
+    "check:version": "node scripts/check-version.mjs",
     "icons": "node scripts/icons.mjs",
     "tauri": "tauri",
     "benchmark": "node --max-old-space-size=2048 scripts/benchmark-editor.mjs"

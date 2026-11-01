@@ -18,7 +18,7 @@ import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { open, save, confirm } from '@tauri-apps/plugin-dialog';
 import { createDocumentStore } from './document-store.js';
 import { createActionRunner } from './action-runner.js';
-import { decodeDocument, encodeDocument, defaultFormat, lineEndingLabel } from './document-format.js';
+import { decodeDocument, encodeDocument, defaultFormat, lineEndingLabel, documentFormat, preserveDocumentFormat, sameDocumentFormat, normalizeLineEndings } from './document-format.js';
 import { createRenderer } from './markdown.js';
 import { createDocumentDetails, updateOutline, detailsDelay, largeDocument } from './document-details.js';
 import { livePreview } from './live-preview.js';
@@ -38,8 +38,8 @@ const documents = createDocumentStore({ invoke, confirmOverwrite: (destination, 
 const $ = (id) => document.getElementById(id);
 const initial = '# Welcome to Textgate\n\nA quiet place to write Markdown.\n\n## Start writing\n\nOpen a document or create a new one. Your preview updates as you type.\n\n- **Bold**, *italic*, and ~~strikethrough~~\n- Keyboard-friendly editing\n- Optional Vim keybindings\n- [x] Your Markdown is never rewritten\n\n## Tables\n\n| Feature | Status |\n| --- | --- |\n| Live preview | Ready |\n| GFM tables | Ready |\n\n```rust\nfn main() {\n    println!("Hello, Textgate!");\n}\n```\n';
 let path = null;
-let fileFormat = defaultFormat;
 let savedDoc;
+let savedFormat;
 let vimEnabled = false;
 let relativeNumbers = false;
 let mode = 'live';
@@ -60,7 +60,8 @@ const view = new EditorView({
   state: EditorState.create({ doc: initial, extensions: extensions() }),
 });
 savedDoc = view.state.doc;
-const dirty = () => !view.state.doc.eq(savedDoc);
+savedFormat = view.state.field(documentFormat);
+const dirty = () => !view.state.doc.eq(savedDoc) || !sameDocumentFormat(view.state.field(documentFormat), savedFormat, view.state.doc);
 const name = () => path?.split(/[\\/]/).pop() ?? 'Untitled.md';
 const previewVisible = () => mode === 'source' && $('toggle-preview').getAttribute('aria-pressed') === 'true';
 
@@ -92,7 +93,7 @@ async function refreshDetails() {
         view.dispatch({ selection: { anchor: offset }, effects: EditorView.scrollIntoView(offset, { y: 'center' }) });
         view.focus();
       });
-      $('stats').textContent = `${result.words} words · ${doc.lines} lines · ${lineEndingLabel(fileFormat)}`;
+      $('stats').textContent = `${result.words} words · ${doc.lines} lines · ${lineEndingLabel(view.state.field(documentFormat))}`;
     }
   } catch (error) { if (view.state.doc === doc) report(error); }
   return preview;
@@ -146,10 +147,10 @@ async function canDiscard() {
 }
 function replaceDocument(text, nextPath, nextFormat = defaultFormat) {
   path = nextPath;
-  fileFormat = nextFormat;
   // New state intentionally clears undo history between documents.
-  view.setState(EditorState.create({ doc: text, extensions: extensions() }));
+  view.setState(EditorState.create({ doc: text, extensions: extensions(nextFormat) }));
   savedDoc = view.state.doc;
+  savedFormat = view.state.field(documentFormat);
   previewRenderedDoc = null;
   $('preview').replaceChildren();
   delete $('outline').dataset.outlineLimit;
@@ -157,8 +158,8 @@ function replaceDocument(text, nextPath, nextFormat = defaultFormat) {
   updateToolbar();
   view.focus();
 }
-function extensions() {
-  return [vimMode.of(vimEnabled ? vim() : []), basicSetup, numbersMode.of(relativeNumbers ? relativeLineNumbers() : []),
+function extensions(initialFormat = defaultFormat) {
+  return [vimMode.of(vimEnabled ? vim() : []), basicSetup, preserveDocumentFormat(initialFormat), numbersMode.of(relativeNumbers ? relativeLineNumbers() : []),
     // classHighlighter has no class for strikethrough.
     syntaxHighlighting(classHighlighter), syntaxHighlighting(tagHighlighter([{ tag: tags.strikethrough, class: 'tok-strikethrough' }])),
     markdown({ base: markdownLanguage, codeLanguages: fencedLanguage }),
@@ -172,6 +173,7 @@ function extensions() {
     EditorView.contentAttributes.of({ 'aria-label': 'Markdown document' }),
     EditorView.updateListener.of((update) => {
       if (update.docChanged) documentChanged();
+      else if (update.startState.field(documentFormat) !== update.state.field(documentFormat)) refresh();
       if (update.docChanged || update.selectionSet) updateToolbar();
     })];
 }
@@ -192,7 +194,7 @@ async function openDocument() {
   await documents.remember(selected);
   replaceDocument(text, selected, opened);
   $('status').textContent = opened.mixed
-    ? `Opened ${name()}. It mixes line endings; saving will use ${lineEndingLabel(opened)} throughout.`
+    ? `Opened ${name()}. It mixes line endings; existing line endings will be preserved.`
     : `Opened ${name()}`;
 }
 async function saveDocument(saveAs = false) {
@@ -201,12 +203,14 @@ async function saveDocument(saveAs = false) {
   const destination = chosen ? await save({ defaultPath: path ?? 'Untitled.md', filters }) : path;
   if (!destination) return;
   const snapshot = view.state.doc;
-  if (!await documents.save(destination, encodeDocument(snapshot.toString(), fileFormat), { chosen })) {
+  const snapshotFormat = view.state.field(documentFormat);
+  if (!await documents.save(destination, encodeDocument(snapshot.toString(), snapshotFormat), { chosen })) {
     $('status').textContent = 'Save cancelled. Your edits are still in the editor.';
     return;
   }
   path = destination;
   savedDoc = snapshot;
+  savedFormat = snapshotFormat;
   refresh();
   $('status').textContent = `Saved ${name()}`;
 }
@@ -254,6 +258,19 @@ $('quit').onclick = () => run(async () => {
 });
 $('edit-undo').onclick = () => { undo(view); view.focus(); };
 $('edit-redo').onclick = () => { redo(view); view.focus(); };
+$('normalize-endings').onclick = () => {
+  $('line-ending-style').value = { '\n': 'lf', '\r\n': 'crlf', '\r': 'cr' }[view.state.field(documentFormat).lineEnding];
+  $('line-endings-dialog').showModal();
+};
+$('apply-line-endings').onclick = () => {
+  const ending = { lf: '\n', crlf: '\r\n', cr: '\r' }[$('line-ending-style').value];
+  const changed = normalizeLineEndings(view, ending);
+  $('line-endings-dialog').close();
+  $('status').textContent = changed
+    ? `Line endings normalized to ${lineEndingLabel(view.state.field(documentFormat))}. Save to write the change; Undo restores the previous endings.`
+    : 'Line endings already match. No changes made.';
+  view.focus();
+};
 for (const id of ['find', 'replace']) $(id).onclick = () => {
   view.focus();
   openSearchPanel(view);

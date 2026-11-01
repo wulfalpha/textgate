@@ -4,7 +4,7 @@ import { installDom } from './test-dom.js';
 import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
-import { ensureSyntaxTree } from '@codemirror/language';
+import { ensureSyntaxTree, forceParsing } from '@codemirror/language';
 import { livePreview, buildLiveDecorations } from './live-preview.js';
 
 installDom();
@@ -16,10 +16,14 @@ const render = async (source) => {
   return fragment;
 };
 function make(doc, anchor = doc.length) {
-  return new EditorView({
+  const view = new EditorView({
     parent: document.body,
     state: EditorState.create({ doc, selection: { anchor }, extensions: [markdown({ base: markdownLanguage }), livePreview({ render })] }),
   });
+  // Parsing is time-sliced; CPU load must not decide whether assertions see
+  // source or decorated Markdown. Finish the visible parse explicitly.
+  assert.ok(forceParsing(view, view.viewport.to, 1000));
+  return view;
 }
 const shown = (view) => view.contentDOM.textContent;
 

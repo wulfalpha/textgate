@@ -7,6 +7,9 @@ for Linux, Windows, and macOS (Apple Silicon and Intel). See the
 [v0.1.3 notes](docs/releases/0.1.3.md), the [release checklist](docs/release-checklist.md),
 and the [contributor guide](CONTRIBUTING.md).
 
+The upcoming [0.1.4 stabilization build](docs/releases/0.1.4.md) is being prepared;
+see its [package testing guide](docs/testing-0.1.4.md).
+
 ![Textgate in Live mode: headings, task list, link, and table rendered in place](docs/screenshots/live.png)
 
 The [Textgate logo](docs/branding/README.md) combines a segmented omega
@@ -14,9 +17,18 @@ with code-bracket feet, with a vector master and desktop icon exports.
 
 **Your Markdown file is the document.** Textgate never re-serializes it: the only
 changes saved are the ones you type or the formatting commands you run, and those
-touch only the markup they add or remove. Consistent line endings (LF, CRLF or CR)
-and a UTF-8 byte order mark are preserved on save. Mixed line endings are
-normalized to the most frequent style; an opening status message reports this. Files that are not valid UTF-8 are
+touch only the markup they add or remove. Opening and saving an unedited UTF-8
+file preserves its bytes, including mixed LF, CRLF and CR line endings, a UTF-8
+byte order mark, whitespace, and the presence or absence of a final newline.
+Existing line breaks retain their spelling during edits; newly inserted breaks
+use the file's most frequent style (LF for new documents; ties prefer CRLF, then
+LF, then CR). Undo and redo restore line endings along with text.
+
+To standardize a file deliberately, choose **Edit → Normalize line endings…**,
+select LF, CRLF or CR, then save. Normalization is undoable and marks the document
+as changed without rewriting its Markdown text. If an edit brings a CR directly
+next to an LF, Textgate spells the second break as CRLF so two logical line breaks
+do not collapse into one when the file is reopened. Files that are not valid UTF-8 are
 refused rather than opened lossily. The app uses vanilla JavaScript and CSS with
 Vite; no UI framework is required.
 
@@ -32,9 +44,9 @@ the status bar asks you to finish or cancel that operation and try again. Closin
 is not queued, and unsaved-change confirmation still applies on retry.
 
 This detects external changes but does not lock out other editors during the
-final replacement. Directory syncing is best effort. Symbolic links, special
-files, and (on Unix) files with multiple hard links are rejected; choose a regular
-file instead. Replacement preserves ordinary permissions, but does not promise
+final replacement. Directory syncing is best effort. Symbolic links and linked folders are followed when opening and saving; the
+link itself is kept. Special files and (on Unix) saves to files with multiple
+hard links are rejected; use Save As for a separate regular file. Replacement preserves ordinary permissions, but does not promise
 to preserve ownership, extended attributes, or every platform's ACL metadata.
 
 ## Live and Source modes
@@ -169,6 +181,7 @@ The Rust crate and Tauri configuration live at the repository root. `npm run dev
 runs only the browser UI; native file operations require the desktop app.
 
 ```sh
+npm run check:version
 npm test
 npm run build
 cargo fmt --check
@@ -187,7 +200,8 @@ minimum glibc requirement. Building successfully on a newer local distribution
 does not establish that an AppImage will run on older distributions.
 
 Pushing a `v*` tag builds Linux x86-64, Windows x64, and both Mac architectures,
-runs the JavaScript tests on each runner, and attaches packages to a draft GitHub
+checks manifest/lockfile versions against the tag, runs JavaScript and Rust
+tests on each runner, and attaches packages to a draft GitHub
 Release. Running the release workflow manually produces workflow artifacts
 without creating a release. The separate push/PR Checks workflow runs the full
 JavaScript, Rust, formatting, and Clippy checks on Linux.

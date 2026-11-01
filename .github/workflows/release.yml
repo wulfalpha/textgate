@@ -40,6 +40,10 @@ jobs:
         with:
           node-version: '24'
           cache: npm
+      - name: Check release versions
+        run: npm run check:version
+        env:
+          RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
       - name: Install native dependencies
         if: runner.os == 'Linux'
         run: |
@@ -53,6 +57,8 @@ jobs:
           if [ "$RUNNER_OS" = macOS ]; then rustup target add aarch64-apple-darwin x86_64-apple-darwin; fi
       - run: npm ci
       - run: npm test
+      - run: npm run build
+      - run: cargo test --locked
       - uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

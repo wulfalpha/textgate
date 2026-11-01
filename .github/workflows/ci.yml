@@ -20,6 +20,8 @@ jobs:
         with:
           node-version: '24'
           cache: npm
+      - name: Check release versions
+        run: npm run check:version
       - name: Install native dependencies
         run: |
           sudo apt-get update

@@ -26,6 +26,11 @@ test('native menus dispatch shared actions and synchronize checks and modal stat
   assert.ok(installed);
   assert.ok(document.getElementById('menubar').hidden);
   assert.equal(created.get('save-as').accelerator, 'CmdOrCtrl+Shift+S');
+  assert.equal(created.get('normalize-endings').text, 'Normalize line endings…');
+  let normalizationRequests = 0;
+  document.getElementById('normalize-endings').onclick = () => normalizationRequests++;
+  created.get('normalize-endings').action();
+  assert.equal(normalizationRequests, 1);
   let quitRequests = 0;
   document.getElementById('quit').onclick = () => quitRequests++;
   created.get('quit').action();
