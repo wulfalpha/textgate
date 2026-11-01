@@ -93,9 +93,16 @@ screenshot shows `hotkeys_reference.md` opened and rendered. With unsaved edits,
 Keep editing cancelled the incoming open and retained those edits; repeating the
 request with Discard opened the new file.
 
-CLI first-launch/second-instance checks and incoming opens during an active Save
-dialog remain pending. Desktop automation was unavailable during the automated
-pass, including after reconnecting.
+The user also verified the Save As queue flow: the unsaved-change prompt appears
+once afterward and does not repeat. Screenshots of the installed app's CLI opening
+`/tmp/textgate-missing-test.md` show an empty named document, ABSENT on disk before
+Save, and EXISTS after Save. The user then edited that saved file in another
+editor and confirmed Textgate displays the changed-on-disk warning on Save.
+
+The missing-file CLI invocation reached the running app. CLI first-launch and
+additional path variants remain pending, along with external creation/deletion
+and explicit overwrite checks. Desktop automation was unavailable during the
+automated pass, including after reconnecting.
 From the repository root, with the generated fixture directory present:
 
 ```sh

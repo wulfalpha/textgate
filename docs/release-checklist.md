@@ -117,8 +117,15 @@ release artifacts or claim the M1 installation issue resolved until tested.
 - [ ] Invoke from another working directory; test spaces, Unicode, `-- -name.md`, and file URLs.
 - [x] On M4, user verified opening another Markdown file with unsaved edits:
       Keep editing cancels the open and retains edits; Discard opens the requested file.
-- [ ] Repeat incoming-open protection with an active Save dialog and on Windows/Linux.
-- [ ] Open a new filename, verify no disk file until Save, then test an external creation conflict.
+- [x] On M4, user verified an incoming open during Save As prompts once for
+      unsaved changes afterward; the prompt does not repeat.
+- [ ] Repeat incoming-open protection on Windows/Linux.
+- [x] On M4, open `/tmp/textgate-missing-test.md` via the installed app's CLI:
+      empty named document, ABSENT before Save, EXISTS after Save (screenshots).
+- [x] On M4, user verified an external editor's saved changes trigger the
+      changed-on-disk dialog when saving the Textgate buffer.
+- [ ] Test external creation of a prepared-but-unsaved missing file, plus
+      external deletion/recreation and explicit overwrite behavior.
 - [ ] Test Finder Open With / `open -a`, Explorer Open With, and Linux installed desktop integration.
 - [ ] Test `.md` and `.markdown` associations; reject multi-file requests clearly.
 - [ ] Verify CLI help/version in Windows terminals and Mac/Linux shells.
