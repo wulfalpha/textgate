@@ -103,11 +103,13 @@ Explicit Overwrite then produced disk contents matching Textgate, including the
 Cancel/Recreate dialog (screenshot): Cancel retained the buffer and left the
 original path absent; Recreate created a new file at that path while keeping the
 trashed copy intact. Save As to a new filename produced a matching buffer copy.
+The user also verified Save As replacement with an overwrite warning and confirmed
+that cancelling Save As behaves as expected.
 
 The missing-file CLI invocation reached the running app. CLI first-launch and
 additional path variants remain pending, along with external creation of a
-prepared-but-unsaved file, Save As to an existing destination and dialog
-cancellation checks. Desktop automation was unavailable during the
+prepared-but-unsaved file. Detailed save-integrity checks on Windows/Linux and
+downloaded Mac installation checks remain separate pending items. Desktop automation was unavailable during the
 automated pass, including after reconnecting.
 From the repository root, with the generated fixture directory present:
 

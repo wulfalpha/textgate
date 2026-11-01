@@ -131,8 +131,9 @@ release artifacts or claim the M1 installation issue resolved until tested.
       created a new file at that path and left the trashed original intact.
 - [x] On M4, Save As to a new filename produced a copy matching the buffer.
 - [ ] Test external creation of a prepared-but-unsaved missing file.
-- [ ] On M4, finish Save As to an existing destination and dialog cancellation;
-      repeat save-integrity checks on Windows/Linux.
+- [x] On M4, user verified Save As replaces an existing file with an overwrite
+      warning, and cancelling the Save As dialog behaves as expected.
+- [ ] Repeat the detailed save-integrity checks on Windows/Linux.
 - [ ] Test Finder Open With / `open -a`, Explorer Open With, and Linux installed desktop integration.
 - [ ] Test `.md` and `.markdown` associations; reject multi-file requests clearly.
 - [ ] Verify CLI help/version in Windows terminals and Mac/Linux shells.
