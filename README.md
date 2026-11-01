@@ -10,6 +10,8 @@ and the [contributor guide](CONTRIBUTING.md).
 The current source prepares **v0.1.4** with command-line/file-manager opening and
 explicit Mac ad-hoc signing. These changes are not in the v0.1.3 downloads.
 See the [0.1.4 release notes](docs/releases/0.1.4.md).
+The [release plan](docs/roadmap.md) lists the remaining 0.1.4 validation and
+proposed priorities for 0.1.5.
 
 ![Textgate in Live mode: headings, task list, link, and table rendered in place](docs/screenshots/live.png)
 
@@ -211,8 +213,10 @@ A missing file opens as an empty named document and is created only when saved;
 its parent folder must already exist. If another program creates it first, the
 save-conflict prompt protects that new disk version. Non-UTF-8 content is rejected.
 
-Launching again brings the existing window forward. A request for the same path
-already shown keeps your edits; it does not reload from disk. Requests received
+Launching again brings the existing window forward. A request with the exact same
+path string already shown keeps your edits; it does not reload from disk. Different
+spellings of a path (for example, one containing `..`) can reopen the file and
+use the usual unsaved-change confirmation. Requests received
 during a save/dialog wait and then use the usual unsaved-change confirmation.
 No arguments just launches or focuses the app. Multiple paths, stdin, `--wait`,
 and opening at a line/column are not supported in this release. Help/version and

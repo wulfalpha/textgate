@@ -35,7 +35,7 @@ flow with a fresh build; the v0.1.1 downloads do not include it.
 - [x] Pass local JavaScript tests, frontend build, Rust tests, rustfmt, and Clippy.
 - [x] Update the README and append current recommendations to improvements.md.
 - [x] Confirm hosted Checks passed for save-integrity commit `fcae4a9`.
-- [ ] Run Rust file-operation tests on Windows and macOS.
+- [x] Run Rust file-operation tests on Windows and macOS (Checks at `8535bca`; native dialog tests remain pending).
 
 
 - [ ] On Linux, macOS, and Windows, open and save a UTF-8 BOM/CRLF file and compare bytes.
@@ -84,6 +84,8 @@ remain before the intended first official release; keep the GitHub release a dra
 - [x] Configure explicit ad-hoc signing (`bundle.macOS.signingIdentity = "-"`).
 - [x] Add a strict bundle-signature verification step to both Mac release jobs.
 - [x] Document targeted quarantine removal as the only interim Terminal install step.
+- [x] Record the user's M1 download/build test (2026-10-31). The tested revision,
+      packaged-download behavior, and any quarantine/re-signing steps were not specified.
 - [ ] Run the updated release workflow and confirm both Mac signature checks pass.
 - [ ] Download a fresh build on M1 and M4; copy to Applications and verify launch
       after only `xattr -dr com.apple.quarantine`, without manual re-signing.
@@ -103,10 +105,11 @@ release artifacts or claim the M1 installation issue resolved until tested.
 - [x] Update root package versions, README, improvements, and release notes to prepare 0.1.4.
 - [x] Pass local JavaScript tests, 19 Rust unit tests, two headless CLI integration tests, formatting, and Clippy.
 - [x] Build the Linux DEB and inspect its Markdown MIME association and file argument forwarding.
-- [ ] Confirm hosted Checks succeeds on Linux, macOS, and Windows.
+- [x] Confirm hosted Checks succeeds on Linux, macOS, and Windows at `8535bca`
+      ([run 41004392254](https://github.com/wulfalpha/textgate/actions/runs/41004392254), 2026-10-30).
 - [x] Diagnose the first 0.1.4 Checks run: macOS/Linux passed; Windows compiled
       but failed the renderer fixture comparison after CRLF checkout conversion.
-      Pin both renderer fixtures to LF; a fresh hosted Windows run remains pending.
+      Pin both renderer fixtures to LF; the fresh hosted Windows run passed at `8535bca`.
 - [ ] Verify `textgate notes.md` both on first launch and while already running.
 - [ ] Invoke from another working directory; test spaces, Unicode, `-- -name.md`, and file URLs.
 - [ ] With unsaved edits or an active Save dialog, send a new file; test both Keep editing and Discard.
@@ -116,3 +119,6 @@ release artifacts or claim the M1 installation issue resolved until tested.
 - [ ] Verify CLI help/version in Windows terminals and Mac/Linux shells.
 - [ ] Complete fresh M1/M4 quarantine-only install checks and signature checks above.
 - [ ] Build, inspect, and publish v0.1.4 only after release review.
+
+See the [release plan](roadmap.md) for recommended 0.1.4 gates and proposed
+0.1.5 scope. Keep version fields at 0.1.4 until that release is complete.

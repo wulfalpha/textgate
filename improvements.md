@@ -1,5 +1,8 @@
 # Textgate review and suggested improvements
 
+For current release decisions, see the [0.1.4 gates and proposed 0.1.5 plan](docs/roadmap.md).
+The original review below and dated addenda describe earlier snapshots.
+
 Reviewed at commit `4189440` (main, 2026-10-27). CI on that commit is green.
 
 ## What it is
@@ -427,3 +430,16 @@ to CRLF. Pinning those two fixtures to LF in `.gitattributes` preserves the stri
 comparison without changing application rendering or document line endings.
 Rerun hosted Checks after pushing this fix, then continue native CLI and
 file-manager smoke tests on Windows and macOS.
+
+### Release review (2026-10-31)
+
+The rerun at `8535bca` passed on Linux, macOS, and Windows:
+[Checks run 41004392254](https://github.com/wulfalpha/textgate/actions/runs/41004392254).
+This closes the hosted fixture-check failure, not the pending installed-app or
+M1/M4 quarantine-only tests. v0.1.3 remains the latest published release.
+Keep 0.1.4 focused on validating packaging and native opening; prioritize crash
+recovery, then recent files and drag-and-drop as proposed 0.1.5 work. The
+[release plan](docs/roadmap.md) records scope, acceptance criteria, and deferrals.
+The user also reported an M1 download/build test on 2026-10-31. The revision and
+whether a packaged download launched with only quarantine removal are not yet
+specified, so the packaged-install check remains open.
