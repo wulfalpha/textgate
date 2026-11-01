@@ -133,7 +133,8 @@ release artifacts or claim the M1 installation issue resolved until tested.
       Cancel retained the buffer without restoring the original path; Recreate
       created a new file at that path and left the trashed original intact.
 - [x] On M4, Save As to a new filename produced a copy matching the buffer.
-- [ ] Test external creation of a prepared-but-unsaved missing file.
+- [x] On M4, user verified Zed creating the same prepared-but-unsaved filename
+      triggers an overwrite confirmation in Textgate before replacement.
 - [x] On M4, user verified Save As replaces an existing file with an overwrite
       warning, and cancelling the Save As dialog behaves as expected.
 - [ ] Repeat the detailed save-integrity checks on Windows/Linux.

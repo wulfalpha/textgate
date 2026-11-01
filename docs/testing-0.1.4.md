@@ -114,8 +114,9 @@ The `-- -dash.md` invocation and `file:///tmp/textgate-cli-checks/file-url.md`
 also opened the expected files. These confirm Mac first-launch, second-instance
 forwarding, relative paths, spaces/Unicode, dash-prefixed names and local file URLs.
 
-External creation of a prepared-but-unsaved file remains pending, as do the CLI
-first-launch/forwarding/path checks on Windows/Linux. Detailed save-integrity checks on Windows/Linux and
+The user also verified that Zed creating a file at the same prepared-but-unsaved
+path triggers an overwrite confirmation in Textgate. CLI first-launch, forwarding
+and path checks on Windows/Linux remain pending. Detailed save-integrity checks on Windows/Linux and
 downloaded Mac installation checks remain separate pending items. Desktop automation was unavailable during the
 automated pass, including after reconnecting.
 From the repository root, with the generated fixture directory present:
