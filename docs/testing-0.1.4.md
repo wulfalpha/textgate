@@ -65,7 +65,7 @@ On Windows, `Get-FileHash -Algorithm SHA256 <file>` can also be compared with
 
 | Platform | Automated tests / package | Native smoke tests |
 | --- | --- | --- |
-| macOS Apple Silicon (M4) | 80 JS and 21 Rust/CLI tests, fmt and Clippy passed; signed app and verified DMG built; hosted checks/package/signature passed | Mixed/BOM byte round trip, CRLF normalization, undo/redo and dirty tracking passed; broader checks pending |
+| macOS Apple Silicon (M4) | 80 JS and 21 Rust/CLI tests, fmt and Clippy passed; signed app and verified DMG built; hosted checks/package/signature passed | Mixed/BOM byte round trip, CRLF normalization, undo/redo and dirty tracking passed; user verified incoming-open Keep editing/Discard; broader checks pending |
 | macOS Intel | Hosted checks/package/signature passed (cross-build) | Pending |
 | Windows 11 x64 | Hosted checks and EXE/MSI builds passed | User verified MSI testing; fonts stable; Normalize line endings appears in Edit |
 | Arch Linux x86-64 | Hosted checks and AppImage/DEB/RPM builds passed | User verified AppImage testing; fonts stable; Normalize line endings appears in Edit |
@@ -88,8 +88,14 @@ for unknown options, multiple files, bare `--`, remote URLs and incomplete file
 URLs. All five Rust launch-parser tests pass. Its Info.plist contains `.md` and
 `.markdown` Editor associations with Alternate rank.
 
-Interactive launch/forwarding checks remain pending: the desktop automation
-connection was unavailable during this pass, including after reconnecting.
+The user subsequently verified native incoming-file opening on M4: the supplied
+screenshot shows `hotkeys_reference.md` opened and rendered. With unsaved edits,
+Keep editing cancelled the incoming open and retained those edits; repeating the
+request with Discard opened the new file.
+
+CLI first-launch/second-instance checks and incoming opens during an active Save
+dialog remain pending. Desktop automation was unavailable during the automated
+pass, including after reconnecting.
 From the repository root, with the generated fixture directory present:
 
 ```sh

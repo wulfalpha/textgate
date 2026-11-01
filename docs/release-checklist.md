@@ -115,7 +115,9 @@ release artifacts or claim the M1 installation issue resolved until tested.
       use Editor role and Alternate rank.
 - [ ] Verify `textgate notes.md` both on first launch and while already running.
 - [ ] Invoke from another working directory; test spaces, Unicode, `-- -name.md`, and file URLs.
-- [ ] With unsaved edits or an active Save dialog, send a new file; test both Keep editing and Discard.
+- [x] On M4, user verified opening another Markdown file with unsaved edits:
+      Keep editing cancels the open and retains edits; Discard opens the requested file.
+- [ ] Repeat incoming-open protection with an active Save dialog and on Windows/Linux.
 - [ ] Open a new filename, verify no disk file until Save, then test an external creation conflict.
 - [ ] Test Finder Open With / `open -a`, Explorer Open With, and Linux installed desktop integration.
 - [ ] Test `.md` and `.markdown` associations; reject multi-file requests clearly.
