@@ -130,6 +130,9 @@ release artifacts or claim the M1 installation issue resolved until tested.
 - [x] Add cross-platform Rust tests and tag/version consistency validation.
 - [x] Set all version fields and lockfiles to 0.1.4; prepare the draft release notes.
 - [x] Add a package testing guide and byte-exact fixture generator.
-- [ ] Complete local Mac package checks and create/push the v0.1.4 tag.
+- [x] Pass local M4 checks: 80 JavaScript and 21 Rust/CLI tests, formatting and Clippy.
+- [x] Verify the merged Mac app's ad-hoc signature, mixed/BOM byte round trip,
+      explicit CRLF normalization, undo/redo and format-only dirty tracking.
+- [ ] Complete final DMG creation and create/push the v0.1.4 tag.
 - [ ] Confirm hosted tests and all package uploads; review the draft downloads.
 - [ ] Record Windows/Linux smoke-test results before publishing the release.

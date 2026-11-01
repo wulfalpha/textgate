@@ -60,7 +60,7 @@ On Windows, `Get-FileHash -Algorithm SHA256 <file>` can also be compared with
 
 | Platform | Automated tests / package | Native smoke tests |
 | --- | --- | --- |
-| macOS Apple Silicon (M4) | Pending | Pending |
+| macOS Apple Silicon (M4) | 80 JS and 21 Rust/CLI tests, fmt and Clippy passed; signed app built | Mixed/BOM byte round trip, CRLF normalization, undo/redo and dirty tracking passed; broader checks pending |
 | macOS Intel | Hosted build pending | Pending |
 | Windows x64 | Hosted tests/build pending | User testing pending |
 | Linux x86-64 | Hosted tests/build pending | User testing pending |
