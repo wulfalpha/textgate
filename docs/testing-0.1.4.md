@@ -67,8 +67,15 @@ On Windows, `Get-FileHash -Algorithm SHA256 <file>` can also be compared with
 | --- | --- | --- |
 | macOS Apple Silicon (M4) | 80 JS and 21 Rust/CLI tests, fmt and Clippy passed; signed app and verified DMG built; hosted checks/package/signature passed | Mixed/BOM byte round trip, CRLF normalization, undo/redo and dirty tracking passed; broader checks pending |
 | macOS Intel | Hosted checks/package/signature passed (cross-build) | Pending |
-| Windows x64 | Hosted checks and EXE/MSI builds passed | User testing pending |
-| Linux x86-64 | Hosted checks and AppImage/DEB/RPM builds passed | User testing pending |
+| Windows 11 x64 | Hosted checks and EXE/MSI builds passed | User verified MSI testing; fonts stable; Normalize line endings appears in Edit |
+| Arch Linux x86-64 | Hosted checks and AppImage/DEB/RPM builds passed | User verified AppImage testing; fonts stable; Normalize line endings appears in Edit |
+
+The user reports: “test verified with msi installer on windows 11 and app image
+on Archlinux. Fonts were stable and normalize option appeared in edit menu.”
+The report confirms package smoke testing and the observations listed above;
+individual hash comparisons, normalization styles and CLI/native regression
+results have not been recorded separately. Remaining detailed checks stay in the
+release checklist.
 
 Keep the GitHub release a draft until package uploads and the agreed smoke tests
 have been reviewed. Draft downloads require repository collaborator access.

@@ -138,4 +138,7 @@ release artifacts or claim the M1 installation issue resolved until tested.
 - [x] Confirm all four release jobs pass, both Mac signatures verify, and all nine
       package assets plus the test-fixture ZIP are attached to the draft
       ([run 41262517205](https://github.com/wulfalpha/textgate/actions/runs/41262517205)).
-- [ ] Record Windows/Linux smoke-test results before publishing the release.
+- [x] Record user-verified Windows 11 MSI and Arch Linux AppImage testing:
+      fonts stable and Normalize line endings present in the Edit menu.
+- [ ] Review the remaining detailed save/normalization, CLI and Mac installation
+      checks before deciding to publish the release.
