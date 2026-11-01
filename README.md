@@ -7,9 +7,10 @@ for Linux, Windows, and macOS (Apple Silicon and Intel). See the
 [v0.1.3 notes](docs/releases/0.1.3.md), the [release checklist](docs/release-checklist.md),
 and the [contributor guide](CONTRIBUTING.md).
 
-The current source prepares **v0.1.4** with command-line/file-manager opening and
+**v0.1.4 is available as a testing draft** with command-line/file-manager opening and
 explicit Mac ad-hoc signing, plus mixed-line-ending preservation and optional
-normalization. These changes are not in the v0.1.3 downloads. See the
+normalization. Draft downloads require repository collaborator access. These
+changes are not in the v0.1.3 downloads. See the
 [0.1.4 release notes](docs/releases/0.1.4.md) and
 [package testing guide](docs/testing-0.1.4.md).
 

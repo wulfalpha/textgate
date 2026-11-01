@@ -1,5 +1,10 @@
 # Testing Textgate 0.1.4
 
+Download the 0.1.4 draft packages and `Textgate_0.1.4_save-fixtures.zip` from
+[GitHub Releases](https://github.com/wulfalpha/textgate/releases) while signed in
+with repository collaborator access. The ZIP includes ready-to-use fixtures,
+hashes, a standalone verifier and `START-HERE.txt`.
+
 Run against the packaged 0.1.4 app. Record the OS, processor architecture,
 package filename and result. Building or passing automated tests does not count
 as completing the native checks below.
@@ -60,10 +65,10 @@ On Windows, `Get-FileHash -Algorithm SHA256 <file>` can also be compared with
 
 | Platform | Automated tests / package | Native smoke tests |
 | --- | --- | --- |
-| macOS Apple Silicon (M4) | 80 JS and 21 Rust/CLI tests, fmt and Clippy passed; signed app built | Mixed/BOM byte round trip, CRLF normalization, undo/redo and dirty tracking passed; broader checks pending |
-| macOS Intel | Hosted build pending | Pending |
-| Windows x64 | Hosted tests/build pending | User testing pending |
-| Linux x86-64 | Hosted tests/build pending | User testing pending |
+| macOS Apple Silicon (M4) | 80 JS and 21 Rust/CLI tests, fmt and Clippy passed; signed app and verified DMG built; hosted checks/package/signature passed | Mixed/BOM byte round trip, CRLF normalization, undo/redo and dirty tracking passed; broader checks pending |
+| macOS Intel | Hosted checks/package/signature passed (cross-build) | Pending |
+| Windows x64 | Hosted checks and EXE/MSI builds passed | User testing pending |
+| Linux x86-64 | Hosted checks and AppImage/DEB/RPM builds passed | User testing pending |
 
 Keep the GitHub release a draft until package uploads and the agreed smoke tests
 have been reviewed. Draft downloads require repository collaborator access.

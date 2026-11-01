@@ -84,7 +84,7 @@ remain before the intended first official release; keep the GitHub release a dra
 - [x] Configure explicit ad-hoc signing (`bundle.macOS.signingIdentity = "-"`).
 - [x] Add a strict bundle-signature verification step to both Mac release jobs.
 - [x] Document targeted quarantine removal as the only interim Terminal install step.
-- [ ] Run the updated release workflow and confirm both Mac signature checks pass.
+- [x] Run the updated v0.1.4 release workflow and confirm both Mac signature checks pass.
 - [ ] Download a fresh build on M1 and M4; copy to Applications and verify launch
       after only `xattr -dr com.apple.quarantine`, without manual re-signing.
 
@@ -92,7 +92,7 @@ Developer ID signing/notarization is deferred by choice. Do not change existing
 release artifacts or claim the M1 installation issue resolved until tested.
 
 
-## v0.1.4 CLI milestone (unreleased)
+## v0.1.4 CLI milestone (draft testing)
 
 - [x] Add CLI path parsing, help/version, local file URLs, and `--` handling.
 - [x] Queue startup and second-instance requests using the sender's working directory.
@@ -103,10 +103,11 @@ release artifacts or claim the M1 installation issue resolved until tested.
 - [x] Update root package versions, README, improvements, and release notes to prepare 0.1.4.
 - [x] Pass local JavaScript tests, 19 Rust unit tests, two headless CLI integration tests, formatting, and Clippy.
 - [x] Build the Linux DEB and inspect its Markdown MIME association and file argument forwarding.
-- [ ] Confirm hosted Checks succeeds on Linux, macOS, and Windows.
+- [x] Confirm hosted Checks succeeds on Linux, macOS, and Windows
+      ([run 41262098457](https://github.com/wulfalpha/textgate/actions/runs/41262098457)).
 - [x] Diagnose the first 0.1.4 Checks run: macOS/Linux passed; Windows compiled
       but failed the renderer fixture comparison after CRLF checkout conversion.
-      Pin both renderer fixtures to LF; a fresh hosted Windows run remains pending.
+      Pin both renderer fixtures to LF; the fresh hosted Windows run now passes.
 - [ ] Verify `textgate notes.md` both on first launch and while already running.
 - [ ] Invoke from another working directory; test spaces, Unicode, `-- -name.md`, and file URLs.
 - [ ] With unsaved edits or an active Save dialog, send a new file; test both Keep editing and Discard.
@@ -133,6 +134,8 @@ release artifacts or claim the M1 installation issue resolved until tested.
 - [x] Pass local M4 checks: 80 JavaScript and 21 Rust/CLI tests, formatting and Clippy.
 - [x] Verify the merged Mac app's ad-hoc signature, mixed/BOM byte round trip,
       explicit CRLF normalization, undo/redo and format-only dirty tracking.
-- [ ] Complete final DMG creation and create/push the v0.1.4 tag.
-- [ ] Confirm hosted tests and all package uploads; review the draft downloads.
+- [x] Complete final DMG creation/checksum verification and push `v0.1.4` at `3adaec8`.
+- [x] Confirm all four release jobs pass, both Mac signatures verify, and all nine
+      package assets plus the test-fixture ZIP are attached to the draft
+      ([run 41262517205](https://github.com/wulfalpha/textgate/actions/runs/41262517205)).
 - [ ] Record Windows/Linux smoke-test results before publishing the release.
