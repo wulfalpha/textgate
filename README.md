@@ -2,17 +2,13 @@
 
 A lightweight desktop Markdown editor built with Rust, Tauri 2, CodeMirror 6, and comrak.
 
-**Status: early release.** v0.1.3 is the first official release, with downloads
-for Linux, Windows, and macOS (Apple Silicon and Intel). See the
-[v0.1.3 notes](docs/releases/0.1.3.md), the [release checklist](docs/release-checklist.md),
-and the [contributor guide](CONTRIBUTING.md).
-
-**v0.1.4 is available as a testing draft** with command-line/file-manager opening and
-explicit Mac ad-hoc signing, plus mixed-line-ending preservation and optional
-normalization. Draft downloads require repository collaborator access. These
-changes are not in the v0.1.3 downloads. See the
-[0.1.4 release notes](docs/releases/0.1.4.md) and
-[package testing guide](docs/testing-0.1.4.md).
+**Status: early release.** v0.1.4 is available for Linux, Windows and macOS
+(Apple Silicon and Intel), with command-line/file-manager opening, mixed-line-ending
+preservation and optional normalization. See the
+[0.1.4 release notes](docs/releases/0.1.4.md),
+[release checklist](docs/release-checklist.md),
+[package testing guide](docs/testing-0.1.4.md) and
+[contributor guide](CONTRIBUTING.md).
 
 ![Textgate in Live mode: headings, task list, link, and table rendered in place](docs/screenshots/live.png)
 
@@ -159,8 +155,8 @@ collaborators with access.
 For the Linux AppImage, make the downloaded file executable and run it:
 
 ```sh
-chmod +x Textgate_0.1.3_amd64.AppImage
-./Textgate_0.1.3_amd64.AppImage
+chmod +x Textgate_0.1.4_amd64.AppImage
+./Textgate_0.1.4_amd64.AppImage
 ```
 
 Open the macOS DMG and copy Textgate to Applications. Mac builds from the current
@@ -168,17 +164,19 @@ source are explicitly ad-hoc signed in Tauri and their bundle signature is
 verified by the release workflow. They are not Developer ID signed or notarized,
 so Gatekeeper can still block a downloaded copy.
 
-For a trusted Textgate download, remove only its quarantine attribute after
-copying it to Applications, then open it normally:
+For a trusted Textgate download blocked by macOS, open **System Settings →
+Privacy & Security → Open Anyway**, then approve the launch prompt. This was
+verified on M4 with the downloaded 0.1.4 app and no manual re-signing.
+
+Alternatively, after copying to Applications, remove only its quarantine attribute:
 
 ```sh
 xattr -dr com.apple.quarantine "/Applications/Textgate.app"
 ```
 
-This is the interim installation workaround; manual re-signing is not part of
-the installation steps. It does not notarize the app or fix other launch errors.
-The explicit signing/verification change is after v0.1.3; existing release files
-are unchanged. Fresh M1 and M4 download tests are still needed for the new build.
+These are interim installation options; they do not notarize the app. Manual
+re-signing is not part of installation. A fresh M1 installation and native Intel
+launch remain unverified. Existing 0.1.3 release files are unchanged.
 See [Tauri's ad-hoc signing guidance](https://tauri.app/distribute/sign/macos/#ad-hoc-signing).
 
 On Windows, run either installer. Windows installers are unsigned; if SmartScreen

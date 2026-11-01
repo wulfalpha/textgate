@@ -1,8 +1,7 @@
 # Testing Textgate 0.1.4
 
-Download the 0.1.4 draft packages and `Textgate_0.1.4_save-fixtures.zip` from
-[GitHub Releases](https://github.com/wulfalpha/textgate/releases) while signed in
-with repository collaborator access. The ZIP includes ready-to-use fixtures,
+Download the 0.1.4 packages and `Textgate_0.1.4_save-fixtures.zip` from
+[GitHub Releases](https://github.com/wulfalpha/textgate/releases). The ZIP includes ready-to-use fixtures,
 hashes, a standalone verifier and `START-HERE.txt`.
 
 Run against the packaged 0.1.4 app. Record the OS, processor architecture,
@@ -77,8 +76,12 @@ individual hash comparisons, normalization styles and CLI/native regression
 results have not been recorded separately. Remaining detailed checks stay in the
 release checklist.
 
-Keep the GitHub release a draft until package uploads and the agreed smoke tests
-have been reviewed. Draft downloads require repository collaborator access.
+The M4 downloaded-install check passed: the user copied the fresh 0.1.4 DMG app
+to Applications and launched it through Privacy & Security → Open Anyway without
+manual re-signing. Every installed app file matches the downloaded release, its
+strict signature check passes, and the downloaded DMG checksum verifies. Fresh
+M1 installation and native Intel launch remain unverified. Detailed pending tests
+are retained in the release checklist; they are not claimed as completed.
 
 
 ## M4 command-line follow-up

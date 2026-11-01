@@ -85,14 +85,18 @@ remain before the intended first official release; keep the GitHub release a dra
 - [x] Add a strict bundle-signature verification step to both Mac release jobs.
 - [x] Document targeted quarantine removal as the only interim Terminal install step.
 - [x] Run the updated v0.1.4 release workflow and confirm both Mac signature checks pass.
-- [ ] Download a fresh build on M1 and M4; copy to Applications and verify launch
-      after only `xattr -dr com.apple.quarantine`, without manual re-signing.
+- [x] On M4, download fresh 0.1.4, copy to Applications, and launch using
+      Privacy & Security → Open Anyway, without Terminal commands or re-signing.
+      Installed app files match the downloaded DMG byte for byte and the strict
+      bundle-signature check passes.
+- [ ] Verify a fresh M1 installation; quarantine-removal-only launch remains a
+      separate untested installation alternative.
 
 Developer ID signing/notarization is deferred by choice. Do not change existing
 release artifacts or claim the M1 installation issue resolved until tested.
 
 
-## v0.1.4 CLI milestone (draft testing)
+## v0.1.4 CLI milestone
 
 - [x] Add CLI path parsing, help/version, local file URLs, and `--` handling.
 - [x] Queue startup and second-instance requests using the sender's working directory.
@@ -142,9 +146,11 @@ release artifacts or claim the M1 installation issue resolved until tested.
 - [ ] Test `.md` and `.markdown` associations; reject multi-file requests clearly.
 - [ ] Verify CLI help/version in Windows terminals and Mac/Linux shells.
 - [ ] Complete fresh M1/M4 quarantine-only install checks and signature checks above.
-- [ ] Build, inspect, and publish v0.1.4 only after release review.
+- [x] Build and inspect v0.1.4; complete M4 installation and release review.
+- [x] Publish [v0.1.4](https://github.com/wulfalpha/textgate/releases/tag/v0.1.4)
+      as the latest release with all nine package assets and the test-fixture ZIP.
 
-## v0.1.4 stabilization (in progress)
+## v0.1.4 stabilization (released; follow-up tests tracked below)
 
 - [x] Preserve mixed line endings by default, with undo/redo metadata.
 - [x] Add explicit Edit → Normalize line endings for LF, CRLF and CR.
@@ -166,5 +172,5 @@ release artifacts or claim the M1 installation issue resolved until tested.
       ([run 41262517205](https://github.com/wulfalpha/textgate/actions/runs/41262517205)).
 - [x] Record user-verified Windows 11 MSI and Arch Linux AppImage testing:
       fonts stable and Normalize line endings present in the Edit menu.
-- [ ] Review the remaining detailed save/normalization, CLI and Mac installation
-      checks before deciding to publish the release.
+- [x] Review completed checks and publish after the verified M4 installation.
+      Keep the remaining platform-specific checks above as follow-up coverage.
