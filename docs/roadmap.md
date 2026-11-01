@@ -23,6 +23,9 @@ Before tagging, complete these gates in the [release checklist](release-checklis
    is still unknown; an ad-hoc signature check alone cannot establish resolution.
    The user reported an M1 download/build test on 2026-10-31; the revision and
    packaged-download/quarantine-only result have not yet been specified.
+   A [fresh CI artifact test on M4](macos-validation.md) confirmed launch after
+   targeted quarantine removal without re-signing, using a temporary copy with
+   synthetic quarantine. Browser download/copy-to-Applications testing remains.
 3. Test installed first-launch and second-instance opening on all three platforms,
    including Finder/Explorer/Open With and Linux desktop integration. Cover another
    working directory, spaces, Unicode, local file URLs, and dash-prefixed names.

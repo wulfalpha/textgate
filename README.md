@@ -168,7 +168,9 @@ xattr -dr com.apple.quarantine "/Applications/Textgate.app"
 This is the interim installation workaround; manual re-signing is not part of
 the installation steps. It does not notarize the app or fix other launch errors.
 The explicit signing/verification change is after v0.1.3; existing release files
-are unchanged. Fresh M1 and M4 download tests are still needed for the new build.
+are unchanged. A [fresh CI artifact test on M4](docs/macos-validation.md) confirmed
+launch after quarantine removal without re-signing. Full browser-download and
+copy-to-Applications tests on M1 and M4 remain pending.
 See [Tauri's ad-hoc signing guidance](https://tauri.app/distribute/sign/macos/#ad-hoc-signing).
 
 On Windows, run either installer. Windows installers are unsigned; if SmartScreen

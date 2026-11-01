@@ -443,3 +443,11 @@ recovery, then recent files and drag-and-drop as proposed 0.1.5 work. The
 The user also reported an M1 download/build test on 2026-10-31. The revision and
 whether a packaged download launched with only quarantine removal are not yet
 specified, so the packaged-install check remains open.
+
+A manual [Release build](https://github.com/wulfalpha/textgate/actions/runs/41259404476)
+then produced fresh 0.1.4 artifacts without a tag or published release. Both Mac
+jobs passed their signature checks. On this M4, the CI-built Apple Silicon app
+launched after targeted quarantine removal without re-signing; Gatekeeper's
+assessment still rejected it. See the [test record](docs/macos-validation.md)
+for the temporary-copy/synthetic-quarantine limits. Developer ID signing and
+notarization remain planned for later, after several release versions.

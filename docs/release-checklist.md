@@ -86,7 +86,11 @@ remain before the intended first official release; keep the GitHub release a dra
 - [x] Document targeted quarantine removal as the only interim Terminal install step.
 - [x] Record the user's M1 download/build test (2026-10-31). The tested revision,
       packaged-download behavior, and any quarantine/re-signing steps were not specified.
-- [ ] Run the updated release workflow and confirm both Mac signature checks pass.
+- [x] Run the updated release workflow and confirm both Mac signature checks pass
+      ([run 41259404476](https://github.com/wulfalpha/textgate/actions/runs/41259404476), 2026-10-31).
+- [x] Verify the fresh Apple Silicon CI artifact signature and M4 launch after
+      targeted quarantine removal, without re-signing ([2026-10-31 test](macos-validation.md)).
+      This used a temporary copy with synthetic quarantine; full download/install testing remains below.
 - [ ] Download a fresh build on M1 and M4; copy to Applications and verify launch
       after only `xattr -dr com.apple.quarantine`, without manual re-signing.
 
