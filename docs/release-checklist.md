@@ -124,8 +124,15 @@ release artifacts or claim the M1 installation issue resolved until tested.
       empty named document, ABSENT before Save, EXISTS after Save (screenshots).
 - [x] On M4, user verified an external editor's saved changes trigger the
       changed-on-disk dialog when saving the Textgate buffer.
-- [ ] Test external creation of a prepared-but-unsaved missing file, plus
-      external deletion/recreation and explicit overwrite behavior.
+- [x] On M4, user approved Overwrite after an external edit and verified the
+      disk contents matched Textgate (including “Yes” changed to “no”).
+- [x] On M4, moving the open test file to Trash triggered Cancel/Recreate.
+      Cancel retained the buffer without restoring the original path; Recreate
+      created a new file at that path and left the trashed original intact.
+- [x] On M4, Save As to a new filename produced a copy matching the buffer.
+- [ ] Test external creation of a prepared-but-unsaved missing file.
+- [ ] On M4, finish Save As to an existing destination and dialog cancellation;
+      repeat save-integrity checks on Windows/Linux.
 - [ ] Test Finder Open With / `open -a`, Explorer Open With, and Linux installed desktop integration.
 - [ ] Test `.md` and `.markdown` associations; reject multi-file requests clearly.
 - [ ] Verify CLI help/version in Windows terminals and Mac/Linux shells.

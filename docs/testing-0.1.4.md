@@ -98,10 +98,16 @@ once afterward and does not repeat. Screenshots of the installed app's CLI openi
 `/tmp/textgate-missing-test.md` show an empty named document, ABSENT on disk before
 Save, and EXISTS after Save. The user then edited that saved file in another
 editor and confirmed Textgate displays the changed-on-disk warning on Save.
+Explicit Overwrite then produced disk contents matching Textgate, including the
+“Yes” to “no” change. Moving the open file to Trash triggered the expected
+Cancel/Recreate dialog (screenshot): Cancel retained the buffer and left the
+original path absent; Recreate created a new file at that path while keeping the
+trashed copy intact. Save As to a new filename produced a matching buffer copy.
 
 The missing-file CLI invocation reached the running app. CLI first-launch and
-additional path variants remain pending, along with external creation/deletion
-and explicit overwrite checks. Desktop automation was unavailable during the
+additional path variants remain pending, along with external creation of a
+prepared-but-unsaved file, Save As to an existing destination and dialog
+cancellation checks. Desktop automation was unavailable during the
 automated pass, including after reconnecting.
 From the repository root, with the generated fixture directory present:
 
