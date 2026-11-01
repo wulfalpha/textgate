@@ -113,8 +113,11 @@ release artifacts or claim the M1 installation issue resolved until tested.
       incomplete file URLs. All five launch-parser unit tests pass.
 - [x] Inspect the packaged M4 Info.plist: `.md` and `.markdown` document types
       use Editor role and Alternate rank.
-- [ ] Verify `textgate notes.md` both on first launch and while already running.
-- [ ] Invoke from another working directory; test spaces, Unicode, `-- -name.md`, and file URLs.
+- [x] On M4, user verified CLI first launch opens `first-launch.md` in one
+      window, and subsequent invocations switch the existing window.
+- [x] On M4, user verified a relative path from `/tmp/textgate-cli-checks`,
+      spaces/Unicode (`spaces and café.md`), `-- -dash.md`, and a local file URL.
+- [ ] Repeat CLI first-launch, forwarding and path-variant checks on Windows/Linux.
 - [x] On M4, user verified opening another Markdown file with unsaved edits:
       Keep editing cancels the open and retains edits; Discard opens the requested file.
 - [x] On M4, user verified an incoming open during Save As prompts once for

@@ -106,9 +106,16 @@ trashed copy intact. Save As to a new filename produced a matching buffer copy.
 The user also verified Save As replacement with an overwrite warning and confirmed
 that cancelling Save As behaves as expected.
 
-The missing-file CLI invocation reached the running app. CLI first-launch and
-additional path variants remain pending, along with external creation of a
-prepared-but-unsaved file. Detailed save-integrity checks on Windows/Linux and
+The missing-file CLI invocation reached the running app. The user subsequently
+quit Textgate completely and verified that the installed binary opened
+`first-launch.md` in one window. With Textgate running, a relative invocation
+from `/tmp/textgate-cli-checks` opened `spaces and café.md` in that same window.
+The `-- -dash.md` invocation and `file:///tmp/textgate-cli-checks/file-url.md`
+also opened the expected files. These confirm Mac first-launch, second-instance
+forwarding, relative paths, spaces/Unicode, dash-prefixed names and local file URLs.
+
+External creation of a prepared-but-unsaved file remains pending, as do the CLI
+first-launch/forwarding/path checks on Windows/Linux. Detailed save-integrity checks on Windows/Linux and
 downloaded Mac installation checks remain separate pending items. Desktop automation was unavailable during the
 automated pass, including after reconnecting.
 From the repository root, with the generated fixture directory present:
