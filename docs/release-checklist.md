@@ -174,3 +174,27 @@ release artifacts or claim the M1 installation issue resolved until tested.
       fonts stable and Normalize line endings present in the Edit menu.
 - [x] Review completed checks and publish after the verified M4 installation.
       Keep the remaining platform-specific checks above as follow-up coverage.
+
+
+## v0.1.5 spell check update
+
+- [x] Vim: keep the block cursor full height while an operator, count or register
+      is pending and in Replace mode; show `Vim REPLACE` in the status bar.
+- [x] Vim: `:w`, `:saveas`, `:wq`/`:x`, `:q`/`:qa` and `!` forms through the app's
+      save/close paths. `:q` with unsaved changes refuses with E37, as in Vim.
+- [x] Spellcheck: View → Check spelling (on by default, remembered). Code, URLs,
+      raw HTML and front matter are excluded. Linux enables WebKitGTK's checker
+      with dictionaries from LANGUAGE/LC_ALL/LC_MESSAGES/LANG (fallback en_US).
+- [x] Bundle iA Writer Quattro S (document) and iA Writer Mono S (code, Source
+      mode, Vim prompt) as unmodified OFL webfonts; credit them in the README.
+      The interface keeps the system font.
+- [x] Restyle Vim's `:` prompt; outline the unfocused block cursor in the accent;
+      widen the block at line ends.
+- [ ] Confirm hosted Checks compile the Linux-only WebKitGTK spelling code.
+- [ ] On Linux (with hunspell dictionaries installed), Windows and macOS: misspelled
+      prose is underlined in Live and Source modes; code and URLs are not;
+      right-click offers suggestions; the toggle removes underlines.
+- [ ] Check the Vim cursor after `d`, `c`, `5`, `"a` and `R` on each platform.
+- [ ] Check the bundled fonts in Live, Source, preview and tables on each platform
+      (bold/italic, headings, code blocks, relative-number gutter alignment).
+- [ ] Check `:w`, `:wq`, `:q` (dirty and clean), `:q!` and `:sav` in packaged apps.

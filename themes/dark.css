@@ -23,6 +23,6 @@
   --tg-syntax-string: #9bc59d;
   --tg-syntax-number: #e1b56d;
   --tg-font-ui: Inter, system-ui, sans-serif;
-  --tg-font-mono: 'SFMono-Regular', Consolas, monospace;
-  --tg-font-document: var(--tg-font-ui);
+  --tg-font-mono: 'iA Writer Mono S', ui-monospace, Menlo, Consolas, 'DejaVu Sans Mono', monospace;
+  --tg-font-document: 'iA Writer Quattro S', system-ui, sans-serif;
 }

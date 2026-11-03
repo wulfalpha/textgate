@@ -328,3 +328,8 @@ requests, plus the dedicated Textgate theme configuration handled by the Rust ba
 ## License
 
 Textgate is licensed under the [MIT License](LICENSE).
+
+Textgate bundles the iA Writer Quattro S and iA Writer Mono S typefaces, unmodified,
+for document text and code. They are © 2018 Information Architects Inc., based on
+IBM Plex (© 2017 IBM Corp.), and licensed under the
+[SIL Open Font License 1.1](web/fonts/LICENSE.md).

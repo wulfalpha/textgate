@@ -10,7 +10,10 @@ import { basicSetup } from 'codemirror';
 import { EditorState, Compartment } from '@codemirror/state';
 import { EditorView, keymap } from '@codemirror/view';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
-import { vim, getCM } from '@replit/codemirror-vim';
+import { vim, getCM, Vim } from '@replit/codemirror-vim';
+import { fullHeightVimCursor } from './vim-cursor.js';
+import { defineVimFileCommands } from './vim-commands.js';
+import { spellcheck, readSpellcheck, storeSpellcheck } from './spellcheck.js';
 import createDOMPurify from 'dompurify';
 import { listen } from '@tauri-apps/api/event';
 import { createDocumentOpener } from './document-opener.js';
@@ -45,6 +48,8 @@ let savedDoc;
 let savedFormat;
 let vimEnabled = false;
 let relativeNumbers = false;
+const storage = (() => { try { return window.localStorage; } catch { return null; } })();
+let spellchecking = readSpellcheck(storage);
 let mode = 'live';
 let nativeMenus = null;
 let title = '';
@@ -56,6 +61,7 @@ let previewPromise = null;
 const details = createDocumentDetails();
 const vimMode = new Compartment();
 const numbersMode = new Compartment();
+const spellcheckMode = new Compartment();
 const liveMode = new Compartment();
 const filters = [{ name: 'Markdown', extensions: ['md', 'markdown', 'txt'] }];
 const view = new EditorView({
@@ -161,8 +167,10 @@ function replaceDocument(text, nextPath, nextFormat = defaultFormat) {
   updateToolbar();
   view.focus();
 }
+const vimExtensions = () => [vim(), fullHeightVimCursor];
 function extensions(initialFormat = defaultFormat) {
-  return [vimMode.of(vimEnabled ? vim() : []), basicSetup, preserveDocumentFormat(initialFormat), numbersMode.of(relativeNumbers ? relativeLineNumbers() : []),
+  return [vimMode.of(vimEnabled ? vimExtensions() : []), basicSetup, preserveDocumentFormat(initialFormat), numbersMode.of(relativeNumbers ? relativeLineNumbers() : []),
+    spellcheckMode.of(spellchecking ? spellcheck() : []),
     // classHighlighter has no class for strikethrough.
     syntaxHighlighting(classHighlighter), syntaxHighlighting(tagHighlighter([{ tag: tags.strikethrough, class: 'tok-strikethrough' }])),
     markdown({ base: markdownLanguage, codeLanguages: fencedLanguage }),
@@ -201,22 +209,24 @@ async function openDocument() {
   if (!selected) return;
   await openPath(selected, { approved: beforeOpen });
 }
+// Resolves true only when the document was written.
 async function saveDocument(saveAs = false) {
-  if (!isTauri()) { $('status').textContent = 'Run npm run tauri dev to open and save local files.'; return; }
+  if (!isTauri()) { $('status').textContent = 'Run npm run tauri dev to open and save local files.'; return false; }
   const chosen = !path || saveAs;
   const destination = chosen ? await save({ defaultPath: path ?? 'Untitled.md', filters }) : path;
-  if (!destination) return;
+  if (!destination) return false;
   const snapshot = view.state.doc;
   const snapshotFormat = view.state.field(documentFormat);
   if (!await documents.save(destination, encodeDocument(snapshot.toString(), snapshotFormat), { chosen })) {
     $('status').textContent = 'Save cancelled. Your edits are still in the editor.';
-    return;
+    return false;
   }
   path = destination;
   savedDoc = snapshot;
   savedFormat = snapshotFormat;
   refresh();
   $('status').textContent = `Saved ${name()}`;
+  return true;
 }
 $('new').onclick = () => run(async () => { if (await canDiscard()) { replaceDocument('', null); $('status').textContent = 'New document'; } });
 $('open').onclick = () => run(openDocument);
@@ -225,7 +235,7 @@ $('save-as').onclick = () => run(() => saveDocument(true));
 // The browser-only dev server leaves zoom to the browser itself.
 const zoom = createZoom({
   setZoom: (level) => getCurrentWebview().setZoom(level),
-  storage: (() => { try { return window.localStorage; } catch { return null; } })(),
+  storage,
   onChange: (level) => { $('status').textContent = `Zoom ${Math.round(level * 100)}%`; },
 });
 for (const [id, action] of [['zoom-in', 'in'], ['zoom-out', 'out'], ['zoom-reset', 'reset']]) {
@@ -241,24 +251,46 @@ $('relative-numbers').onclick = () => {
   $('relative-numbers').setAttribute('aria-pressed', String(relativeNumbers));
   view.focus();
 };
+$('spellcheck').setAttribute('aria-pressed', String(spellchecking));
+$('spellcheck').onclick = () => {
+  spellchecking = !spellchecking;
+  storeSpellcheck(storage, spellchecking);
+  view.dispatch({ effects: spellcheckMode.reconfigure(spellchecking ? spellcheck() : []) });
+  $('spellcheck').setAttribute('aria-pressed', String(spellchecking));
+  view.focus();
+};
 $('vim').onclick = () => {
   vimEnabled = !vimEnabled;
-  view.dispatch({ effects: vimMode.reconfigure(vimEnabled ? vim() : []) });
+  view.dispatch({ effects: vimMode.reconfigure(vimEnabled ? vimExtensions() : []) });
   $('vim').setAttribute('aria-pressed', String(vimEnabled));
   updateEditorStatus();
   view.focus();
 };
 function updateEditorStatus() {
-  const state = getCM(view)?.state.vim;
+  const cm = getCM(view);
+  const state = cm?.state.vim;
   const label = mode === 'live' ? 'Live' : 'Source';
-  $('editor-status').textContent = !vimEnabled ? label
-    : `${label} · Vim ${state?.insertMode ? 'INSERT' : state?.visualMode ? 'VISUAL' : 'NORMAL'}`;
+  // The cursor no longer shrinks in Replace mode, so name that mode here.
+  const vimLabel = cm?.state.overwrite ? 'REPLACE' : state?.insertMode ? 'INSERT' : state?.visualMode ? 'VISUAL' : 'NORMAL';
+  $('editor-status').textContent = !vimEnabled ? label : `${label} · Vim ${vimLabel}`;
 }
 // Vim mode changes may not modify the document, so update after key handling too.
 view.dom.addEventListener('keydown', () => queueMicrotask(updateEditorStatus));
 $('quit').onclick = () => run(async () => {
   if (!isTauri()) { $('status').textContent = 'Close this browser tab to quit.'; return; }
   if (await canDiscard()) await getCurrentWindow().destroy();
+});
+defineVimFileCommands(Vim, {
+  run,
+  save: () => saveDocument(),
+  saveAs: () => saveDocument(true),
+  isDirty: dirty,
+  // Callers have already saved or chosen to discard, so close without asking.
+  close: async () => {
+    if (!isTauri()) { $('status').textContent = 'Close this browser tab to quit.'; return; }
+    await getCurrentWindow().destroy();
+  },
+  message: (text) => { $('status').textContent = text; },
 });
 $('edit-undo').onclick = () => { undo(view); view.focus(); };
 $('edit-redo').onclick = () => { redo(view); view.focus(); };

@@ -3,6 +3,7 @@
 mod documents;
 mod launch;
 mod markdown;
+mod spelling;
 mod themes;
 
 use tauri::Manager;
@@ -73,6 +74,10 @@ fn main() {
                     grant(path);
                 }
             });
+            #[cfg(target_os = "linux")]
+            if let Some(window) = app.get_webview_window("main") {
+                spelling::enable(&window)?;
+            }
             launch::receive(app.handle(), Ok(initial), true);
             Ok(())
         })
