@@ -3774,7 +3774,7 @@ dependencies = [
 
 [[package]]
 name = "textgate"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "comrak",
  "objc2",

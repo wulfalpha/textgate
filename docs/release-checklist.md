@@ -208,3 +208,8 @@ release artifacts or claim the M1 installation issue resolved until tested.
 - [ ] Check the bundled fonts in Live, Source, preview and tables on each platform
       (bold/italic, headings, code blocks, relative-number gutter alignment).
 - [ ] Check `:w`, `:wq`, `:q` (dirty and clean), `:q!` and `:sav` in packaged apps.
+- [x] Update all version fields and lockfiles to 0.1.5 (`npm run check:version`)
+      and write docs/releases/0.1.5.md.
+- [ ] Merge to main, tag `v0.1.5`, and confirm all release jobs and assets.
+- [ ] Smoke-test the packaged apps (AppImage spelling dictionaries especially)
+      before publishing; update the README status and download names.
