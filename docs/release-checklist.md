@@ -185,12 +185,17 @@ release artifacts or claim the M1 installation issue resolved until tested.
 - [x] Spellcheck: View → Check spelling (on by default, remembered). Code, URLs,
       raw HTML and front matter are excluded. Linux enables WebKitGTK's checker
       with dictionaries from LANGUAGE/LC_ALL/LC_MESSAGES/LANG (fallback en_US).
+      macOS registers WebKit's `WebContinuousSpellCheckingEnabled` default.
+      The editor takes focus at launch, since checking starts on focus.
+- [x] User verified spelling underlines on macOS (M4, dev build) and Linux (Arch,
+      source build, after the editor gained focus).
 - [x] Bundle iA Writer Quattro S (document) and iA Writer Mono S (code, Source
       mode, Vim prompt) as unmodified OFL webfonts; credit them in the README.
       The interface keeps the system font.
 - [x] Restyle Vim's `:` prompt; outline the unfocused block cursor in the accent;
       widen the block at line ends.
-- [ ] Confirm hosted Checks compile the Linux-only WebKitGTK spelling code.
+- [x] Confirm hosted Checks compile the Linux-only WebKitGTK spelling code (run 41579359304).
+- [ ] Confirm hosted Checks compile the macOS spelling default.
 - [ ] On Linux (with hunspell dictionaries installed), Windows and macOS: misspelled
       prose is underlined in Live and Source modes; code and URLs are not;
       right-click offers suggestions; the toggle removes underlines.

@@ -3777,6 +3777,8 @@ name = "textgate"
 version = "0.1.4"
 dependencies = [
  "comrak",
+ "objc2",
+ "objc2-foundation",
  "serde",
  "tauri",
  "tauri-build",

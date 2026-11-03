@@ -70,6 +70,9 @@ const view = new EditorView({
 });
 savedDoc = view.state.doc;
 savedFormat = view.state.field(documentFormat);
+// Start ready to type. Platform spell checkers also begin checking an editable
+// region only once it has focus.
+view.focus();
 const dirty = () => !view.state.doc.eq(savedDoc) || !sameDocumentFormat(view.state.field(documentFormat), savedFormat, view.state.doc);
 const name = () => path?.split(/[\\/]/).pop() ?? 'Untitled.md';
 const previewVisible = () => mode === 'source' && $('toggle-preview').getAttribute('aria-pressed') === 'true';

@@ -43,6 +43,26 @@ pub fn enable(webview: &tauri::WebviewWindow) -> tauri::Result<()> {
     })
 }
 
+/// WebKit on macOS reads `WebContinuousSpellCheckingEnabled` from the app's
+/// user defaults and treats a missing value as off. Safari registers it as on,
+/// and apps with an Edit → Spelling menu let users turn it on. Textgate has
+/// neither, so register it as the fallback before any web view starts. This is
+/// not written to disk, so a value saved by the user still takes precedence.
+#[cfg(target_os = "macos")]
+pub fn enable() {
+    use objc2::runtime::AnyObject;
+    use objc2_foundation::{NSDictionary, NSNumber, NSString, NSUserDefaults, ns_string};
+    let on = NSNumber::new_bool(true);
+    let defaults: objc2::rc::Retained<NSDictionary<NSString, AnyObject>> =
+        NSDictionary::from_slices(
+            &[ns_string!("WebContinuousSpellCheckingEnabled")],
+            &[&*on as &AnyObject],
+        );
+    // SAFETY: the dictionary maps NSString keys to NSNumber objects, as
+    // registerDefaults: requires.
+    unsafe { NSUserDefaults::standardUserDefaults().registerDefaults(&defaults) };
+}
+
 #[cfg(test)]
 mod tests {
     use super::languages;

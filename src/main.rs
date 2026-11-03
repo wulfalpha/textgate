@@ -43,6 +43,8 @@ fn main() {
             std::process::exit(2);
         }
     };
+    #[cfg(target_os = "macos")]
+    spelling::enable();
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
             launch::receive(
