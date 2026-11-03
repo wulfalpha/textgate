@@ -77,6 +77,24 @@ not rendered when enclosed by `---` lines at the start of the document.
 Output is sanitized with DOMPurify. Browser-only `npm run dev` has no
 Rust backend and falls back to `marked`, which can differ in edge cases.
 
+## Spell checking
+
+**View → Check spelling** underlines misspelled words using the operating
+system's spell checker, so right-click suggestions and dictionaries come from
+your system. It is on by default and remembered on this device. Code spans,
+code blocks, URLs, raw HTML and YAML front matter are not checked.
+
+- **macOS:** works with the system dictionaries.
+- **Linux:** needs a Hunspell dictionary for your language, such as
+  `hunspell-en_us` on Arch or `hunspell-en-us` on Debian/Ubuntu. Textgate picks
+  languages from `LANGUAGE`, `LC_ALL`, `LC_MESSAGES` and `LANG`, falling back to
+  US English.
+- **Windows: known issue.** Spelling is not underlined on Windows in 0.1.5,
+  although the setting is present. The cause has not been identified yet;
+  WebView2, the system component Textgate uses to display the editor, does not
+  apply its spell checker to the editor in our testing. Nothing else is
+  affected.
+
 ## Large documents
 
 Live-mode styling is limited to visible text and a nearby margin. Tables and
@@ -282,7 +300,8 @@ JavaScript, Rust, formatting, and Clippy checks on Linux, macOS, and Windows.
 The desktop app has native **File**, **Edit**, **View**, and **Help** menus.
 On macOS, About and Quit appear in the application menu. Browser-only development
 uses an in-page menu bar. The Live/Source switch and formatting toolbar
-remain visible; View controls the outline, preview pane, Vim bindings, line numbers, and themes.
+remain visible; View controls the outline, preview pane, Vim bindings, line numbers,
+spell checking, and themes.
 
 | Action | Shortcut |
 | --- | --- |
@@ -296,7 +315,11 @@ remain visible; View controls the outline, preview pane, Vim bindings, line numb
 | Move between outline, editor and preview | F6 / Shift+F6 |
 
 Choose **View → Vim bindings** to enable Vim editing in either mode. The status
-bar shows the current Vim mode. **View → Relative line numbers** shows the
+bar shows the current Vim mode. The file commands use the same save checks as
+the menus: `:w` saves, `:sav` chooses a new file, `:wq` and `:x` save and close,
+`:q` closes (refusing with E37 if there are unsaved changes, as Vim does), and
+`:q!` closes without saving. File names after `:w` and `:wq` are not supported;
+use `:sav`. **View → Relative line numbers** shows the
 cursor line's number and every other line's distance from it, as Vim's
 `number` plus `relativenumber` does; it also shows the numbers in Live mode.
 **View → Zoom In/Out** scales the whole window and is remembered on this device.
@@ -315,7 +338,9 @@ out of the editor, press Escape followed by Tab.
 Next milestones:
 
 - Table row/column commands for Live mode.
-- Folder explorer and sidebar tabs.
+- 0.1.6: a workspace folder with a file browser sidebar and document tabs.
+- 0.1.7: links between notes (`[[wiki links]]` and Markdown links), file
+  watching, autosave and crash recovery; groundwork for Zettelkasten notes in 0.2.0.
 - Local image resolution and external link opening (preview links currently show
   their destination in the status bar; remote images are blocked in the desktop app).
 - Continued package validation across supported platforms.

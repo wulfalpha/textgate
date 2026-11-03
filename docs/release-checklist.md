@@ -196,7 +196,12 @@ release artifacts or claim the M1 installation issue resolved until tested.
       widen the block at line ends.
 - [x] Confirm hosted Checks compile the Linux-only WebKitGTK spelling code (run 41579359304).
 - [x] Confirm hosted Checks compile the macOS spelling default (run 41581394953).
-- [ ] On Linux (with hunspell dictionaries installed), Windows and macOS: misspelled
+- [x] Windows (dev build, Windows 11): View → Check spelling is present but no
+      words are underlined. Cause not identified; documented in the README as a
+      known issue for 0.1.5. Diagnostics to try later: whether a plain
+      `<textarea spellcheck>` is underlined in the same WebView2, the
+      `.cm-content` spellcheck property, and Settings → Time & language → Typing.
+- [ ] On Linux (with hunspell dictionaries installed) and macOS: misspelled
       prose is underlined in Live and Source modes; code and URLs are not;
       right-click offers suggestions; the toggle removes underlines.
 - [ ] Check the Vim cursor after `d`, `c`, `5`, `"a` and `R` on each platform.
