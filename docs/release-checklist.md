@@ -195,7 +195,7 @@ release artifacts or claim the M1 installation issue resolved until tested.
 - [x] Restyle Vim's `:` prompt; outline the unfocused block cursor in the accent;
       widen the block at line ends.
 - [x] Confirm hosted Checks compile the Linux-only WebKitGTK spelling code (run 41579359304).
-- [ ] Confirm hosted Checks compile the macOS spelling default.
+- [x] Confirm hosted Checks compile the macOS spelling default (run 41581394953).
 - [ ] On Linux (with hunspell dictionaries installed), Windows and macOS: misspelled
       prose is underlined in Live and Source modes; code and URLs are not;
       right-click offers suggestions; the toggle removes underlines.
