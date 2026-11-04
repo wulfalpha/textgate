@@ -3,7 +3,7 @@
 //! outside it; every path is checked after resolving symbolic links, so a link
 //! inside the workspace cannot reach elsewhere.
 
-use crate::documents::Documents;
+use crate::documents::{DocumentId, Documents};
 use serde::{Deserialize, Serialize};
 use std::{
     cmp::Ordering,
@@ -44,6 +44,18 @@ impl Root {
             }
         });
         real.is_ok_and(|real| real.starts_with(&self.real))
+    }
+
+    // An entry inside the workspace that may be renamed or trashed: it exists
+    // (a broken link counts) and is not the workspace folder itself.
+    fn entry(&self, path: &Path) -> Result<(), String> {
+        if !self.contains(path) || fs::symlink_metadata(path).is_err() {
+            return Err("That item is not in the open folder any more. Refresh the list.".into());
+        }
+        if fs::canonicalize(path).is_ok_and(|real| real == self.real) {
+            return Err("The open folder itself cannot be changed here.".into());
+        }
+        Ok(())
     }
 }
 
@@ -194,13 +206,16 @@ fn checked_name(name: &str) -> Result<&str, String> {
     Ok(name)
 }
 
-// New files are Markdown unless named as Markdown or text already.
-fn file_name(name: &str) -> String {
-    let known = Path::new(name)
+fn known_extension(name: &str) -> bool {
+    Path::new(name)
         .extension()
         .and_then(|extension| extension.to_str())
-        .is_some_and(|extension| EXTENSIONS.contains(&extension.to_ascii_lowercase().as_str()));
-    if known {
+        .is_some_and(|extension| EXTENSIONS.contains(&extension.to_ascii_lowercase().as_str()))
+}
+
+// New files are Markdown unless named as Markdown or text already.
+fn file_name(name: &str) -> String {
+    if known_extension(name) {
         name.to_owned()
     } else {
         format!("{name}.md")
@@ -233,6 +248,69 @@ fn create(root: &Root, folder: &Path, name: &str, kind: Kind) -> Result<PathBuf,
         _ => error.to_string(),
     })?;
     Ok(path)
+}
+
+// Two names for one entry, as on case-insensitive file systems (`a.md` and `A.md`).
+fn same_entry(a: &Path, b: &Path) -> bool {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        matches!((fs::symlink_metadata(a), fs::symlink_metadata(b)),
+            (Ok(a), Ok(b)) if a.dev() == b.dev() && a.ino() == b.ino())
+    }
+    #[cfg(not(unix))]
+    {
+        // Windows file systems ignore case unless a folder opts in.
+        a.file_name().zip(b.file_name()).is_some_and(|(a, b)| {
+            a.to_string_lossy().to_lowercase() == b.to_string_lossy().to_lowercase()
+        })
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Renamed {
+    path: String,
+    /// Open documents that moved, with their new paths.
+    documents: Vec<(DocumentId, String)>,
+}
+
+// Renames within the same folder. A file keeps its extension unless the new
+// name gives Markdown or text one. Never replaces another entry.
+fn rename(documents: &Documents, root: &Root, path: &Path, name: &str) -> Result<Renamed, String> {
+    root.entry(path)?;
+    let name = checked_name(name)?;
+    let folder = fs::metadata(path).is_ok_and(|meta| meta.is_dir());
+    let name = match path.extension().and_then(|extension| extension.to_str()) {
+        Some(extension) if !folder && !known_extension(name) => format!("{name}.{extension}"),
+        _ if !folder => file_name(name),
+        _ => name.to_owned(),
+    };
+    let to = path.with_file_name(&name);
+    let text = |path: &Path| {
+        path.to_str()
+            .map(str::to_owned)
+            .ok_or_else(|| "The name is not valid Unicode.".to_owned())
+    };
+    if to == path {
+        return Ok(Renamed {
+            path: text(&to)?,
+            documents: Vec::new(),
+        });
+    }
+    if fs::symlink_metadata(&to).is_ok() && !same_entry(path, &to) {
+        return Err(format!("{name} already exists."));
+    }
+    let moved = documents
+        .rename(path, &to)
+        .map_err(|error| error.to_string())?;
+    Ok(Renamed {
+        path: text(&to)?,
+        documents: moved
+            .into_iter()
+            .filter_map(|(id, path)| Some((id, path.to_str()?.to_owned())))
+            .collect(),
+    })
 }
 
 // The workspace is remembered as one line in Textgate's config folder.
@@ -346,6 +424,76 @@ pub async fn create_entry(
         path.to_str()
             .map(str::to_owned)
             .ok_or_else(|| "The name is not valid Unicode.".into())
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
+pub async fn rename_entry(
+    app: tauri::AppHandle,
+    path: PathBuf,
+    name: String,
+) -> Result<Renamed, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let documents = app.state::<Documents>();
+        let root = documents.root().ok_or("No folder is open.")?;
+        rename(&documents, &root, &path, &name)
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+// Moves an entry to the system trash, never deleting it outright. Returns the
+// open documents whose files went with it; they stay open.
+fn trash_entry_in(
+    documents: &Documents,
+    root: &Root,
+    path: &Path,
+) -> Result<Vec<DocumentId>, String> {
+    root.entry(path)?;
+    let holding = documents.holding(path).map_err(|error| error.to_string())?;
+    #[cfg(target_os = "macos")]
+    let trash = {
+        use trash::macos::{DeleteMethod, TrashContextExtMacos};
+        // Finder scripting would ask for permission to control Finder.
+        let mut trash = trash::TrashContext::default();
+        trash.set_delete_method(DeleteMethod::NsFileManager);
+        trash
+    };
+    #[cfg(not(target_os = "macos"))]
+    let trash = trash::TrashContext::default();
+    trash
+        .delete(path)
+        .map_err(|error| format!("Could not move it to the trash: {error}"))?;
+    Ok(holding)
+}
+
+#[tauri::command]
+pub async fn trash_entry(app: tauri::AppHandle, path: PathBuf) -> Result<Vec<DocumentId>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let documents = app.state::<Documents>();
+        let root = documents.root().ok_or("No folder is open.")?;
+        trash_entry_in(&documents, &root, &path)
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+// Shows an entry in the system file manager. Only for entries in the workspace,
+// so the page cannot probe other paths.
+#[tauri::command]
+pub async fn reveal_entry(app: tauri::AppHandle, path: PathBuf) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let root = app
+            .state::<Documents>()
+            .root()
+            .ok_or("No folder is open.")?;
+        if !root.contains(&path) || fs::symlink_metadata(&path).is_err() {
+            return Err("That item is not in the open folder any more. Refresh the list.".into());
+        }
+        tauri_plugin_opener::reveal_item_in_dir(&path)
+            .map_err(|error| format!("Could not show it in the file manager: {error}"))
     })
     .await
     .map_err(|error| error.to_string())?
@@ -508,6 +656,62 @@ mod tests {
         assert!(create(&root, dir.path(), "outside", Kind::File).is_err());
         assert!(!dir.path().join("outside.md").exists());
         assert!(create(&root, &notes.join("missing"), "x", Kind::File).is_err());
+    }
+
+    #[test]
+    fn renaming_keeps_extensions_refuses_replacing_and_stays_inside() {
+        let dir = tempfile::tempdir().unwrap();
+        let notes = dir.path().join("notes");
+        fs::create_dir_all(notes.join("folder")).unwrap();
+        for name in ["a.md", "b.txt", "taken.md"] {
+            fs::write(notes.join(name), name).unwrap();
+        }
+        fs::write(dir.path().join("outside.md"), b"x").unwrap();
+        let root = Root::new(&notes).unwrap();
+        let documents = Documents::default();
+        let named = |path: &str, name: &str| {
+            rename(&documents, &root, &notes.join(path), name).map(|renamed| renamed.path)
+        };
+        let path = |name: &str| notes.join(name).to_str().unwrap().to_owned();
+        assert_eq!(named("a.md", "ideas"), Ok(path("ideas.md")));
+        assert_eq!(named("b.txt", "list"), Ok(path("list.txt")));
+        assert_eq!(named("list.txt", "list.md"), Ok(path("list.md")));
+        assert_eq!(named("folder", "Projects v2"), Ok(path("Projects v2")));
+        assert_eq!(
+            named("ideas.md", "ideas"),
+            Ok(path("ideas.md")),
+            "unchanged"
+        );
+        assert_eq!(
+            named("ideas.md", "Ideas"),
+            Ok(path("Ideas.md")),
+            "case only"
+        );
+        assert_eq!(
+            named("Ideas.md", "taken"),
+            Err("taken.md already exists.".into())
+        );
+        assert_eq!(fs::read(notes.join("taken.md")).unwrap(), b"taken.md");
+        assert!(named("Ideas.md", "a/b").is_err());
+        assert!(named("missing.md", "x").is_err());
+        assert!(rename(&documents, &root, &dir.path().join("outside.md"), "y").is_err());
+        assert!(rename(&documents, &root, &notes, "renamed").is_err());
+        assert!(notes.is_dir());
+    }
+
+    #[test]
+    fn trashing_refuses_the_workspace_and_anything_outside() {
+        let dir = tempfile::tempdir().unwrap();
+        let notes = dir.path().join("notes");
+        fs::create_dir(&notes).unwrap();
+        fs::write(dir.path().join("outside.md"), b"x").unwrap();
+        let root = Root::new(&notes).unwrap();
+        let documents = Documents::default();
+        // Checked before the trash is touched, so these never reach it.
+        assert!(trash_entry_in(&documents, &root, &notes).is_err());
+        assert!(trash_entry_in(&documents, &root, &dir.path().join("outside.md")).is_err());
+        assert!(trash_entry_in(&documents, &root, &notes.join("missing.md")).is_err());
+        assert!(notes.is_dir() && dir.path().join("outside.md").exists());
     }
 
     #[test]

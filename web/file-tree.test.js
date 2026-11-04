@@ -13,8 +13,10 @@ function setup(folders) {
   const opened = [];
   const errors = [];
   const menus = [];
+  const commands = [];
   const tree = createFileTree({
     menu: (target, position) => menus.push(target),
+    command: (name, target) => commands.push([name, target.path]),
     container,
     list: async (path) => {
       listed.push(path);
@@ -29,7 +31,7 @@ function setup(folders) {
   const labels = () => items().map((item) => `${'  '.repeat(Number(item.getAttribute('aria-level') ?? 1) - 1)}${item.querySelector('.tree-name')?.textContent ?? item.textContent}`);
   const key = (name) => document.activeElement.dispatchEvent(new window.KeyboardEvent('keydown', { key: name, bubbles: true, cancelable: true }));
   const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
-  return { tree, container, listed, opened, errors, menus, items, labels, key, settle };
+  return { tree, container, listed, opened, errors, menus, commands, items, labels, key, settle };
 }
 
 const workspace = {
@@ -168,4 +170,20 @@ test('the context menu names the row, its folder, or the workspace; new items go
   assert.deepEqual(env.menus.at(-1), { path: '/w', folder: true, parent: null }, 'empty space means the workspace');
   await env.tree.setRoot(null);
   assert.equal(env.tree.folderForNew(), null);
+});
+
+test('F2 renames and Delete trashes the chosen row; a rename keeps folders open', async () => {
+  const env = setup(workspace);
+  await env.tree.setRoot({ path: '/w', name: 'w' });
+  env.tree.focus();
+  env.key('F2');
+  env.key('Delete');
+  document.activeElement.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Backspace', metaKey: true, bubbles: true, cancelable: true }));
+  assert.deepEqual(env.commands, [['rename', '/w/docs'], ['trash', '/w/docs'], ['trash', '/w/docs']]);
+  await env.tree.reveal('/w/docs/deep/x.md');
+  env.tree.select('/w/docs/deep/x.md');
+  env.tree.moved('/w/docs', '/w/notes');
+  assert.deepEqual(env.labels(), ['docs', '  deep', '    x.md', '  guide.md', 'big', 'a.md', 'b.txt'], 'names update on refresh');
+  assert.equal(env.items()[2].dataset.path, '/w/notes/deep/x.md');
+  assert.equal(env.items()[2].getAttribute('tabindex'), '0', 'the selection follows');
 });

@@ -6,7 +6,8 @@
 // - `open(path)` opens a file (in a tab).
 // - `menu(target, { x, y })` shows a context menu for `{ path, folder, parent }`
 //   (the workspace itself when no row was chosen).
-export function createFileTree({ container, list, open, report, menu = () => {} }) {
+// - `command(name, target)` runs `rename` (F2) or `trash` (Delete) on a row.
+export function createFileTree({ container, list, open, report, menu = () => {}, command = () => {} }) {
   const document = container.ownerDocument;
   let root = null;
   let failure = null;
@@ -117,6 +118,14 @@ export function createFileTree({ container, list, open, report, menu = () => {} 
     else { render(); open(path); }
   });
   container.addEventListener('keydown', (event) => {
+    const chosen = rows().some((row) => row.path === selected && !row.note);
+    // Delete, or Cmd+Backspace as in the macOS Finder.
+    const trash = event.key === 'Delete' || (event.key === 'Backspace' && event.metaKey);
+    if (chosen && (event.key === 'F2' || trash) && !event.ctrlKey && !event.altKey) {
+      command(trash ? 'trash' : 'rename', targetOf(selected));
+      event.preventDefault();
+      return;
+    }
     if (event.ctrlKey || event.metaKey || event.altKey) return;
     const visible = rows();
     const at = visible.findIndex((row) => row.path === selected);
@@ -215,6 +224,19 @@ export function createFileTree({ container, list, open, report, menu = () => {} 
       if (!root) return null;
       const target = targetOf(selected);
       return target.folder ? target.path : target.parent;
+    },
+    // After a rename: expanded folders, listings and the selection follow it.
+    moved(from, to) {
+      const sep = separator();
+      const follow = (path) => (path === from ? to : path.startsWith(from + sep) ? to + path.slice(from.length) : path);
+      for (const path of [...expanded]) { expanded.delete(path); expanded.add(follow(path)); }
+      for (const [path, listing] of [...listings]) {
+        listings.delete(path);
+        listings.set(follow(path), { ...listing, entries: listing.entries.map((entry) => ({ ...entry, path: follow(entry.path) })) });
+      }
+      if (selected) selected = follow(selected);
+      if (marks.current) marks = { ...marks, current: follow(marks.current) };
+      render();
     },
     async expand(path) {
       if (root && path !== root.path && !expanded.has(path)) await setExpanded(path, true);

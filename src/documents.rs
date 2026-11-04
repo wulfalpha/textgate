@@ -235,6 +235,32 @@ fn identity(target: &Path) -> PathBuf {
     })
 }
 
+// `path` moved along with `from`, if it is `from` or inside it.
+fn moved(path: &Path, from: &Path, to: &Path) -> Option<PathBuf> {
+    let rest = path.strip_prefix(from).ok()?;
+    Some(if rest.as_os_str().is_empty() {
+        to.to_path_buf()
+    } else {
+        to.join(rest)
+    })
+}
+
+// The file or folder itself, plus where it really is unless it is a link
+// (moving or trashing a link leaves the file it points to in place).
+fn places(path: &Path) -> io::Result<(PathBuf, Option<PathBuf>)> {
+    let link = fs::symlink_metadata(path)?.file_type().is_symlink();
+    Ok((
+        normalize(path),
+        (!link).then(|| fs::canonicalize(path)).transpose()?,
+    ))
+}
+
+// Where a path that does not exist yet will really be, by its folder.
+fn identity_in_folder(path: &Path) -> Option<PathBuf> {
+    let (parent, name) = path.parent().zip(path.file_name())?;
+    fs::canonicalize(parent).ok().map(|dir| dir.join(name))
+}
+
 fn gone() -> SaveError {
     failure("This document is no longer open.")
 }
@@ -271,6 +297,69 @@ impl Documents {
 
     pub fn set_root(&self, root: Option<Root>) {
         *self.root.lock().unwrap() = root;
+    }
+
+    /// Renames a file or folder, moving the documents inside it along so they
+    /// keep saving to the same file. Returns each moved document's new path.
+    pub fn rename(&self, from: &Path, to: &Path) -> io::Result<Vec<(DocumentId, PathBuf)>> {
+        let (given, real) = places(from)?;
+        let real_to = real.as_ref().and_then(|_| identity_in_folder(to));
+        // Held across the rename (one quick call) so no save sees a half-moved state.
+        let mut open = self.open.lock().unwrap();
+        fs::rename(from, to)?;
+        let follow = |path: &Path| {
+            moved(path, &given, to).or_else(|| {
+                real.as_deref()
+                    .zip(real_to.as_deref())
+                    .and_then(|(real, real_to)| moved(path, real, real_to))
+            })
+        };
+        let mut changed = Vec::new();
+        for (&id, slots) in open.iter_mut() {
+            for version in [&mut slots.opening, &mut slots.approved] {
+                if let Some(path) = version.as_ref().and_then(|(path, _)| follow(path)) {
+                    version.as_mut().unwrap().0 = path;
+                }
+            }
+            let file = slots.file.as_deref().and_then(follow);
+            let target = slots.baseline.as_ref().and_then(|(path, _)| follow(path));
+            if let Some(file) = &file {
+                slots.file = Some(file.clone());
+            }
+            // A tab that reached the file another way (a linked folder) follows
+            // the file itself.
+            if let (Some(path), Some(baseline)) = (target.or(file), slots.baseline.as_mut()) {
+                baseline.0 = path.clone();
+                changed.push((id, path));
+            }
+        }
+        drop(open);
+        for (_, path) in &changed {
+            self.remember(path);
+        }
+        Ok(changed)
+    }
+
+    /// The documents holding `path` or a file inside it, before it is removed.
+    pub fn holding(&self, path: &Path) -> io::Result<Vec<DocumentId>> {
+        let (given, real) = places(path)?;
+        let inside = |file: &Path| {
+            file.starts_with(&given) || real.as_deref().is_some_and(|real| file.starts_with(real))
+        };
+        Ok(self
+            .open
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(_, slots)| {
+                slots.file.as_deref().is_some_and(inside)
+                    || slots
+                        .baseline
+                        .as_ref()
+                        .is_some_and(|(path, _)| inside(path))
+            })
+            .map(|(&id, _)| id)
+            .collect())
     }
 
     fn create(&self) -> DocumentId {
@@ -769,6 +858,69 @@ mod tests {
             .unwrap();
         fs::write(notes.join("unopened.md"), b"x").unwrap();
         assert!(documents.open(third, &notes.join("unopened.md")).is_err());
+    }
+
+    #[test]
+    fn renamed_files_and_folders_take_their_documents_along() {
+        let dir = tempfile::tempdir().unwrap();
+        let notes = dir.path().join("notes");
+        fs::create_dir_all(notes.join("old")).unwrap();
+        let (a, b) = (notes.join("old/a.md"), notes.join("b.md"));
+        fs::write(&a, b"a").unwrap();
+        fs::write(&b, b"b").unwrap();
+        let documents = Documents::default();
+        documents.set_root(Some(Root::new(&notes).unwrap()));
+        let (first, second, third) = (documents.create(), documents.create(), documents.create());
+        for (doc, path) in [(first, &a), (second, &b)] {
+            documents.open(doc, path).unwrap();
+            documents.keep(doc, path).unwrap();
+        }
+        let moved = documents
+            .rename(&notes.join("old"), &notes.join("new"))
+            .unwrap();
+        let a = notes.join("new/a.md");
+        assert_eq!(moved, vec![(first, a.clone())]);
+        documents.save(first, &a, b"a2", SaveMode::Save).unwrap();
+        assert_eq!(fs::read(&a).unwrap(), b"a2");
+        // The new name is the same file, so another tab cannot open it twice.
+        assert!(
+            matches!(documents.open(third, &a), Err(SaveError::AlreadyOpen { document, .. }) if document == first)
+        );
+        let c = notes.join("c.md");
+        assert_eq!(documents.rename(&b, &c).unwrap(), vec![(second, c.clone())]);
+        documents.save(second, &c, b"c", SaveMode::Save).unwrap();
+        assert!(!b.exists());
+        assert_eq!(documents.holding(&notes.join("new")).unwrap(), vec![first]);
+        assert_eq!(documents.holding(&c).unwrap(), vec![second]);
+        assert!(documents.holding(&notes.join("missing")).is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_tab_opened_through_a_linked_folder_follows_the_real_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let notes = dir.path().join("notes");
+        fs::create_dir_all(notes.join("work")).unwrap();
+        std::os::unix::fs::symlink(notes.join("work"), notes.join("linked")).unwrap();
+        fs::write(notes.join("work/a.md"), b"a").unwrap();
+        let documents = Documents::default();
+        documents.set_root(Some(Root::new(&notes).unwrap()));
+        let doc = documents.create();
+        let through = notes.join("linked/a.md");
+        documents.open(doc, &through).unwrap();
+        documents.keep(doc, &through).unwrap();
+        let moved = documents
+            .rename(&notes.join("work/a.md"), &notes.join("work/b.md"))
+            .unwrap();
+        let real = fs::canonicalize(notes.join("work/b.md")).unwrap();
+        assert_eq!(moved, vec![(doc, real.clone())]);
+        documents.save(doc, &real, b"b", SaveMode::Save).unwrap();
+        assert_eq!(fs::read(notes.join("work/b.md")).unwrap(), b"b");
+        // Renaming the link itself leaves the tab on the real file alone.
+        documents
+            .rename(&notes.join("linked"), &notes.join("linked2"))
+            .unwrap();
+        documents.save(doc, &real, b"c", SaveMode::Save).unwrap();
     }
 
     #[test]

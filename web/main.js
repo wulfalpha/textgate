@@ -77,6 +77,8 @@ view.focus();
 const stateOf = (tab) => (tab === tabs.active ? view.state : tab.state);
 // Cached per tab, so typing does not compare every open document each keystroke.
 function dirty(tab = tabs.active) {
+  // A file moved to the trash: its tab keeps the text until saved again.
+  if (tab.deleted) return true;
   const state = stateOf(tab);
   const memo = tab.dirtyMemo;
   if (memo?.state === state && memo.savedDoc === tab.savedDoc && memo.savedFormat === tab.savedFormat) return memo.value;
@@ -283,7 +285,7 @@ function renderTabs() {
     return node;
   };
   bar.replaceChildren(...entries.map(({ tab, label, changed, active }) => element('div', { class: `tab-item${active ? ' active' : ''}`, role: 'presentation', 'data-tab': tab.id },
-    element('button', { class: 'tab', role: 'tab', id: `tab-${tab.id}`, 'aria-selected': String(active), 'aria-controls': 'editor', tabindex: active ? '0' : '-1', title: tab.path ?? 'Not saved yet' },
+    element('button', { class: 'tab', role: 'tab', id: `tab-${tab.id}`, 'aria-selected': String(active), 'aria-controls': 'editor', tabindex: active ? '0' : '-1', title: tab.deleted ? `${tab.path} (moved to the trash; save to recreate)` : tab.path ?? 'Not saved yet' },
       element('span', { class: 'tab-label' }, label),
       ...(changed ? [element('span', { class: 'tab-dirty', 'aria-hidden': 'true' }, '●'), element('span', { class: 'visually-hidden' }, ', unsaved changes')] : [])),
     element('button', { class: 'tab-close', tabindex: '-1', 'aria-label': `Close ${label}`, title: 'Close tab' }, '×'))));
@@ -340,10 +342,11 @@ const fileTree = createFileTree({
   open: (path) => run.enqueue(() => openFile(path)),
   report,
   menu: (target, position) => { showTreeMenu(target, position).catch(report); },
+  command: (name, target) => run(() => (name === 'rename' ? renameEntry(target) : trashEntry(target))),
 });
 // Asks for a name in an app dialog. `submit(name)` may throw to show why and
 // keep the dialog open; resolves with its result, or null if cancelled.
-function askName({ title, label = 'Name', value = '', hint = '', action = 'Create', submit }) {
+function askName({ title, label = 'Name', value = '', hint = '', action = 'Create', selection = null, submit }) {
   const dialog = $('name-dialog');
   $('name-title').textContent = title;
   $('name-label').textContent = label;
@@ -374,7 +377,8 @@ function askName({ title, label = 'Name', value = '', hint = '', action = 'Creat
     dialog.addEventListener('close', cancelled);
     dialog.showModal();
     $('name-input').focus();
-    $('name-input').select();
+    if (selection) $('name-input').setSelectionRange(...selection);
+    else $('name-input').select();
   });
 }
 // A new empty file opens in a tab; a new folder is selected in the tree.
@@ -393,21 +397,73 @@ async function newEntry(kind, folder = fileTree.folderForNew()) {
   else fileTree.select(path, { focus: true });
   $('status').textContent = `Created ${fileName(path)}`;
 }
-// One native context menu, reused; its items act on the row it was opened for.
-let treeMenu = null;
-let menuFolder = null;
+const separatorOf = (path) => (path.includes('\\') && !path.includes('/') ? '\\' : '/');
+// Tabs follow a renamed file or folder; Rust names the documents it moved
+// (including tabs that reached a file through a linked folder).
+async function renameEntry(target) {
+  const current = fileName(target.path);
+  const dot = target.folder ? -1 : current.lastIndexOf('.');
+  const result = await askName({
+    title: `Rename ${current}`,
+    value: current,
+    action: 'Rename',
+    selection: dot > 0 ? [0, dot] : null,
+    hint: target.folder ? 'Open files inside it keep their tabs.' : 'The extension is kept unless you type .md, .markdown or .txt.',
+    submit: (name) => invoke('rename_entry', { path: target.path, name }),
+  });
+  if (!result || result.path === target.path) return;
+  const from = target.path;
+  const sep = separatorOf(from);
+  const moved = new Set();
+  for (const [id, path] of result.documents) {
+    const tab = await tabWithDocument(id);
+    if (tab) { tab.path = path; moved.add(tab); }
+  }
+  for (const tab of tabs.list) {
+    if (moved.has(tab) || !tab.path) continue;
+    if (tab.path === from) tab.path = result.path;
+    else if (tab.path.startsWith(from + sep)) tab.path = result.path + tab.path.slice(from.length);
+  }
+  fileTree.moved(from, result.path);
+  revealed = tabs.active.path;
+  refresh();
+  await fileTree.refresh();
+  fileTree.select(result.path, { focus: true });
+  $('status').textContent = `Renamed to ${fileName(result.path)}`;
+}
+// To the system trash, never deleted outright; open tabs keep their text.
+async function trashEntry(target) {
+  const label = fileName(target.path);
+  const inside = tabs.list.filter((tab) => tab.path && (tab.path === target.path || tab.path.startsWith(target.path + separatorOf(target.path))));
+  const note = inside.length ? `\n\n${inside.length === 1 ? 'Its open tab stays' : `${inside.length} open tabs stay`} open, so you can still save the text.` : '';
+  const what = target.folder ? `the folder “${label}” and everything in it` : `“${label}”`;
+  if (!await confirm(`Move ${what} to the trash?${note}`, { title: 'Move to Trash', kind: 'warning', okLabel: 'Move to Trash', cancelLabel: 'Cancel' })) return;
+  const ids = await invoke('trash_entry', { path: target.path });
+  for (const id of ids) {
+    const tab = await tabWithDocument(id);
+    if (tab) tab.deleted = true;
+  }
+  refresh();
+  await fileTree.refresh();
+  fileTree.focus();
+  $('status').textContent = ids.length ? `Moved ${label} to the trash. Open tabs keep their text; save to recreate a file.` : `Moved ${label} to the trash.`;
+}
+// The context menu, built for the row it was opened on.
 async function showTreeMenu(target, position) {
   if (!isTauri()) return;
-  menuFolder = target.folder ? target.path : target.parent;
-  if (!treeMenu) {
-    const { Menu } = await import('@tauri-apps/api/menu');
-    treeMenu = await Menu.new({ items: [
-      { text: 'New File…', action: () => run(() => newEntry('file', menuFolder)) },
-      { text: 'New Folder…', action: () => run(() => newEntry('folder', menuFolder)) },
-      { item: 'Separator' },
-      { text: 'Refresh', action: () => { fileTree.refresh().catch(report); } },
-    ] });
-  }
+  const folder = target.folder ? target.path : target.parent;
+  const workspace = target.parent === null;
+  const { Menu } = await import('@tauri-apps/api/menu');
+  const treeMenu = await Menu.new({ items: [
+    { text: 'New File…', action: () => run(() => newEntry('file', folder)) },
+    { text: 'New Folder…', action: () => run(() => newEntry('folder', folder)) },
+    { item: 'Separator' },
+    { text: 'Rename…', accelerator: 'F2', enabled: !workspace, action: () => run(() => renameEntry(target)) },
+    { text: 'Move to Trash…', enabled: !workspace, action: () => run(() => trashEntry(target)) },
+    { item: 'Separator' },
+    { text: 'Show in File Manager', action: () => { invoke('reveal_entry', { path: target.path }).catch(report); } },
+    { text: 'Refresh', action: () => { fileTree.refresh().catch(report); } },
+  ] });
   const { LogicalPosition } = await import('@tauri-apps/api/dpi');
   // Page coordinates scale with the window zoom.
   await treeMenu.popup(new LogicalPosition(position.x * zoom.level, position.y * zoom.level));
@@ -548,6 +604,7 @@ async function saveDocument(saveAs = false, tab = tabs.active) {
     return false;
   }
   tab.path = destination;
+  tab.deleted = false;
   tab.savedDoc = snapshot;
   tab.savedFormat = snapshotFormat;
   refresh();

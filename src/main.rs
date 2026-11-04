@@ -72,6 +72,9 @@ fn main() {
             workspace::close_workspace,
             workspace::list_folder,
             workspace::create_entry,
+            workspace::rename_entry,
+            workspace::trash_entry,
+            workspace::reveal_entry,
             launch::take_open_requests
         ])
         .plugin(tauri_plugin_dialog::init())
