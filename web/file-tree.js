@@ -1,0 +1,184 @@
+// The workspace file tree: one row per visible folder or file, as an ARIA tree
+// (`role="tree"` with `treeitem`s carrying their level, size and position).
+// Folders are listed when first expanded, so large trees stay fast.
+//
+// - `list(path)` resolves to `{ entries: [{ name, path, folder }], omitted }`.
+// - `open(path)` opens a file (in a tab).
+export function createFileTree({ container, list, open, report }) {
+  const document = container.ownerDocument;
+  let root = null;
+  let failure = null;
+  const listings = new Map();
+  const expanded = new Set();
+  let selected = null;
+  let marks = { current: null, open: new Set(), dirty: new Set() };
+  let typed = '';
+  let typedAt = 0;
+  let generation = 0;
+
+  const separator = () => (root.path.includes('\\') && !root.path.includes('/') ? '\\' : '/');
+  function rows() {
+    const out = [];
+    const walk = (folder, level) => {
+      const listing = listings.get(folder);
+      if (!listing) return;
+      listing.entries.forEach((entry, i) => {
+        out.push({ ...entry, level, position: i + 1, size: listing.entries.length });
+        if (entry.folder && expanded.has(entry.path)) walk(entry.path, level + 1);
+      });
+      if (listing.omitted) out.push({ note: true, path: `${folder}\0more`, name: `${listing.omitted} more not shown`, level });
+    };
+    if (root) walk(root.path, 1);
+    return out;
+  }
+
+  function element(tag, attributes, ...children) {
+    const node = document.createElement(tag);
+    for (const [name, value] of Object.entries(attributes)) if (value !== undefined) node.setAttribute(name, value);
+    node.append(...children);
+    return node;
+  }
+  function render() {
+    const focused = container.contains(document.activeElement);
+    const visible = rows();
+    if (!visible.some((row) => row.path === selected)) selected = visible[0]?.path ?? null;
+    container.replaceChildren(...visible.map((row) => {
+      const changed = marks.dirty.has(row.path);
+      return element('li', {
+        role: 'treeitem', 'data-path': row.path, 'aria-level': String(row.level),
+        'aria-setsize': row.note ? undefined : String(row.size), 'aria-posinset': row.note ? undefined : String(row.position),
+        'aria-expanded': row.folder ? String(expanded.has(row.path)) : undefined,
+        'aria-disabled': row.note ? 'true' : undefined,
+        'aria-current': row.path === marks.current ? 'true' : undefined,
+        tabindex: row.path === selected ? '0' : '-1',
+        class: [row.folder ? 'folder' : row.note ? 'note' : 'file', marks.open.has(row.path) ? 'open' : ''].filter(Boolean).join(' '),
+        style: `--level: ${row.level}`,
+      },
+      element('span', { class: 'tree-name' }, row.name),
+      ...(changed ? [element('span', { class: 'tree-dirty', 'aria-hidden': 'true' }, '●'), element('span', { class: 'visually-hidden' }, ', unsaved changes')] : []));
+    }));
+    if (failure) container.append(element('li', { role: 'treeitem', 'aria-disabled': 'true', class: 'note', tabindex: visible.length ? '-1' : '0' }, failure));
+    if (focused) focusSelected();
+  }
+  function focusSelected() {
+    (container.querySelector('[tabindex="0"]') ?? container).focus();
+  }
+
+  // Lists a folder; a failure leaves the folder collapsed and is reported.
+  async function load(folder) {
+    try {
+      listings.set(folder, await list(folder));
+      return true;
+    } catch (error) {
+      listings.delete(folder);
+      expanded.delete(folder);
+      report(error);
+      return false;
+    }
+  }
+  async function setExpanded(path, value) {
+    if (value) {
+      if (!await load(path)) { render(); return; }
+      expanded.add(path);
+    } else expanded.delete(path);
+    render();
+  }
+
+  container.addEventListener('click', (event) => {
+    const row = event.target.closest('[role="treeitem"][data-path]');
+    if (!row || row.getAttribute('aria-disabled') === 'true') return;
+    const path = row.dataset.path;
+    selected = path;
+    if (row.classList.contains('folder')) void setExpanded(path, !expanded.has(path));
+    else { render(); open(path); }
+  });
+  container.addEventListener('keydown', (event) => {
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
+    const visible = rows();
+    const at = visible.findIndex((row) => row.path === selected);
+    const row = visible[at];
+    const select = (target) => { if (target) { selected = target.path; render(); focusSelected(); } };
+    switch (event.key) {
+      case 'ArrowDown': select(visible[at + 1]); break;
+      case 'ArrowUp': select(visible[at - 1]); break;
+      case 'Home': select(visible[0]); break;
+      case 'End': select(visible.at(-1)); break;
+      case 'ArrowRight':
+        if (row?.folder && !expanded.has(row.path)) void setExpanded(row.path, true);
+        else if (row?.folder) select(visible[at + 1]?.level > row.level ? visible[at + 1] : null);
+        break;
+      case 'ArrowLeft':
+        if (row?.folder && expanded.has(row.path)) void setExpanded(row.path, false);
+        else select(visible.slice(0, Math.max(at, 0)).findLast((candidate) => candidate.level < (row?.level ?? 0)));
+        break;
+      case 'Enter':
+        if (row?.folder) void setExpanded(row.path, !expanded.has(row.path));
+        else if (row && !row.note) open(row.path);
+        break;
+      default: {
+        // Type-ahead: jump to the next name starting with the typed letters.
+        if (event.key.length !== 1 || event.key === ' ') return;
+        const now = Date.now();
+        typed = now - typedAt > 700 ? event.key.toLowerCase() : typed + event.key.toLowerCase();
+        typedAt = now;
+        const order = [...visible.slice(at + (typed.length > 1 ? 0 : 1)), ...visible.slice(0, at + 1)];
+        select(order.find((candidate) => !candidate.note && candidate.name.toLowerCase().startsWith(typed)));
+      }
+    }
+    event.preventDefault();
+  });
+
+  return {
+    get root() { return root; },
+    // Shows a workspace (`{ path, name }`), or nothing.
+    async setRoot(workspace) {
+      const run = ++generation;
+      root = workspace;
+      failure = null;
+      listings.clear();
+      expanded.clear();
+      selected = null;
+      if (root && !await load(root.path) && run === generation) failure = 'This folder cannot be read. It may have been moved or deleted.';
+      if (run === generation) render();
+    },
+    // Lists the workspace and every expanded folder again.
+    async refresh() {
+      if (!root) return;
+      const run = ++generation;
+      const folders = [root.path, ...expanded];
+      const results = await Promise.all(folders.map(async (folder) => {
+        try { return [folder, await list(folder)]; } catch { return [folder, null]; }
+      }));
+      if (run !== generation) return;
+      for (const [folder, listing] of results) {
+        if (listing) listings.set(folder, listing);
+        else { listings.delete(folder); expanded.delete(folder); }
+      }
+      failure = listings.has(root.path) ? null : 'This folder cannot be read. It may have been moved or deleted.';
+      render();
+    },
+    // Expands the folders above a file inside the workspace, so it is visible.
+    async reveal(path) {
+      if (!root || !path) return;
+      const sep = separator();
+      const prefix = root.path.endsWith(sep) ? root.path : root.path + sep;
+      if (!path.startsWith(prefix)) return;
+      const parts = path.slice(prefix.length).split(sep).slice(0, -1);
+      let folder = root.path;
+      for (const part of parts) {
+        folder = folder.endsWith(sep) ? folder + part : folder + sep + part;
+        if (!expanded.has(folder) && !await load(folder)) return;
+        expanded.add(folder);
+      }
+      render();
+    },
+    // The active tab's file, files open in tabs, and those with unsaved changes.
+    setMarks(next) {
+      const same = (a, b) => a.size === b.size && [...a].every((value) => b.has(value));
+      if (next.current === marks.current && same(next.open, marks.open) && same(next.dirty, marks.dirty)) return;
+      marks = next;
+      render();
+    },
+    focus: focusSelected,
+  };
+}

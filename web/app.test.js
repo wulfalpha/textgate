@@ -28,6 +28,16 @@ test('app switches modes without rewriting Markdown and keeps one undo history',
   $('toggle-outline').click();
   assert.ok(document.querySelector('main').classList.contains('hide-outline'));
   $('toggle-outline').click();
+  // The sidebar shows Files or Outline; folders need the desktop app.
+  assert.equal($('outline-panel').hidden, false);
+  $('sidebar-files').click();
+  assert.equal($('files-panel').hidden, false);
+  assert.equal($('outline-panel').hidden, true);
+  assert.equal($('view-files').getAttribute('aria-pressed'), 'true');
+  assert.match($('files-empty').textContent, /desktop app/);
+  $('view-outline').click();
+  assert.equal($('outline-panel').hidden, false);
+  assert.equal($('sidebar-outline').getAttribute('aria-selected'), 'true');
 
   $('mode-source').click();
   assert.ok(!view.dom.classList.contains('cm-live'));

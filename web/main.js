@@ -24,6 +24,7 @@ import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { open, save, confirm, message as messageDialog } from '@tauri-apps/plugin-dialog';
 import { createDocumentStore } from './document-store.js';
 import { createTabs, fileName, tabLabels } from './tabs.js';
+import { createFileTree } from './file-tree.js';
 import { createActionRunner } from './action-runner.js';
 import { encodeDocument, defaultFormat, lineEndingLabel, documentFormat, preserveDocumentFormat, sameDocumentFormat, normalizeLineEndings, snapshotDocument } from './document-format.js';
 import { createRenderer } from './markdown.js';
@@ -272,6 +273,7 @@ function renderTabs() {
   const key = JSON.stringify(entries.map(({ tab, label, changed, active }) => [tab.id, label, tab.path, changed, active]));
   if (key === tabBarKey) return;
   tabBarKey = key;
+  markFiles();
   const bar = $('tabbar');
   const focused = bar.contains(document.activeElement);
   const element = (tag, attributes, ...children) => {
@@ -331,6 +333,85 @@ function tabShortcut(event) {
   if (mod && digit && !event.shiftKey && !event.altKey) return tabs.at(Number(digit[1])) ?? tabs.active;
   return null;
 }
+// The file browser: the workspace folder's Markdown and text files.
+const fileTree = createFileTree({
+  container: $('file-tree'),
+  list: (path) => invoke('list_folder', { path }),
+  open: (path) => run.enqueue(() => openFile(path)),
+  report,
+});
+let revealed = null;
+function markFiles() {
+  const paths = tabs.list.filter((tab) => tab.path);
+  fileTree.setMarks({
+    current: tabs.active.path,
+    open: new Set(paths.map((tab) => tab.path)),
+    dirty: new Set(paths.filter((tab) => dirty(tab)).map((tab) => tab.path)),
+  });
+  // Show where the current file is, once per file.
+  if (tabs.active.path !== revealed) {
+    revealed = tabs.active.path;
+    fileTree.reveal(revealed).catch(report);
+  }
+}
+async function setWorkspace(workspace) {
+  $('workspace-name').textContent = workspace?.name ?? '';
+  $('workspace-name').title = workspace?.path ?? '';
+  $('files-empty').hidden = Boolean(workspace);
+  $('file-tree').hidden = !workspace;
+  $('refresh-files').hidden = !workspace;
+  $('close-folder').disabled = !workspace;
+  revealed = null;
+  await fileTree.setRoot(workspace);
+  markFiles();
+}
+// Files or Outline, remembered on this device.
+function showSidebar(view, { focus = false } = {}) {
+  for (const [name, tab, panel, item] of [['files', 'sidebar-files', 'files-panel', 'view-files'], ['outline', 'sidebar-outline', 'outline-panel', 'view-outline']]) {
+    const shown = name === view;
+    $(tab).setAttribute('aria-selected', String(shown));
+    $(tab).tabIndex = shown ? 0 : -1;
+    $(panel).hidden = !shown;
+    setPressed($(item), shown);
+  }
+  try { storage?.setItem('textgate.sidebar', view); } catch { /* keep it for this session */ }
+  if (focus) focusSidebar();
+}
+const sidebarView = () => ($('sidebar-files').getAttribute('aria-selected') === 'true' ? 'files' : 'outline');
+function focusSidebar() {
+  if (sidebarView() === 'outline') ($('outline').querySelector('button') ?? $('outline')).focus();
+  else if (fileTree.root) fileTree.focus();
+  else $('open-folder-here').focus();
+}
+async function openFolder() {
+  if (!isTauri()) { $('status').textContent = 'Run npm run tauri dev to open a folder.'; return; }
+  const selected = await open({ directory: true });
+  if (!selected) return;
+  await setWorkspace(await invoke('open_workspace', { path: selected }));
+  showSidebar('files', { focus: true });
+  if ($('toggle-outline').getAttribute('aria-pressed') !== 'true') $('toggle-outline').click();
+  $('status').textContent = `Opened folder ${fileTree.root.name}`;
+}
+$('open-folder').onclick = () => run(openFolder);
+$('open-folder-here').onclick = () => run(openFolder);
+$('close-folder').onclick = () => run(async () => {
+  await invoke('close_workspace');
+  await setWorkspace(null);
+  $('status').textContent = 'Folder closed. Open tabs stay open.';
+});
+$('refresh-files').onclick = () => fileTree.refresh().catch(report);
+$('view-files').onclick = () => showSidebar('files', { focus: true });
+$('view-outline').onclick = () => showSidebar('outline', { focus: true });
+$('sidebar-files').onclick = () => showSidebar('files');
+$('sidebar-outline').onclick = () => showSidebar('outline');
+document.querySelector('.sidebar-switch').addEventListener('keydown', (event) => {
+  if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+  event.preventDefault();
+  showSidebar(sidebarView() === 'files' ? 'outline' : 'files');
+  $(sidebarView() === 'files' ? 'sidebar-files' : 'sidebar-outline').focus();
+});
+// Without file watching (0.1.7), catch outside changes when returning to the window.
+window.addEventListener('focus', () => { fileTree.refresh().catch(report); });
 async function tabWithDocument(id) {
   for (const tab of tabs.list) if (await tab.file.id() === id) return tab;
   return null;
@@ -395,6 +476,8 @@ async function saveDocument(saveAs = false, tab = tabs.active) {
   tab.savedDoc = snapshot;
   tab.savedFormat = snapshotFormat;
   refresh();
+  // Save As can create a file inside the open folder.
+  if (chosen) fileTree.refresh().catch(report);
   $('status').textContent = `Saved ${fileName(destination)}`;
   return true;
 }
@@ -525,7 +608,7 @@ function cyclePanes(backwards) {
   const main = document.querySelector('main');
   const panes = [
     [$('tabbar'), () => $(`tab-${tabs.active.id}`)?.focus()],
-    !main.classList.contains('hide-outline') && [$('outline'), () => ($('outline').querySelector('button') ?? $('outline')).focus()],
+    !main.classList.contains('hide-outline') && [document.querySelector('main > aside'), focusSidebar],
     [$('editor'), () => view.focus()],
     previewVisible() && [$('preview'), () => $('preview').focus()],
   ].filter(Boolean);
@@ -663,6 +746,17 @@ updateToolbar();
 setupExternalOpen({ desktop: isTauri(), listen, invoke, run, report,
   openPath: openFile,
 }).catch(report);
+// The folder from the last session, and the sidebar view last chosen.
+const storedSidebar = (() => { try { return storage?.getItem('textgate.sidebar'); } catch { return null; } })();
+if (isTauri()) {
+  invoke('workspace').then(async (workspace) => {
+    await setWorkspace(workspace);
+    showSidebar(storedSidebar ?? (workspace ? 'files' : 'outline'));
+  }).catch(report);
+} else {
+  $('files-empty').firstChild.textContent = 'Run the desktop app to browse folders.';
+  showSidebar(storedSidebar === 'files' ? 'files' : 'outline');
+}
 setupThemes({ document, desktop: isTauri(), invoke });
 setupMenus({ document, desktop: isTauri(), onError: report }).then((menus) => { nativeMenus = menus; }).catch(report);
 

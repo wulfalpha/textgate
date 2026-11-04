@@ -259,6 +259,12 @@ impl Documents {
         self.granted.lock().unwrap().contains(&normalize(path))
     }
 
+    // A file a tab has opened or saved stays allowed, so closing the folder it
+    // came from does not stop that tab from saving.
+    fn remember(&self, path: &Path) {
+        self.granted.lock().unwrap().insert(normalize(path));
+    }
+
     pub fn root(&self) -> Option<Root> {
         self.root.lock().unwrap().clone()
     }
@@ -354,6 +360,8 @@ impl Documents {
             slots.baseline = slots.opening.take();
             slots.file = Some(file);
             slots.approved = None;
+            drop(open);
+            self.remember(path);
         }
         Ok(())
     }
@@ -399,6 +407,7 @@ impl Documents {
                     slots.baseline = Some((target, Some(contents.to_vec())));
                     slots.approved = None;
                 }
+                self.remember(path);
                 Ok(())
             }
             Err(SaveError::Conflict { missing }) => {
@@ -749,13 +758,17 @@ mod tests {
             );
         }
         assert_eq!(fs::read(outside.join("secret.md")).unwrap(), b"secret");
-        // Closing the folder withdraws access again.
+        // Closing the folder withdraws access to files no tab has opened, while
+        // open tabs can still save.
         documents.set_root(None);
-        assert!(
-            documents
-                .save(doc, &inside, b"later", SaveMode::Save)
-                .is_err()
-        );
+        documents
+            .save(doc, &inside, b"later", SaveMode::Save)
+            .unwrap();
+        documents
+            .save(other, &created, b"second", SaveMode::Save)
+            .unwrap();
+        fs::write(notes.join("unopened.md"), b"x").unwrap();
+        assert!(documents.open(third, &notes.join("unopened.md")).is_err());
     }
 
     #[test]

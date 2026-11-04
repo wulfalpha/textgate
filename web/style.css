@@ -204,3 +204,24 @@ main[data-mode="source"] #format-toolbar { display: none; }
 .tab-item:hover, .tab-item button:hover { background: var(--tg-hover); }
 .tab-item.active:hover, .tab-item.active button:hover { background: var(--tg-surface); }
 .tab-close:hover { color: var(--tg-text); }
+
+/* Sidebar: Files and Outline views, switched at the top like the pane headings. */
+.sidebar-switch { display: flex; gap: 2px; height: 42px; align-items: center; }
+.sidebar-switch button { border: 0; padding: 4px 10px; font-size: 10px; font-weight: 600; letter-spacing: 1.6px; text-transform: uppercase; color: var(--tg-muted); }
+.sidebar-switch button[aria-selected="true"] { color: var(--tg-text); box-shadow: inset 0 -2px 0 var(--tg-accent); border-radius: 0; }
+.files-header { display: flex; align-items: center; gap: 4px; padding: 0 0 6px 10px; font-size: 12px; font-weight: 600; }
+#workspace-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#refresh-files { border: 0; padding: 2px 8px; font-size: 14px; }
+#files-empty { padding: 0 10px; font-size: 12px; color: var(--tg-muted); display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+#file-tree { list-style: none; margin: 0 0 12px; padding: 0; font-size: 12px; }
+#file-tree [role="treeitem"] { display: flex; align-items: center; gap: 4px; padding: 3px 6px 3px calc(var(--level, 1) * 12px - 2px); border-radius: 4px; cursor: pointer; color: var(--tg-muted); }
+#file-tree [role="treeitem"]:hover { background: var(--tg-hover); }
+#file-tree [role="treeitem"]:focus-visible { outline: 2px solid var(--tg-focus); outline-offset: -2px; }
+#file-tree .folder::before { content: '▸'; width: 10px; flex-shrink: 0; font-size: 10px; }
+#file-tree .folder[aria-expanded="true"]::before { content: '▾'; }
+#file-tree .file, #file-tree .note { padding-left: calc(var(--level, 1) * 12px + 12px); }
+#file-tree .open { color: var(--tg-text); }
+#file-tree [aria-current="true"] { background: var(--tg-hover); color: var(--tg-text); font-weight: 600; }
+#file-tree .note { cursor: default; font-style: italic; }
+#file-tree .tree-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#file-tree .tree-dirty { color: var(--tg-warning); font-size: 9px; }
