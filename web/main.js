@@ -40,6 +40,8 @@ const documents = createDocumentStore({ invoke, confirmOverwrite: (destination, 
     : `The file changed outside Textgate:\n${destination}\n\nOverwrite it with your editor contents? Cancel keeps both versions unchanged; use Save As to keep a separate copy.`,
   { title: 'File changed on disk', kind: 'warning', okLabel: missing ? 'Recreate' : 'Overwrite', cancelLabel: 'Cancel' },
 ) });
+// The window's one document for now; each tab will get its own handle.
+const file = documents.create();
 
 const $ = (id) => document.getElementById(id);
 const initial = '# Welcome to Textgate\n\nA quiet place to write Markdown.\n\n## Start writing\n\nOpen a document or create a new one. Your preview updates as you type.\n\n- **Bold**, *italic*, and ~~strikethrough~~\n- Keyboard-friendly editing\n- Optional Vim keybindings\n- [x] Your Markdown is never rewritten\n\n## Tables\n\n| Feature | Status |\n| --- | --- |\n| Live preview | Ready |\n| GFM tables | Ready |\n\n```rust\nfn main() {\n    println!("Hello, Textgate!");\n}\n```\n';
@@ -197,7 +199,7 @@ const run = createActionRunner({
   onQueued: () => { $('status').textContent = 'File open request queued until the current operation finishes.'; },
 });
 const openPath = createDocumentOpener({
-  documents, snapshot: () => snapshotDocument(view.state), canDiscard, replace: replaceDocument,
+  documents: file, snapshot: () => snapshotDocument(view.state), canDiscard, replace: replaceDocument,
   opened: (_path, opened) => {
     $('status').textContent = opened.mixed
       ? `Opened ${name()}. It mixes line endings; existing line endings will be preserved.`
@@ -220,7 +222,7 @@ async function saveDocument(saveAs = false) {
   if (!destination) return false;
   const snapshot = view.state.doc;
   const snapshotFormat = view.state.field(documentFormat);
-  if (!await documents.save(destination, encodeDocument(snapshot.toString(), snapshotFormat), { chosen })) {
+  if (!await file.save(destination, encodeDocument(snapshot.toString(), snapshotFormat), { chosen })) {
     $('status').textContent = 'Save cancelled. Your edits are still in the editor.';
     return false;
   }

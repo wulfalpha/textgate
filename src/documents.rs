@@ -1,17 +1,29 @@
 use serde::Serialize;
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     fs,
     io::{self, Write},
     path::{Path, PathBuf},
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicU32, Ordering},
+    },
 };
 
 #[derive(Debug, Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum SaveError {
-    Conflict { missing: bool },
-    Io { message: String },
+    Conflict {
+        missing: bool,
+    },
+    /// The file is already open in another document.
+    AlreadyOpen {
+        document: u32,
+        message: String,
+    },
+    Io {
+        message: String,
+    },
 }
 impl From<io::Error> for SaveError {
     fn from(error: io::Error) -> Self {
@@ -179,20 +191,49 @@ pub enum SaveMode {
     Overwrite,
 }
 
-type Baseline = Option<(PathBuf, Option<Vec<u8>>)>;
+pub type DocumentId = u32;
+type Version = (PathBuf, Option<Vec<u8>>);
+
+// What Rust knows about one open document (one tab).
+#[derive(Default)]
+struct Slots {
+    /// Read by Open but not yet shown; opening can still be cancelled.
+    opening: Option<Version>,
+    /// The file's bytes when this document last opened or saved it.
+    baseline: Option<Version>,
+    /// Where the baseline's file really is, to find it under another path.
+    file: Option<PathBuf>,
+    /// The disk version the user approved overwriting after a conflict.
+    approved: Option<Version>,
+}
 
 // The exact disk bytes stay here, not in the webview, so saving a large
 // document never sends a copy of the original file over IPC.
 #[derive(Default)]
 pub struct Documents {
     granted: Arc<Mutex<HashSet<PathBuf>>>,
-    opening: Mutex<Baseline>,
-    baseline: Mutex<Baseline>,
-    approved: Mutex<Baseline>,
+    next: AtomicU32,
+    open: Mutex<HashMap<DocumentId, Slots>>,
 }
 
 fn normalize(path: &Path) -> PathBuf {
     path.components().collect()
+}
+
+// Two paths name the same file when they resolve to the same place, including
+// through linked folders. A file that does not exist yet is placed by its folder.
+fn identity(target: &Path) -> PathBuf {
+    fs::canonicalize(target).unwrap_or_else(|_| {
+        target
+            .parent()
+            .zip(target.file_name())
+            .and_then(|(parent, name)| fs::canonicalize(parent).ok().map(|dir| dir.join(name)))
+            .unwrap_or_else(|| normalize(target))
+    })
+}
+
+fn gone() -> SaveError {
+    failure("This document is no longer open.")
 }
 
 impl Documents {
@@ -210,6 +251,16 @@ impl Documents {
         }
     }
 
+    fn create(&self) -> DocumentId {
+        let id = self.next.fetch_add(1, Ordering::Relaxed) + 1;
+        self.open.lock().unwrap().insert(id, Slots::default());
+        id
+    }
+
+    fn close(&self, document: DocumentId) {
+        self.open.lock().unwrap().remove(&document);
+    }
+
     fn target(&self, path: &Path) -> Result<PathBuf, SaveError> {
         if !path.is_absolute() || !self.granted.lock().unwrap().contains(&normalize(path)) {
             return Err(failure(
@@ -219,12 +270,40 @@ impl Documents {
         Ok(resolve(path)?)
     }
 
-    fn open(&self, path: &Path) -> Result<Vec<u8>, SaveError> {
-        self.open_with(path, false)
+    // A file belongs to at most one document: two tabs editing one file would
+    // each see the other's saves as outside edits.
+    fn check_free(
+        open: &HashMap<DocumentId, Slots>,
+        document: DocumentId,
+        file: &Path,
+    ) -> Result<(), SaveError> {
+        match open
+            .iter()
+            .find(|(id, slots)| **id != document && slots.file.as_deref() == Some(file))
+        {
+            Some((&holder, _)) => Err(SaveError::AlreadyOpen {
+                document: holder,
+                message: "That file is open in another tab. Close it there first.".into(),
+            }),
+            None if open.contains_key(&document) => Ok(()),
+            None => Err(gone()),
+        }
     }
 
-    fn open_with(&self, path: &Path, allow_missing: bool) -> Result<Vec<u8>, SaveError> {
+    #[cfg(test)]
+    fn open(&self, document: DocumentId, path: &Path) -> Result<Vec<u8>, SaveError> {
+        self.open_with(document, path, false)
+    }
+
+    fn open_with(
+        &self,
+        document: DocumentId,
+        path: &Path,
+        allow_missing: bool,
+    ) -> Result<Vec<u8>, SaveError> {
         let target = self.target(path)?;
+        let file = identity(&target);
+        Self::check_free(&self.open.lock().unwrap(), document, &file)?;
         let bytes = snapshot(&target)?;
         if bytes.is_none() {
             if !allow_missing {
@@ -236,50 +315,82 @@ impl Documents {
                 ));
             }
         }
-        *self.opening.lock().unwrap() = Some((target, bytes.clone()));
+        let mut open = self.open.lock().unwrap();
+        open.get_mut(&document).ok_or_else(gone)?.opening = Some((target, bytes.clone()));
         Ok(bytes.unwrap_or_default())
     }
 
     // Opening can still be cancelled after reading (unsaved-changes prompt), so
     // the baseline changes only once the editor shows the new document.
-    fn keep(&self, path: &Path) -> Result<(), SaveError> {
+    fn keep(&self, document: DocumentId, path: &Path) -> Result<(), SaveError> {
         let target = self.target(path)?;
-        let mut opening = self.opening.lock().unwrap();
-        if opening
+        let file = identity(&target);
+        let mut open = self.open.lock().unwrap();
+        // Checked again: another document may have opened the file meanwhile.
+        Self::check_free(&open, document, &file)?;
+        let slots = open.get_mut(&document).ok_or_else(gone)?;
+        if slots
+            .opening
             .as_ref()
             .is_some_and(|(opened, _)| *opened == target)
         {
-            *self.baseline.lock().unwrap() = opening.take();
+            slots.baseline = slots.opening.take();
+            slots.file = Some(file);
+            slots.approved = None;
         }
         Ok(())
     }
 
-    fn save(&self, path: &Path, contents: &[u8], mode: SaveMode) -> Result<(), SaveError> {
+    fn save(
+        &self,
+        document: DocumentId,
+        path: &Path,
+        contents: &[u8],
+        mode: SaveMode,
+    ) -> Result<(), SaveError> {
         let target = self.target(path)?;
-        let stored = |slot: &Mutex<Baseline>| {
-            slot.lock()
-                .unwrap()
-                .as_ref()
-                .filter(|(stored, _)| *stored == target)
-                .map(|(_, bytes)| bytes.clone())
+        let file = identity(&target);
+        // The lock is held only to read and update the slots, never for disk
+        // access, so a slow save in one tab does not block the others.
+        let stored = {
+            let open = self.open.lock().unwrap();
+            Self::check_free(&open, document, &file)?;
+            let slots = &open[&document];
+            let stored = |slot: &Option<Version>| {
+                slot.as_ref()
+                    .filter(|(stored, _)| *stored == target)
+                    .map(|(_, bytes)| bytes.clone())
+            };
+            match mode {
+                SaveMode::Overwrite => stored(&slots.approved),
+                SaveMode::Save | SaveMode::Replace => stored(&slots.baseline),
+            }
         };
-        let expected = match mode {
-            SaveMode::Overwrite => stored(&self.approved),
-            SaveMode::Save => stored(&self.baseline),
-            // A Save As onto the open document still checks for outside edits.
-            SaveMode::Replace => stored(&self.baseline).or_else(|| snapshot(&target).ok()),
+        let expected = match (stored, mode) {
+            (Some(bytes), _) => Some(bytes),
+            // A Save As onto another file checks it is still what the dialog confirmed.
+            (None, SaveMode::Replace) => snapshot(&target).ok(),
+            (None, _) => None,
         }
         .ok_or_else(|| failure("Open the document again before saving."))?;
         match save(&target, contents, expected.as_deref()) {
             Ok(()) => {
-                *self.baseline.lock().unwrap() = Some((target, Some(contents.to_vec())));
-                *self.approved.lock().unwrap() = None;
+                // A newly created file now resolves fully.
+                let file = identity(&target);
+                if let Some(slots) = self.open.lock().unwrap().get_mut(&document) {
+                    slots.file = Some(file);
+                    slots.baseline = Some((target, Some(contents.to_vec())));
+                    slots.approved = None;
+                }
                 Ok(())
             }
             Err(SaveError::Conflict { missing }) => {
                 // Approval covers only the version on disk now; a later outside
                 // edit produces another conflict rather than being overwritten.
-                *self.approved.lock().unwrap() = Some((target.clone(), snapshot(&target)?));
+                let disk = snapshot(&target)?;
+                if let Some(slots) = self.open.lock().unwrap().get_mut(&document) {
+                    slots.approved = Some((target, disk));
+                }
                 Err(SaveError::Conflict { missing })
             }
             Err(error) => Err(error),
@@ -296,19 +407,27 @@ async fn blocking<T: Send + 'static>(
 }
 
 #[tauri::command]
+pub fn new_document(documents: tauri::State<'_, Documents>) -> DocumentId {
+    documents.create()
+}
+
+#[tauri::command]
+pub fn close_document(documents: tauri::State<'_, Documents>, document: DocumentId) {
+    documents.close(document);
+}
+
+#[tauri::command]
 pub async fn open_document(
     app: tauri::AppHandle,
+    document: DocumentId,
     path: PathBuf,
     allow_missing: Option<bool>,
 ) -> Result<tauri::ipc::Response, SaveError> {
     use tauri::Manager;
     blocking(move || {
-        let documents = app.state::<Documents>();
-        let bytes = if allow_missing.unwrap_or(false) {
-            documents.open_with(&path, true)?
-        } else {
-            documents.open(&path)?
-        };
+        let bytes =
+            app.state::<Documents>()
+                .open_with(document, &path, allow_missing.unwrap_or(false))?;
         Ok(tauri::ipc::Response::new(bytes))
     })
     .await
@@ -317,14 +436,16 @@ pub async fn open_document(
 #[tauri::command]
 pub fn keep_document(
     documents: tauri::State<'_, Documents>,
+    document: DocumentId,
     path: PathBuf,
 ) -> Result<(), SaveError> {
-    documents.keep(&path)
+    documents.keep(document, &path)
 }
 
 #[tauri::command]
 pub async fn save_document(
     app: tauri::AppHandle,
+    document: DocumentId,
     path: PathBuf,
     contents: String,
     mode: SaveMode,
@@ -332,7 +453,7 @@ pub async fn save_document(
     use tauri::Manager;
     blocking(move || {
         app.state::<Documents>()
-            .save(&path, contents.as_bytes(), mode)
+            .save(document, &path, contents.as_bytes(), mode)
     })
     .await
 }
@@ -414,36 +535,151 @@ mod tests {
         let path = dir.path().join("notes.md");
         fs::write(&path, b"\xef\xbb\xbfold\r\n").unwrap();
         let documents = Documents::default();
-        assert!(documents.open(&path).is_err(), "not chosen in a dialog");
+        let doc = documents.create();
+        assert!(
+            documents.open(doc, &path).is_err(),
+            "not chosen in a dialog"
+        );
         documents.grant(&path);
-        assert_eq!(documents.open(&path).unwrap(), b"\xef\xbb\xbfold\r\n");
+        assert_eq!(documents.open(doc, &path).unwrap(), b"\xef\xbb\xbfold\r\n");
         // Saving before the editor keeps the opened document has no baseline.
-        assert!(documents.save(&path, b"x", SaveMode::Save).is_err());
-        documents.keep(&path).unwrap();
-        documents.save(&path, b"one", SaveMode::Save).unwrap();
-        documents.save(&path, b"two", SaveMode::Save).unwrap();
+        assert!(documents.save(doc, &path, b"x", SaveMode::Save).is_err());
+        documents.keep(doc, &path).unwrap();
+        documents.save(doc, &path, b"one", SaveMode::Save).unwrap();
+        documents.save(doc, &path, b"two", SaveMode::Save).unwrap();
         fs::write(&path, b"outside").unwrap();
         assert!(matches!(
-            documents.save(&path, b"three", SaveMode::Save),
+            documents.save(doc, &path, b"three", SaveMode::Save),
             Err(SaveError::Conflict { missing: false })
         ));
         // A newer outside edit after the prompt is not covered by the approval.
         fs::write(&path, b"newer").unwrap();
         assert!(matches!(
-            documents.save(&path, b"three", SaveMode::Overwrite),
+            documents.save(doc, &path, b"three", SaveMode::Overwrite),
             Err(SaveError::Conflict { .. })
         ));
         documents
-            .save(&path, b"three", SaveMode::Overwrite)
+            .save(doc, &path, b"three", SaveMode::Overwrite)
             .unwrap();
         assert_eq!(fs::read(&path).unwrap(), b"three");
         fs::remove_file(&path).unwrap();
         assert!(matches!(
-            documents.save(&path, b"four", SaveMode::Save),
+            documents.save(doc, &path, b"four", SaveMode::Save),
             Err(SaveError::Conflict { missing: true })
         ));
-        documents.save(&path, b"four", SaveMode::Overwrite).unwrap();
+        documents
+            .save(doc, &path, b"four", SaveMode::Overwrite)
+            .unwrap();
         assert_eq!(fs::read(&path).unwrap(), b"four");
+    }
+
+    #[test]
+    fn each_document_keeps_its_own_baseline() {
+        let dir = tempfile::tempdir().unwrap();
+        let [first, second] = ["a.md", "b.md"].map(|name| dir.path().join(name));
+        let documents = Documents::default();
+        let [a, b] = [documents.create(), documents.create()];
+        assert_ne!(a, b);
+        for (doc, path) in [(a, &first), (b, &second)] {
+            fs::write(path, b"old").unwrap();
+            documents.grant(path);
+            documents.open(doc, path).unwrap();
+            documents.keep(doc, path).unwrap();
+        }
+        // A conflict, and approval to overwrite, in one tab leave the other alone.
+        fs::write(&first, b"outside").unwrap();
+        assert!(matches!(
+            documents.save(a, &first, b"mine", SaveMode::Save),
+            Err(SaveError::Conflict { .. })
+        ));
+        documents
+            .save(b, &second, b"saved", SaveMode::Save)
+            .unwrap();
+        assert!(
+            documents
+                .save(b, &second, b"x", SaveMode::Overwrite)
+                .is_err()
+        );
+        documents
+            .save(a, &first, b"mine", SaveMode::Overwrite)
+            .unwrap();
+        assert_eq!(fs::read(&first).unwrap(), b"mine");
+        assert_eq!(fs::read(&second).unwrap(), b"saved");
+        // A closed document is forgotten; its id is not reused.
+        documents.close(a);
+        assert!(documents.save(a, &first, b"late", SaveMode::Save).is_err());
+        assert!(documents.open(a, &first).is_err());
+        assert!(documents.create() > b);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_file_belongs_to_one_document_under_any_path() {
+        use std::os::unix::fs::symlink;
+        let dir = tempfile::tempdir().unwrap();
+        let real = dir.path().join("real");
+        fs::create_dir(&real).unwrap();
+        let file = real.join("notes.md");
+        fs::write(&file, b"old").unwrap();
+        let folder = dir.path().join("folder");
+        symlink(&real, &folder).unwrap();
+        let through_folder = folder.join("notes.md");
+        let documents = Documents::default();
+        let [a, b] = [documents.create(), documents.create()];
+        for path in [&file, &through_folder] {
+            documents.grant(path);
+        }
+        documents.open(a, &file).unwrap();
+        documents.keep(a, &file).unwrap();
+        // Reopening in the same document is fine; another document is told which has it.
+        documents.open(a, &file).unwrap();
+        assert!(matches!(
+            documents.open(b, &through_folder),
+            Err(SaveError::AlreadyOpen { document, .. }) if document == a
+        ));
+        // Save As onto it from another document is refused and changes nothing.
+        assert!(matches!(
+            documents.save(b, &through_folder, b"other", SaveMode::Replace),
+            Err(SaveError::AlreadyOpen { document, .. }) if document == a
+        ));
+        assert_eq!(fs::read(&file).unwrap(), b"old");
+        // Once the first document closes, the file is free.
+        documents.close(a);
+        documents.open(b, &through_folder).unwrap();
+        documents.keep(b, &through_folder).unwrap();
+        documents
+            .save(b, &through_folder, b"new", SaveMode::Save)
+            .unwrap();
+        assert_eq!(fs::read(&file).unwrap(), b"new");
+    }
+
+    #[test]
+    fn opening_is_checked_again_when_kept_and_saving_claims_new_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("notes.md");
+        fs::write(&path, b"old").unwrap();
+        let documents = Documents::default();
+        let [a, b, c] = [documents.create(), documents.create(), documents.create()];
+        documents.grant(&path);
+        // Both read the file before either shows it; only the first to keep it wins.
+        documents.open(a, &path).unwrap();
+        documents.open(b, &path).unwrap();
+        documents.keep(b, &path).unwrap();
+        assert!(matches!(
+            documents.keep(a, &path),
+            Err(SaveError::AlreadyOpen { document, .. }) if document == b
+        ));
+        assert!(documents.save(a, &path, b"x", SaveMode::Save).is_err());
+        // An untitled document saved to a new file now holds that file.
+        let created = dir.path().join("new.md");
+        documents.grant(&created);
+        documents
+            .save(c, &created, b"new", SaveMode::Replace)
+            .unwrap();
+        assert!(matches!(
+            documents.open(a, &created),
+            Err(SaveError::AlreadyOpen { document, .. }) if document == c
+        ));
     }
 
     #[test]
@@ -451,32 +687,35 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("new.md");
         let documents = Documents::default();
-        assert!(documents.open_with(&path, true).is_err());
+        let doc = documents.create();
+        assert!(documents.open_with(doc, &path, true).is_err());
         documents.granter()(&path);
-        assert!(documents.open(&path).is_err());
-        assert_eq!(documents.open_with(&path, true).unwrap(), b"");
+        assert!(documents.open(doc, &path).is_err());
+        assert_eq!(documents.open_with(doc, &path, true).unwrap(), b"");
         assert!(!path.exists());
-        documents.keep(&path).unwrap();
+        documents.keep(doc, &path).unwrap();
         // Another program can create the file while the empty buffer is open.
         fs::write(&path, b"outside").unwrap();
         assert!(matches!(
-            documents.save(&path, b"mine", SaveMode::Save),
+            documents.save(doc, &path, b"mine", SaveMode::Save),
             Err(SaveError::Conflict { missing: false })
         ));
         assert_eq!(fs::read(&path).unwrap(), b"outside");
-        documents.save(&path, b"mine", SaveMode::Overwrite).unwrap();
+        documents
+            .save(doc, &path, b"mine", SaveMode::Overwrite)
+            .unwrap();
         assert_eq!(fs::read(&path).unwrap(), b"mine");
         let other = dir.path().join("unselected.md");
-        assert!(documents.open_with(&other, true).is_err());
+        assert!(documents.open_with(doc, &other, true).is_err());
         let missing_parent = dir.path().join("missing/new.md");
         documents.granter()(&missing_parent);
-        assert!(documents.open_with(&missing_parent, true).is_err());
+        assert!(documents.open_with(doc, &missing_parent, true).is_err());
         let empty = dir.path().join("empty.md");
         documents.granter()(&empty);
-        documents.open_with(&empty, true).unwrap();
-        documents.keep(&empty).unwrap();
+        documents.open_with(doc, &empty, true).unwrap();
+        documents.keep(doc, &empty).unwrap();
         documents
-            .save(&empty, b"first save", SaveMode::Save)
+            .save(doc, &empty, b"first save", SaveMode::Save)
             .unwrap();
         assert_eq!(fs::read(&empty).unwrap(), b"first save");
     }
@@ -487,13 +726,18 @@ mod tests {
         let path = dir.path().join("copy.md");
         fs::write(&path, b"existing").unwrap();
         let documents = Documents::default();
+        let doc = documents.create();
         let grant = documents.granter();
         grant(&path);
-        documents.save(&path, b"copy", SaveMode::Replace).unwrap();
+        documents
+            .save(doc, &path, b"copy", SaveMode::Replace)
+            .unwrap();
         assert_eq!(fs::read(&path).unwrap(), b"copy");
         let created = dir.path().join("new.md");
         documents.grant(&created);
-        documents.save(&created, b"new", SaveMode::Replace).unwrap();
+        documents
+            .save(doc, &created, b"new", SaveMode::Replace)
+            .unwrap();
         assert_eq!(fs::read(&created).unwrap(), b"new");
     }
 
@@ -512,11 +756,12 @@ mod tests {
         let folder = dir.path().join("folder");
         symlink(&real, &folder).unwrap();
         let documents = Documents::default();
+        let doc = documents.create();
         for path in [&link, &folder.join("notes.md")] {
             documents.grant(path);
-            assert_eq!(documents.open(path).unwrap(), fs::read(&file).unwrap());
-            documents.keep(path).unwrap();
-            documents.save(path, b"new", SaveMode::Save).unwrap();
+            assert_eq!(documents.open(doc, path).unwrap(), fs::read(&file).unwrap());
+            documents.keep(doc, path).unwrap();
+            documents.save(doc, path, b"new", SaveMode::Save).unwrap();
             assert!(
                 fs::symlink_metadata(&link)
                     .unwrap()
@@ -529,14 +774,14 @@ mod tests {
         let broken = dir.path().join("broken.md");
         symlink(dir.path().join("gone.md"), &broken).unwrap();
         documents.grant(&broken);
-        assert!(documents.open(&broken).is_err());
+        assert!(documents.open(doc, &broken).is_err());
 
         let hard = dir.path().join("hard.md");
         fs::hard_link(&file, &hard).unwrap();
         documents.grant(&hard);
-        assert_eq!(documents.open(&hard).unwrap(), b"old");
-        documents.keep(&hard).unwrap();
-        assert!(documents.save(&hard, b"bad", SaveMode::Save).is_err());
+        assert_eq!(documents.open(doc, &hard).unwrap(), b"old");
+        documents.keep(doc, &hard).unwrap();
+        assert!(documents.save(doc, &hard, b"bad", SaveMode::Save).is_err());
         assert_eq!(fs::read(&file).unwrap(), b"old");
     }
 

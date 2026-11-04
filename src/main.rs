@@ -61,6 +61,8 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             themes::theme_state,
             markdown::render_markdown,
+            documents::new_document,
+            documents::close_document,
             documents::open_document,
             documents::keep_document,
             documents::save_document,
