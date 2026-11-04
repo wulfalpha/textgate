@@ -1,0 +1,13 @@
+{
+  "bundle": {
+    "linux": {
+      "appimage": {
+        "files": {
+          "/usr/lib/libenchant-2.so.2": "/opt/textgate-enchant/usr/lib/libenchant-2.so.2",
+          "/usr/lib/libhunspell-1.7.so.0": "/opt/textgate-enchant/usr/lib/libhunspell-1.7.so.0",
+          "/usr/lib/enchant-2/enchant_hunspell.so": "/opt/textgate-enchant/usr/lib/enchant-2/enchant_hunspell.so"
+        }
+      }
+    }
+  }
+}

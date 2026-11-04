@@ -222,3 +222,18 @@ release artifacts or claim the M1 installation issue resolved until tested.
       22.04 runner and swap them into the AppImage.
 - [ ] Smoke-test the packaged apps (AppImage spelling dictionaries especially)
       before publishing; update the README status and download names.
+
+## v0.1.6
+
+- [x] AppImage spelling: `packaging/appimage/build-enchant.sh` builds enchant
+      2.3.2 (checksum-pinned) with `--enable-relocatable` and the Hunspell
+      provider on the 22.04 runner; `tauri.appimage.json` bundles it with
+      libhunspell, and the release job's `check-spelling.py` step fails unless
+      the bundled provider loads and finds en_US.
+- [x] Prototype (script built in an ubuntu:22.04 container, swapped into the
+      0.1.5 AppImage): check passes on Arch with system and bundled GLib, and the
+      user saw misspellings underlined.
+- [ ] Confirm a hosted Release run builds the AppImage with the relocatable
+      library and passes the spelling check.
+- [ ] Downloaded AppImage: underlines and suggestions on Arch, plus one RPM
+      distribution (Fedora) and Debian/Ubuntu; then drop the README known issue.

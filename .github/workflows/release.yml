@@ -22,8 +22,10 @@ jobs:
         include:
           # AppImages only run on systems with a glibc at least as new as the
           # build machine's, so Linux packages are built on the oldest supported Ubuntu.
+          # The AppImage bundles a relocatable spelling library (see
+          # packaging/appimage/build-enchant.sh).
           - platform: ubuntu-22.04
-            args: --bundles deb,rpm,appimage
+            args: --bundles deb,rpm,appimage --config packaging/appimage/tauri.appimage.json
           - platform: macos-latest
             args: --target aarch64-apple-darwin
           - platform: macos-latest
@@ -48,7 +50,13 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev \
+            libhunspell-dev patchelf hunspell-en-us
+      - name: Build the AppImage spelling library
+        if: runner.os == 'Linux'
+        run: |
+          sudo install -d -o "$USER" /opt/textgate-enchant
+          packaging/appimage/build-enchant.sh /opt/textgate-enchant
       - name: Set up Rust
         shell: bash
         run: |
@@ -62,6 +70,8 @@ jobs:
       - uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Lets the AppImage bundler resolve libenchant to the relocatable build.
+          LD_LIBRARY_PATH: ${{ runner.os == 'Linux' && '/opt/textgate-enchant/usr/lib' || '' }}
         with:
           tagName: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
           releaseName: Textgate ${{ github.ref_name }}
@@ -69,6 +79,20 @@ jobs:
           releaseDraft: true
           uploadWorkflowArtifacts: ${{ github.ref_type != 'tag' }}
           args: ${{ matrix.args }}
+
+      - name: Verify AppImage spell checking
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          shopt -s nullglob
+          images=(target/release/bundle/appimage/*.AppImage)
+          if [ "${#images[@]}" -ne 1 ]; then
+            echo "Expected one AppImage, found ${#images[@]}" >&2
+            exit 1
+          fi
+          cd "$RUNNER_TEMP"
+          "$GITHUB_WORKSPACE/${images[0]}" --appimage-extract >/dev/null
+          python3 -I "$GITHUB_WORKSPACE/packaging/appimage/check-spelling.py" squashfs-root en_US
 
       - name: Verify macOS bundle signature
         if: runner.os == 'macOS'
