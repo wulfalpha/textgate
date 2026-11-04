@@ -233,7 +233,9 @@ release artifacts or claim the M1 installation issue resolved until tested.
 - [x] Prototype (script built in an ubuntu:22.04 container, swapped into the
       0.1.5 AppImage): check passes on Arch with system and bundled GLib, and the
       user saw misspellings underlined.
-- [ ] Confirm a hosted Release run builds the AppImage with the relocatable
-      library and passes the spelling check.
-- [ ] Downloaded AppImage: underlines and suggestions on Arch, plus one RPM
-      distribution (Fedora) and Debian/Ubuntu; then drop the README known issue.
+- [x] Confirm a hosted Release run builds the AppImage with the relocatable
+      library and passes the spelling check (run 41753208124: provider loaded
+      from the AppImage's own `usr/lib/enchant-2`).
+- [x] That run's AppImage on Arch: misspellings underlined (user-verified).
+- [ ] Downloaded AppImage on one RPM distribution (Fedora) and Debian/Ubuntu;
+      then drop the README known issue.
