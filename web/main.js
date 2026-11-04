@@ -21,7 +21,7 @@ import { setupExternalOpen } from './external-open.js';
 import { isTauri, invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
-import { open, save, confirm } from '@tauri-apps/plugin-dialog';
+import { open, save, confirm, message as messageDialog } from '@tauri-apps/plugin-dialog';
 import { createDocumentStore } from './document-store.js';
 import { createTabs, fileName, tabLabels } from './tabs.js';
 import { createActionRunner } from './action-runner.js';
@@ -164,25 +164,38 @@ function documentChanged() {
   refresh();
 }
 function report(error) { $('status').textContent = `Error: ${error.message ?? error}`; }
-function askDiscard(message) {
+function askDiscard(message, okLabel = 'Discard') {
   return isTauri()
-    ? confirm(message, { title: 'Textgate', kind: 'warning', okLabel: 'Discard', cancelLabel: 'Keep editing' })
+    ? confirm(message, { title: 'Textgate', kind: 'warning', okLabel, cancelLabel: 'Cancel' })
     : Promise.resolve(window.confirm(message));
+}
+// Closing one tab with unsaved changes: Save, Don't Save or Cancel. The browser
+// fallback has only OK/Cancel, so it offers to discard.
+async function askSave(tab) {
+  const label = fileName(tab.path);
+  if (!isTauri()) return window.confirm(`Discard unsaved changes to ${label}?`) ? 'discard' : 'cancel';
+  const answer = await messageDialog(`Save changes to ${label} before closing?`, {
+    title: 'Textgate', kind: 'warning', buttons: { yes: 'Save', no: "Don't Save", cancel: 'Cancel' },
+  });
+  // Platforms report either the button's role or its label.
+  if (answer === 'Yes' || answer === 'Save') return 'save';
+  if (answer === 'No' || answer === "Don't Save") return 'discard';
+  return 'cancel';
 }
 // Asks until the answer covers the latest edits: typing can continue while a
 // native confirmation is on screen, and approval must not discard that too.
-async function approveDiscard(list, message) {
+async function approveDiscard(list, message, okLabel) {
   while (true) {
     const changed = list.filter((tab) => tabs.list.includes(tab) && dirty(tab));
     if (!changed.length) return true;
     const before = changed.map((tab) => snapshotDocument(stateOf(tab)));
-    if (!await askDiscard(message(changed))) return false;
+    if (!await askDiscard(message(changed), okLabel)) return false;
     if (changed.every((tab, i) => tabs.list.includes(tab) && snapshotDocument(stateOf(tab)).eq(before[i]))) return true;
   }
 }
 const approveQuit = () => approveDiscard(tabs.list, (changed) => (changed.length === 1
   ? `Discard unsaved changes to ${fileName(changed[0].path)}?`
-  : `Discard unsaved changes in ${changed.length} documents?\n\n${changed.map((tab) => fileName(tab.path)).join('\n')}`));
+  : `Discard unsaved changes in ${changed.length} documents?\n\n${changed.map((tab) => fileName(tab.path)).join('\n')}`), 'Quit Without Saving');
 
 // Shows a tab's stored editor state. Settings are global, so the state's
 // compartments are brought up to date; Vim starts again in Normal mode.
@@ -236,10 +249,18 @@ function discardTab(tab) {
   if (shown) load(next);
   refresh();
 }
+// Asks again if the tab changes while the question is open, so later edits are
+// never discarded unseen; a cancelled or failed save keeps the tab open.
 async function closeTab(tab = tabs.active) {
-  // Show what is about to be discarded before asking.
-  if (dirty(tab)) showTab(tab);
-  if (!await approveDiscard([tab], () => `Discard unsaved changes to ${fileName(tab.path)}?`)) return false;
+  while (tabs.list.includes(tab) && dirty(tab)) {
+    showTab(tab);
+    const before = snapshotDocument(stateOf(tab));
+    const choice = await askSave(tab);
+    if (choice === 'cancel') return false;
+    if (choice === 'save') {
+      if (!await saveDocument(false, tab)) return false;
+    } else if (snapshotDocument(stateOf(tab)).eq(before)) break;
+  }
   if (tabs.list.includes(tab)) discardTab(tab);
   return true;
 }
@@ -356,11 +377,10 @@ async function openDocument() {
   for (const path of [selected ?? []].flat()) await openFile(path);
 }
 // Resolves true only when the document was written.
-async function saveDocument(saveAs = false) {
+async function saveDocument(saveAs = false, tab = tabs.active) {
   if (!isTauri()) { $('status').textContent = 'Run npm run tauri dev to open and save local files.'; return false; }
   // The tab is fixed now: a save that finishes after switching tabs updates
   // the tab it started from.
-  const tab = tabs.active;
   const chosen = !tab.path || saveAs;
   const destination = chosen ? await save({ defaultPath: tab.path ?? 'Untitled.md', filters }) : tab.path;
   if (!destination) return false;
@@ -450,6 +470,18 @@ defineVimFileCommands(Vim, {
     await getCurrentWindow().destroy();
   },
   message: (text) => { $('status').textContent = text; },
+  // Vim is still handling the key when these run; switch tabs once it is done.
+  tabs: {
+    step: (offset) => setTimeout(() => showTab(tabs.step(offset))),
+    go: (position) => setTimeout(() => showTab(tabs.list[position - 1] ?? tabs.list.at(-1))),
+    add: () => setTimeout(() => $('new').click()),
+    anyDirty: () => tabs.list.some((tab) => dirty(tab)),
+    // Callers have checked or chosen to discard unsaved changes.
+    closeAll: async () => {
+      if (!isTauri()) { $('status').textContent = 'Close this browser tab to quit.'; return; }
+      await getCurrentWindow().destroy();
+    },
+  },
 });
 $('edit-undo').onclick = () => { undo(view); view.focus(); };
 $('edit-redo').onclick = () => { redo(view); view.focus(); };
