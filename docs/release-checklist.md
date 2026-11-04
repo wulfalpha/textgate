@@ -210,6 +210,15 @@ release artifacts or claim the M1 installation issue resolved until tested.
 - [ ] Check `:w`, `:wq`, `:q` (dirty and clean), `:q!` and `:sav` in packaged apps.
 - [x] Update all version fields and lockfiles to 0.1.5 (`npm run check:version`)
       and write docs/releases/0.1.5.md.
-- [ ] Merge to main, tag `v0.1.5`, and confirm all release jobs and assets.
+- [x] Merge to main, tag `v0.1.5`, and confirm all release jobs and assets
+      (run 41583662348; nine assets on the draft).
+- [x] AppImage on Arch (hunspell-en_us installed): no underlines. Its libenchant
+      is Ubuntu's, which loads providers only from the fixed, non-relocatable
+      `/usr/lib/x86_64-linux-gnu/enchant-2` and ships none; probed: 0 dictionaries
+      bundled vs en_US via the system library. Using the host libenchant instead
+      fails to load (needs GLib 2.76's `g_free_sized`, bundled GLib is 2.72,
+      BIND_NOW). Shipped as a known issue; 0.1.6: build enchant 2.3.2 with
+      `--enable-relocatable` plus the hunspell provider and libhunspell on the
+      22.04 runner and swap them into the AppImage.
 - [ ] Smoke-test the packaged apps (AppImage spelling dictionaries especially)
       before publishing; update the README status and download names.

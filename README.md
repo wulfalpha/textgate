@@ -2,10 +2,10 @@
 
 A lightweight desktop Markdown editor built with Rust, Tauri 2, CodeMirror 6, and comrak.
 
-**Status: early release.** v0.1.4 is available for Linux, Windows and macOS
-(Apple Silicon and Intel), with command-line/file-manager opening, mixed-line-ending
-preservation and optional normalization. See the
-[0.1.4 release notes](docs/releases/0.1.4.md),
+**Status: early release.** v0.1.5 is available for Linux, Windows and macOS
+(Apple Silicon and Intel), adding spell checking, Vim file commands and bundled
+fonts to 0.1.4's command-line/file-manager opening and line-ending preservation.
+See the [0.1.5 release notes](docs/releases/0.1.5.md),
 [release checklist](docs/release-checklist.md),
 [package testing guide](docs/testing-0.1.4.md) and
 [contributor guide](CONTRIBUTING.md).
@@ -89,6 +89,11 @@ code blocks, URLs, raw HTML and YAML front matter are not checked.
   `hunspell-en_us` on Arch or `hunspell-en-us` on Debian/Ubuntu. Textgate picks
   languages from `LANGUAGE`, `LC_ALL`, `LC_MESSAGES` and `LANG`, falling back to
   US English.
+- **Linux AppImage: known issue.** The AppImage finds dictionaries only on
+  Debian- and Ubuntu-based systems. On Arch, Fedora, openSUSE and others nothing
+  is underlined; use the `.rpm` on Fedora or openSUSE, or a source build. The
+  bundled spelling library looks for its Hunspell plugin at Debian's fixed
+  path; a relocatable build is planned for 0.1.6.
 - **Windows: known issue.** Spelling is not underlined on Windows in 0.1.5,
   although the setting is present. The cause has not been identified yet;
   WebView2, the system component Textgate uses to display the editor, does not
@@ -173,8 +178,8 @@ collaborators with access.
 For the Linux AppImage, make the downloaded file executable and run it:
 
 ```sh
-chmod +x Textgate_0.1.4_amd64.AppImage
-./Textgate_0.1.4_amd64.AppImage
+chmod +x Textgate_0.1.5_amd64.AppImage
+./Textgate_0.1.5_amd64.AppImage
 ```
 
 Open the macOS DMG and copy Textgate to Applications. Mac builds from the current
