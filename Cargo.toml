@@ -18,6 +18,10 @@ tauri-plugin-single-instance = "2"
 tempfile = "3.27"
 trash = "5.2.9"
 
+[target.'cfg(unix)'.dependencies]
+# Already in the build through Tauri; used for renames that never replace.
+libc = "0.2"
+
 [target.'cfg(target_os = "linux")'.dependencies]
 # Already in the build through Tauri; used directly to enable spell checking.
 webkit2gtk = "2.0"
@@ -28,4 +32,4 @@ objc2 = "0.6"
 objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSDictionary", "NSObject", "NSString", "NSUserDefaults", "NSValue"] }
 
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.61", features = ["Win32_System_Console"] }
+windows-sys = { version = "0.61", features = ["Win32_Storage_FileSystem", "Win32_System_Console"] }

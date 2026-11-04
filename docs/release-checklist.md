@@ -262,6 +262,10 @@ release artifacts or claim the M1 installation issue resolved until tested.
       tab kept), Show in File Manager, keyboard.
 - [x] Linux: `textgate <folder>` at launch and forwarded to a running window;
       sidebar resizing; folders reopening.
+- [x] Renames use the platform's exclusive rename (macOS `renamex_np`
+      RENAME_EXCL, Linux `renameat2` RENAME_NOREPLACE, Windows `MoveFileExW`
+      without replace), so an entry created after the name check is never
+      replaced; case-only renames of the same entry still work.
 - [ ] macOS: trash without a Finder permission prompt, Cmd+Backspace, Show in
       Finder, a case-only rename; Windows: trash to the Recycle Bin, Show in
       Explorer, a case-only rename.

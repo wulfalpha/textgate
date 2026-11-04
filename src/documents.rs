@@ -236,6 +236,81 @@ fn identity(target: &Path) -> PathBuf {
 }
 
 // `path` moved along with `from`, if it is `from` or inside it.
+/// Renames `from` to `to`, failing with `AlreadyExists` instead of replacing an
+/// entry at `to`. A check beforehand cannot rule out another program creating
+/// `to` just before the rename; these calls make the check and the rename one
+/// step. A case-only rename (`a.md` to `A.md`) on a case-insensitive drive names
+/// the same entry twice, so callers pass `same` to use an ordinary rename.
+pub fn rename_new(from: &Path, to: &Path, same: bool) -> io::Result<()> {
+    if same {
+        return fs::rename(from, to);
+    }
+    #[cfg(unix)]
+    {
+        use std::{ffi::CString, os::unix::ffi::OsStrExt};
+        let path = |path: &Path| {
+            CString::new(path.as_os_str().as_bytes()).map_err(|_| {
+                io::Error::new(io::ErrorKind::InvalidInput, "path contains a NUL byte")
+            })
+        };
+        let (from_c, to_c) = (path(from)?, path(to)?);
+        // SAFETY: both are valid NUL-terminated paths for the duration of the call.
+        #[cfg(target_os = "macos")]
+        let result = unsafe { libc::renamex_np(from_c.as_ptr(), to_c.as_ptr(), libc::RENAME_EXCL) };
+        #[cfg(target_os = "linux")]
+        let result = unsafe {
+            libc::renameat2(
+                libc::AT_FDCWD,
+                from_c.as_ptr(),
+                libc::AT_FDCWD,
+                to_c.as_ptr(),
+                libc::RENAME_NOREPLACE,
+            )
+        };
+        #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+        let result: libc::c_int = {
+            let _ = (&from_c, &to_c);
+            -2
+        };
+        if result == 0 {
+            return Ok(());
+        }
+        let error = io::Error::last_os_error();
+        // Some file systems (and other Unixes) have no exclusive rename. Fall
+        // back to checking first: only a near-simultaneous creation can slip by.
+        let unsupported = result == -2
+            || matches!(
+                error.raw_os_error(),
+                Some(libc::EINVAL | libc::ENOSYS | libc::ENOTSUP)
+            );
+        if !unsupported {
+            return Err(error);
+        }
+        if fs::symlink_metadata(to).is_ok() {
+            return Err(io::ErrorKind::AlreadyExists.into());
+        }
+        fs::rename(from, to)
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::ffi::OsStrExt;
+        use windows_sys::Win32::Storage::FileSystem::MoveFileExW;
+        let wide = |path: &Path| {
+            path.as_os_str()
+                .encode_wide()
+                .chain([0])
+                .collect::<Vec<u16>>()
+        };
+        let (from_w, to_w) = (wide(from), wide(to));
+        // Without MOVEFILE_REPLACE_EXISTING, MoveFileExW fails if `to` exists.
+        // SAFETY: both are valid NUL-terminated wide strings for the call.
+        if unsafe { MoveFileExW(from_w.as_ptr(), to_w.as_ptr(), 0) } != 0 {
+            return Ok(());
+        }
+        Err(io::Error::last_os_error())
+    }
+}
+
 fn moved(path: &Path, from: &Path, to: &Path) -> Option<PathBuf> {
     let rest = path.strip_prefix(from).ok()?;
     Some(if rest.as_os_str().is_empty() {
@@ -301,12 +376,19 @@ impl Documents {
 
     /// Renames a file or folder, moving the documents inside it along so they
     /// keep saving to the same file. Returns each moved document's new path.
-    pub fn rename(&self, from: &Path, to: &Path) -> io::Result<Vec<(DocumentId, PathBuf)>> {
+    /// Never replaces an entry at `to`, except the same entry under another
+    /// case (`same`).
+    pub fn rename(
+        &self,
+        from: &Path,
+        to: &Path,
+        same: bool,
+    ) -> io::Result<Vec<(DocumentId, PathBuf)>> {
         let (given, real) = places(from)?;
         let real_to = real.as_ref().and_then(|_| identity_in_folder(to));
         // Held across the rename (one quick call) so no save sees a half-moved state.
         let mut open = self.open.lock().unwrap();
-        fs::rename(from, to)?;
+        rename_new(from, to, same)?;
         let follow = |path: &Path| {
             moved(path, &given, to).or_else(|| {
                 real.as_deref()
@@ -861,6 +943,55 @@ mod tests {
     }
 
     #[test]
+    fn renames_never_replace_an_entry_that_appeared_after_the_check() {
+        let dir = tempfile::tempdir().unwrap();
+        let (a, b) = (dir.path().join("a.md"), dir.path().join("b.md"));
+        fs::write(&a, "mine").unwrap();
+        // Another program created b.md between the existence check and the rename.
+        fs::write(&b, "theirs").unwrap();
+        let error = rename_new(&a, &b, false).unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::AlreadyExists);
+        assert_eq!(fs::read_to_string(&a).unwrap(), "mine");
+        assert_eq!(fs::read_to_string(&b).unwrap(), "theirs");
+        // Folders too, including an empty one that a plain rename would replace.
+        let (from, to) = (dir.path().join("from"), dir.path().join("to"));
+        fs::create_dir(&from).unwrap();
+        fs::create_dir(&to).unwrap();
+        assert_eq!(
+            rename_new(&from, &to, false).unwrap_err().kind(),
+            io::ErrorKind::AlreadyExists
+        );
+        assert!(from.is_dir() && to.is_dir());
+        // Through Documents as well, which the file browser uses.
+        let documents = Documents::default();
+        assert_eq!(
+            documents.rename(&a, &b, false).unwrap_err().kind(),
+            io::ErrorKind::AlreadyExists
+        );
+        assert_eq!(fs::read_to_string(&b).unwrap(), "theirs");
+        // With the name free, it renames.
+        let c = dir.path().join("c.md");
+        rename_new(&a, &c, false).unwrap();
+        assert_eq!(fs::read_to_string(&c).unwrap(), "mine");
+        assert!(!a.exists());
+    }
+
+    #[test]
+    fn case_only_renames_work_on_any_drive() {
+        let dir = tempfile::tempdir().unwrap();
+        let (lower, upper) = (dir.path().join("notes.md"), dir.path().join("Notes.md"));
+        fs::write(&lower, "text").unwrap();
+        // On a case-insensitive drive Notes.md already names this file.
+        let same = fs::symlink_metadata(&upper).is_ok();
+        rename_new(&lower, &upper, same).unwrap();
+        let names: Vec<_> = fs::read_dir(dir.path())
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+            .collect();
+        assert_eq!(names, ["Notes.md"]);
+    }
+
+    #[test]
     fn renamed_files_and_folders_take_their_documents_along() {
         let dir = tempfile::tempdir().unwrap();
         let notes = dir.path().join("notes");
@@ -876,7 +1007,7 @@ mod tests {
             documents.keep(doc, path).unwrap();
         }
         let moved = documents
-            .rename(&notes.join("old"), &notes.join("new"))
+            .rename(&notes.join("old"), &notes.join("new"), false)
             .unwrap();
         let a = notes.join("new/a.md");
         assert_eq!(moved, vec![(first, a.clone())]);
@@ -887,7 +1018,10 @@ mod tests {
             matches!(documents.open(third, &a), Err(SaveError::AlreadyOpen { document, .. }) if document == first)
         );
         let c = notes.join("c.md");
-        assert_eq!(documents.rename(&b, &c).unwrap(), vec![(second, c.clone())]);
+        assert_eq!(
+            documents.rename(&b, &c, false).unwrap(),
+            vec![(second, c.clone())]
+        );
         documents.save(second, &c, b"c", SaveMode::Save).unwrap();
         assert!(!b.exists());
         assert_eq!(documents.holding(&notes.join("new")).unwrap(), vec![first]);
@@ -910,7 +1044,7 @@ mod tests {
         documents.open(doc, &through).unwrap();
         documents.keep(doc, &through).unwrap();
         let moved = documents
-            .rename(&notes.join("work/a.md"), &notes.join("work/b.md"))
+            .rename(&notes.join("work/a.md"), &notes.join("work/b.md"), false)
             .unwrap();
         let real = fs::canonicalize(notes.join("work/b.md")).unwrap();
         assert_eq!(moved, vec![(doc, real.clone())]);
@@ -918,7 +1052,7 @@ mod tests {
         assert_eq!(fs::read(notes.join("work/b.md")).unwrap(), b"b");
         // Renaming the link itself leaves the tab on the real file alone.
         documents
-            .rename(&notes.join("linked"), &notes.join("linked2"))
+            .rename(&notes.join("linked"), &notes.join("linked2"), false)
             .unwrap();
         documents.save(doc, &real, b"c", SaveMode::Save).unwrap();
     }

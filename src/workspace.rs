@@ -298,12 +298,18 @@ fn rename(documents: &Documents, root: &Root, path: &Path, name: &str) -> Result
             documents: Vec::new(),
         });
     }
-    if fs::symlink_metadata(&to).is_ok() && !same_entry(path, &to) {
+    let same = fs::symlink_metadata(&to).is_ok() && same_entry(path, &to);
+    if fs::symlink_metadata(&to).is_ok() && !same {
         return Err(format!("{name} already exists."));
     }
+    // The rename itself refuses to replace, in case something appears at `to`
+    // after the check above.
     let moved = documents
-        .rename(path, &to)
-        .map_err(|error| error.to_string())?;
+        .rename(path, &to, same)
+        .map_err(|error| match error.kind() {
+            io::ErrorKind::AlreadyExists => format!("{name} already exists."),
+            _ => error.to_string(),
+        })?;
     Ok(Renamed {
         path: text(&to)?,
         documents: moved
