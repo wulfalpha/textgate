@@ -225,3 +225,7 @@ main[data-mode="source"] #format-toolbar { display: none; }
 #file-tree .note { cursor: default; font-style: italic; }
 #file-tree .tree-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #file-tree .tree-dirty { color: var(--tg-warning); font-size: 9px; }
+.files-actions { display: flex; gap: 4px; padding: 0 0 8px 6px; }
+.files-actions button { padding: 3px 8px; font-size: 11px; }
+#name-hint { font-size: 12px; color: var(--tg-muted); min-height: 1em; margin: 8px 0 0; }
+#name-error { font-size: 12px; color: var(--tg-error); min-height: 1em; }

@@ -4,7 +4,9 @@
 //
 // - `list(path)` resolves to `{ entries: [{ name, path, folder }], omitted }`.
 // - `open(path)` opens a file (in a tab).
-export function createFileTree({ container, list, open, report }) {
+// - `menu(target, { x, y })` shows a context menu for `{ path, folder, parent }`
+//   (the workspace itself when no row was chosen).
+export function createFileTree({ container, list, open, report, menu = () => {} }) {
   const document = container.ownerDocument;
   let root = null;
   let failure = null;
@@ -41,7 +43,9 @@ export function createFileTree({ container, list, open, report }) {
   function render() {
     const focused = container.contains(document.activeElement);
     const visible = rows();
-    if (!visible.some((row) => row.path === selected)) selected = visible[0]?.path ?? null;
+    // Until a row is chosen, the first one is where the keyboard enters.
+    if (!visible.some((row) => row.path === selected)) selected = null;
+    const entry = selected ?? visible[0]?.path;
     container.replaceChildren(...visible.map((row) => {
       const changed = marks.dirty.has(row.path);
       return element('li', {
@@ -50,7 +54,7 @@ export function createFileTree({ container, list, open, report }) {
         'aria-expanded': row.folder ? String(expanded.has(row.path)) : undefined,
         'aria-disabled': row.note ? 'true' : undefined,
         'aria-current': row.path === marks.current ? 'true' : undefined,
-        tabindex: row.path === selected ? '0' : '-1',
+        tabindex: row.path === entry ? '0' : '-1',
         class: [row.folder ? 'folder' : row.note ? 'note' : 'file', marks.open.has(row.path) ? 'open' : ''].filter(Boolean).join(' '),
         style: `--level: ${row.level}`,
       },
@@ -84,6 +88,26 @@ export function createFileTree({ container, list, open, report }) {
     render();
   }
 
+  // The folder a row is in: the nearest row above it at a lower level.
+  function parentOf(path, visible = rows()) {
+    const at = visible.findIndex((row) => row.path === path);
+    return visible.slice(0, Math.max(at, 0)).findLast((row) => row.level < visible[at]?.level)?.path ?? root.path;
+  }
+  function targetOf(path) {
+    const row = rows().find((candidate) => candidate.path === path && !candidate.note);
+    return row ? { path: row.path, folder: row.folder, parent: parentOf(row.path) } : { path: root.path, folder: true, parent: null };
+  }
+  container.addEventListener('focusin', (event) => {
+    const row = event.target.closest?.('[role="treeitem"][data-path]');
+    if (row && row.getAttribute('aria-disabled') !== 'true') selected = row.dataset.path;
+  });
+  container.addEventListener('contextmenu', (event) => {
+    if (!root) return;
+    event.preventDefault();
+    const row = event.target.closest('[role="treeitem"][data-path]');
+    if (row && row.getAttribute('aria-disabled') !== 'true') { selected = row.dataset.path; render(); }
+    menu(targetOf(row?.dataset.path), { x: event.clientX, y: event.clientY });
+  });
   container.addEventListener('click', (event) => {
     const row = event.target.closest('[role="treeitem"][data-path]');
     if (!row || row.getAttribute('aria-disabled') === 'true') return;
@@ -98,6 +122,12 @@ export function createFileTree({ container, list, open, report }) {
     const at = visible.findIndex((row) => row.path === selected);
     const row = visible[at];
     const select = (target) => { if (target) { selected = target.path; render(); focusSelected(); } };
+    if (event.key === 'ContextMenu' || (event.key === 'F10' && event.shiftKey)) {
+      const box = container.querySelector('[tabindex="0"]')?.getBoundingClientRect();
+      menu(targetOf(selected), { x: box ? box.left + 16 : 0, y: box ? box.bottom : 0 });
+      event.preventDefault();
+      return;
+    }
     switch (event.key) {
       case 'ArrowDown': select(visible[at + 1]); break;
       case 'ArrowUp': select(visible[at - 1]); break;
@@ -180,5 +210,21 @@ export function createFileTree({ container, list, open, report }) {
       render();
     },
     focus: focusSelected,
+    // Where new files go: the selected folder, else the selected file's folder.
+    folderForNew() {
+      if (!root) return null;
+      const target = targetOf(selected);
+      return target.folder ? target.path : target.parent;
+    },
+    async expand(path) {
+      if (root && path !== root.path && !expanded.has(path)) await setExpanded(path, true);
+    },
+    // Selects a visible row, keeping focus where it is unless asked.
+    select(path, { focus = false } = {}) {
+      if (!rows().some((row) => row.path === path)) return;
+      selected = path;
+      render();
+      if (focus) focusSelected();
+    },
   };
 }

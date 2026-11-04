@@ -339,7 +339,79 @@ const fileTree = createFileTree({
   list: (path) => invoke('list_folder', { path }),
   open: (path) => run.enqueue(() => openFile(path)),
   report,
+  menu: (target, position) => { showTreeMenu(target, position).catch(report); },
 });
+// Asks for a name in an app dialog. `submit(name)` may throw to show why and
+// keep the dialog open; resolves with its result, or null if cancelled.
+function askName({ title, label = 'Name', value = '', hint = '', action = 'Create', submit }) {
+  const dialog = $('name-dialog');
+  $('name-title').textContent = title;
+  $('name-label').textContent = label;
+  $('name-hint').textContent = hint;
+  $('name-submit').textContent = action;
+  $('name-error').textContent = '';
+  $('name-input').value = value;
+  return new Promise((resolve) => {
+    let settled = false;
+    let busy = false;
+    const done = (result) => {
+      if (settled) return;
+      settled = true;
+      $('name-form').onsubmit = $('name-cancel').onclick = null;
+      dialog.removeEventListener('close', cancelled);
+      if (dialog.open) dialog.close();
+      resolve(result);
+    };
+    const cancelled = () => done(null);
+    $('name-form').onsubmit = async (event) => {
+      event.preventDefault();
+      if (busy) return;
+      busy = true;
+      try { done(await submit($('name-input').value)); }
+      catch (error) { $('name-error').textContent = error?.message ?? String(error); busy = false; }
+    };
+    $('name-cancel').onclick = cancelled;
+    dialog.addEventListener('close', cancelled);
+    dialog.showModal();
+    $('name-input').focus();
+    $('name-input').select();
+  });
+}
+// A new empty file opens in a tab; a new folder is selected in the tree.
+async function newEntry(kind, folder = fileTree.folderForNew()) {
+  if (!folder) { $('status').textContent = 'Open a folder first.'; return; }
+  const where = folder === fileTree.root.path ? fileTree.root.name : fileName(folder);
+  const path = await askName({
+    title: `New ${kind} in ${where}`,
+    hint: kind === 'file' ? '.md is added unless the name ends in .md, .markdown or .txt.' : '',
+    submit: (name) => invoke('create_entry', { folder, name, kind }),
+  });
+  if (!path) return;
+  await fileTree.refresh();
+  await fileTree.expand(folder);
+  if (kind === 'file') await openFile(path);
+  else fileTree.select(path, { focus: true });
+  $('status').textContent = `Created ${fileName(path)}`;
+}
+// One native context menu, reused; its items act on the row it was opened for.
+let treeMenu = null;
+let menuFolder = null;
+async function showTreeMenu(target, position) {
+  if (!isTauri()) return;
+  menuFolder = target.folder ? target.path : target.parent;
+  if (!treeMenu) {
+    const { Menu } = await import('@tauri-apps/api/menu');
+    treeMenu = await Menu.new({ items: [
+      { text: 'New File…', action: () => run(() => newEntry('file', menuFolder)) },
+      { text: 'New Folder…', action: () => run(() => newEntry('folder', menuFolder)) },
+      { item: 'Separator' },
+      { text: 'Refresh', action: () => { fileTree.refresh().catch(report); } },
+    ] });
+  }
+  const { LogicalPosition } = await import('@tauri-apps/api/dpi');
+  // Page coordinates scale with the window zoom.
+  await treeMenu.popup(new LogicalPosition(position.x * zoom.level, position.y * zoom.level));
+}
 let revealed = null;
 function markFiles() {
   const paths = tabs.list.filter((tab) => tab.path);
@@ -360,6 +432,7 @@ async function setWorkspace(workspace) {
   $('files-empty').hidden = Boolean(workspace);
   $('file-tree').hidden = !workspace;
   $('refresh-files').hidden = !workspace;
+  $('files-actions').hidden = !workspace;
   $('close-folder').disabled = !workspace;
   revealed = null;
   await fileTree.setRoot(workspace);
@@ -400,6 +473,8 @@ $('close-folder').onclick = () => run(async () => {
   $('status').textContent = 'Folder closed. Open tabs stay open.';
 });
 $('refresh-files').onclick = () => fileTree.refresh().catch(report);
+$('new-file-here').onclick = () => run(() => newEntry('file'));
+$('new-folder-here').onclick = () => run(() => newEntry('folder'));
 $('view-files').onclick = () => showSidebar('files', { focus: true });
 $('view-outline').onclick = () => showSidebar('outline', { focus: true });
 $('sidebar-files').onclick = () => showSidebar('files');

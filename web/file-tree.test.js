@@ -12,7 +12,9 @@ function setup(folders) {
   const listed = [];
   const opened = [];
   const errors = [];
+  const menus = [];
   const tree = createFileTree({
+    menu: (target, position) => menus.push(target),
     container,
     list: async (path) => {
       listed.push(path);
@@ -27,7 +29,7 @@ function setup(folders) {
   const labels = () => items().map((item) => `${'  '.repeat(Number(item.getAttribute('aria-level') ?? 1) - 1)}${item.querySelector('.tree-name')?.textContent ?? item.textContent}`);
   const key = (name) => document.activeElement.dispatchEvent(new window.KeyboardEvent('keydown', { key: name, bubbles: true, cancelable: true }));
   const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
-  return { tree, container, listed, opened, errors, items, labels, key, settle };
+  return { tree, container, listed, opened, errors, menus, items, labels, key, settle };
 }
 
 const workspace = {
@@ -145,4 +147,25 @@ test('an unreadable folder is reported and stays collapsed; no workspace shows n
   await env.tree.setRoot(null);
   assert.equal(env.items().length, 0);
   assert.equal(env.tree.root, null);
+});
+
+test('the context menu names the row, its folder, or the workspace; new items go in the right folder', async () => {
+  const env = setup(workspace);
+  await env.tree.setRoot({ path: '/w', name: 'w' });
+  assert.equal(env.tree.folderForNew(), '/w', 'with nothing chosen, new items go in the workspace');
+  await env.tree.expand('/w/docs');
+  const guide = env.items().find((item) => item.dataset.path === '/w/docs/guide.md');
+  guide.dispatchEvent(new window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+  assert.deepEqual(env.menus.at(-1), { path: '/w/docs/guide.md', folder: false, parent: '/w/docs' });
+  assert.equal(env.tree.folderForNew(), '/w/docs', 'a file selects its folder');
+  env.tree.select('/w/docs/deep', { focus: true });
+  assert.equal(env.tree.folderForNew(), '/w/docs/deep');
+  env.key('ContextMenu');
+  assert.deepEqual(env.menus.at(-1), { path: '/w/docs/deep', folder: true, parent: '/w/docs' });
+  document.activeElement.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'F10', shiftKey: true, bubbles: true, cancelable: true }));
+  assert.equal(env.menus.length, 3);
+  env.container.dispatchEvent(new window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+  assert.deepEqual(env.menus.at(-1), { path: '/w', folder: true, parent: null }, 'empty space means the workspace');
+  await env.tree.setRoot(null);
+  assert.equal(env.tree.folderForNew(), null);
 });

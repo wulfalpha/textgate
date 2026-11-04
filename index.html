@@ -27,6 +27,7 @@
     <div class="sidebar-switch" role="tablist" aria-label="Sidebar"><button role="tab" id="sidebar-files" aria-controls="files-panel" aria-selected="false" tabindex="-1">Files</button><button role="tab" id="sidebar-outline" aria-controls="outline-panel" aria-selected="true" tabindex="0">Outline</button></div>
     <section id="files-panel" role="tabpanel" aria-labelledby="sidebar-files" hidden>
       <div class="files-header"><span id="workspace-name"></span><button id="refresh-files" type="button" aria-label="Refresh files" title="Refresh" hidden>↻</button></div>
+      <div class="files-actions" id="files-actions" hidden><button id="new-file-here" type="button">New File</button><button id="new-folder-here" type="button">New Folder</button></div>
       <p id="files-empty">No folder is open.<button id="open-folder-here" type="button">Open Folder…</button></p>
       <ul id="file-tree" role="tree" aria-label="Files" hidden></ul>
     </section>
@@ -52,6 +53,7 @@
     </section><section class="pane preview-pane"><h2>Preview <button id="refresh-preview" type="button">Refresh</button></h2><p id="preview-note" role="status" hidden></p><article id="preview" aria-label="Markdown preview" tabindex="0"></article></section>
   </main>
   <dialog id="link-dialog"><form id="link-form"><h3>Edit link</h3><label for="link-url">URL</label><input id="link-url" type="text" placeholder="https://example.com" autocomplete="off"><p id="link-error" role="alert"></p><div><button type="button" id="link-cancel">Cancel</button><button type="button" id="link-remove">Remove link</button><button type="submit">Apply</button></div></form></dialog>
+  <dialog id="name-dialog"><form id="name-form"><h3 id="name-title">New file</h3><label for="name-input" id="name-label">Name</label><input id="name-input" type="text" autocomplete="off" spellcheck="false"><p id="name-hint"></p><p id="name-error" role="alert"></p><div><button type="button" id="name-cancel">Cancel</button><button type="submit" id="name-submit">Create</button></div></form></dialog>
   <dialog id="theme-dialog"><h3>Themes</h3><div class="theme-controls"><label for="theme-select">Theme</label><select id="theme-select"><option value="">Default</option></select><button id="theme-reload">Reload</button></div><p>Add or edit a <code>.css</code> file in:</p><p id="theme-directory">Loading…</p><p>Copy <code>light.css</code> or <code>dark.css</code> to start. Click Reload to discover files and apply your latest changes.</p><p>Choose Default to reset. If a theme hides the controls, press Ctrl/Cmd+Alt+0.</p><button id="theme-close">Close</button></dialog>
   <dialog id="line-endings-dialog" aria-labelledby="line-endings-title">
     <h3 id="line-endings-title">Normalize line endings</h3>

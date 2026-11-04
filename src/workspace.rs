@@ -4,7 +4,7 @@
 //! inside the workspace cannot reach elsewhere.
 
 use crate::documents::Documents;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::{
     cmp::Ordering,
     fs, io,
@@ -162,6 +162,79 @@ fn list(root: &Root, folder: &Path, limit: usize) -> io::Result<Listing> {
     Ok(Listing { entries, omitted })
 }
 
+#[derive(Clone, Copy, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Kind {
+    File,
+    Folder,
+}
+
+// Names for new files and folders: one path component, visible in the browser,
+// and valid on every platform, so notes stay portable.
+fn checked_name(name: &str) -> Result<&str, String> {
+    let name = name.trim();
+    if name.is_empty() {
+        return Err("Enter a name.".into());
+    }
+    if name.contains(['/', '\\']) {
+        return Err("Names cannot contain / or \\. Create the folder first.".into());
+    }
+    if name.starts_with('.') {
+        return Err("Names starting with a dot are hidden in the file browser.".into());
+    }
+    if let Some(c) = name
+        .chars()
+        .find(|c| c.is_control() || matches!(c, '<' | '>' | ':' | '"' | '|' | '?' | '*'))
+    {
+        return Err(format!("Names cannot contain {c:?}."));
+    }
+    if name.ends_with('.') {
+        return Err("Names cannot end with a dot.".into());
+    }
+    Ok(name)
+}
+
+// New files are Markdown unless named as Markdown or text already.
+fn file_name(name: &str) -> String {
+    let known = Path::new(name)
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| EXTENSIONS.contains(&extension.to_ascii_lowercase().as_str()));
+    if known {
+        name.to_owned()
+    } else {
+        format!("{name}.md")
+    }
+}
+
+// Creates an empty file or a folder inside `folder`; never replaces anything.
+fn create(root: &Root, folder: &Path, name: &str, kind: Kind) -> Result<PathBuf, String> {
+    let name = checked_name(name)?;
+    if !root.contains(folder) || !folder.is_dir() {
+        return Err("That folder is outside the open folder.".into());
+    }
+    let path = match kind {
+        Kind::File => folder.join(file_name(name)),
+        Kind::Folder => folder.join(name),
+    };
+    let created = match kind {
+        Kind::File => fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&path)
+            .map(drop),
+        Kind::Folder => fs::create_dir(&path),
+    };
+    created.map_err(|error| match error.kind() {
+        io::ErrorKind::AlreadyExists => format!(
+            "{} already exists.",
+            path.file_name().unwrap_or_default().to_string_lossy()
+        ),
+        _ => error.to_string(),
+    })?;
+    Ok(path)
+}
+
 // The workspace is remembered as one line in Textgate's config folder.
 fn stored_at(app: &tauri::AppHandle) -> Option<PathBuf> {
     Some(
@@ -252,6 +325,27 @@ pub async fn list_folder(app: tauri::AppHandle, path: PathBuf) -> Result<Listing
             return Err("That folder is outside the open folder.".into());
         }
         list(&root, &path, LIMIT).map_err(|error| error.to_string())
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
+pub async fn create_entry(
+    app: tauri::AppHandle,
+    folder: PathBuf,
+    name: String,
+    kind: Kind,
+) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let root = app
+            .state::<Documents>()
+            .root()
+            .ok_or("No folder is open.")?;
+        let path = create(&root, &folder, &name, kind)?;
+        path.to_str()
+            .map(str::to_owned)
+            .ok_or_else(|| "The name is not valid Unicode.".into())
     })
     .await
     .map_err(|error| error.to_string())?
@@ -367,6 +461,53 @@ mod tests {
         let mut names = vec!["a10", "a2", "a02b", "A1", "b", "a"];
         names.sort_by(|a, b| natural(a, b));
         assert_eq!(names, ["a", "A1", "a2", "a02b", "a10", "b"]);
+    }
+
+    #[test]
+    fn new_files_and_folders_are_created_inside_and_never_replace_anything() {
+        let dir = tempfile::tempdir().unwrap();
+        let notes = dir.path().join("notes");
+        fs::create_dir(&notes).unwrap();
+        let root = Root::new(&notes).unwrap();
+        let file = create(&root, &notes, "  Ideas ", Kind::File).unwrap();
+        assert_eq!(file, notes.join("Ideas.md"));
+        assert_eq!(fs::read(&file).unwrap(), b"");
+        for (name, expected) in [
+            ("todo.txt", "todo.txt"),
+            ("a.Markdown", "a.Markdown"),
+            ("v1.2", "v1.2.md"),
+            ("notes.org", "notes.org.md"),
+        ] {
+            assert_eq!(
+                create(&root, &notes, name, Kind::File).unwrap(),
+                notes.join(expected)
+            );
+        }
+        let folder = create(&root, &notes, "Projects", Kind::Folder).unwrap();
+        assert!(folder.is_dir());
+        create(&root, &folder, "inside", Kind::File).unwrap();
+        fs::write(&file, b"keep").unwrap();
+        let error = create(&root, &notes, "Ideas", Kind::File).unwrap_err();
+        assert_eq!(error, "Ideas.md already exists.");
+        assert_eq!(fs::read(&file).unwrap(), b"keep");
+        assert!(create(&root, &notes, "Projects", Kind::Folder).is_err());
+        for name in [
+            "",
+            "  ",
+            "a/b",
+            "a\\b",
+            ".hidden",
+            "..",
+            "what?",
+            "a:b",
+            "end.",
+            "tab\there",
+        ] {
+            assert!(create(&root, &notes, name, Kind::File).is_err(), "{name:?}");
+        }
+        assert!(create(&root, dir.path(), "outside", Kind::File).is_err());
+        assert!(!dir.path().join("outside.md").exists());
+        assert!(create(&root, &notes.join("missing"), "x", Kind::File).is_err());
     }
 
     #[test]
