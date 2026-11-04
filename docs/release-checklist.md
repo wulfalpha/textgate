@@ -239,3 +239,18 @@ release artifacts or claim the M1 installation issue resolved until tested.
 - [x] That run's AppImage on Arch: misspellings underlined (user-verified).
 - [ ] Downloaded AppImage on one RPM distribution (Fedora) and Debian/Ubuntu;
       then drop the README known issue.
+- [x] Tabs (plan: docs/plans/0.1.6-tabs.md): per-document Rust baselines and
+      file identity, tab bar and switching, Save / Don't Save / Cancel on close,
+      Vim tab commands, several files from the command line and file manager.
+- [x] Linux (dev build): opening several files at once and one at a time,
+      same-named files, saving each tab, all three close-dialog buttons, three
+      files at launch, forwarding files to a running window (a new file and a
+      linked-folder path to an open file), `:w` creating the new file.
+- [ ] macOS and Windows: tab switching keys (Cmd+Shift+] / [ and Cmd+1–9 on
+      macOS; Ctrl+Tab, Ctrl+PageDown/PageUp and Ctrl+1–9 on Windows), Cmd/Ctrl+W
+      and the native File → Close Tab item, the Save / Don't Save / Cancel
+      buttons, and the quit prompt listing unsaved tabs.
+- [ ] macOS: Finder multi-select → Open With Textgate opens every file; Windows:
+      `textgate.exe a.md b.md` and Explorer Open With on several files.
+- [ ] Packaged Linux: file-manager multi-select → Open With (desktop entry `%U`).
+- [ ] File browser sidebar (planned separately).

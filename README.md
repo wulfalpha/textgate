@@ -32,6 +32,27 @@ do not collapse into one when the file is reopened. Files that are not valid UTF
 refused rather than opened lossily. The app uses vanilla JavaScript and CSS with
 Vite; no UI framework is required.
 
+## Tabs
+
+Each open document has its own tab, with its own undo history, cursor and scroll
+position. Live/Source mode, Vim, line numbers and spell checking apply to every
+tab. **New** opens an empty tab, and **Open** accepts several files at once. A
+file that is already open, even through a symbolic link or linked folder, is
+shown in its existing tab rather than opened twice. Opening a file while the
+current tab is a blank Untitled one (including the welcome text) replaces it.
+
+Close a tab with **File → Close Tab** (Ctrl/Cmd+W), its × button, a middle-click,
+or Delete while the tab has keyboard focus. A tab with unsaved changes asks
+**Save / Don't Save / Cancel**; if the save is cancelled or fails, the tab stays
+open. Closing the last tab leaves an empty Untitled one. Quitting lists every
+tab with unsaved changes. Save As onto a file that is open in another tab is
+refused; close that tab first.
+
+Tabs with the same file name show their folder (`notes.md — work`), and hovering
+a tab shows its full path. The tab bar is a keyboard tab list: arrow keys, Home
+and End move between tabs, and Enter or Escape returns to the editor. Tabs are
+not restored after a restart yet.
+
 ## Saving documents
 
 Saves write and flush a temporary file in the document's directory before
@@ -41,8 +62,8 @@ file changed or disappeared, you can cancel or explicitly overwrite/recreate it.
 Cancel keeps your edits in the editor; Save As lets you keep a separate copy.
 If you try another menu file action or close the window while an operation is
 running, the status bar asks you to finish or cancel that operation and try again.
-Closing is not queued. Incoming command-line/file-manager opens do queue and ask
-before replacing unsaved work once the current operation finishes.
+Closing is not queued. Incoming command-line/file-manager opens queue until the
+current operation finishes, then open in their own tabs.
 
 This detects external changes but does not lock out other editors during the
 final replacement. Directory syncing is best effort. Symbolic links and linked folders are followed when opening and saving; the
@@ -207,12 +228,13 @@ warns for a download you trust, choose **More info → Run anyway**. Linux packa
 still need compatible system libraries; an AppImage is not a guarantee of
 compatibility with every distribution.
 
-## Command-line and file-manager opening (0.1.4)
+## Command-line and file-manager opening
 
-Textgate opens one file per invocation in a single editor window:
+Textgate opens each file in its own tab, in a single editor window:
 
 ```sh
 textgate notes.md
+textgate notes.md todo.md ideas.md
 textgate "notes with spaces.md"
 textgate ../project/notes.md
 textgate -- -notes.md
@@ -244,13 +266,13 @@ A missing file opens as an empty named document and is created only when saved;
 its parent folder must already exist. If another program creates it first, the
 save-conflict prompt protects that new disk version. Non-UTF-8 content is rejected.
 
-Launching again brings the existing window forward. A request for the same path
-already shown keeps your edits; it does not reload from disk. Requests received
-during a save/dialog wait and then use the usual unsaved-change confirmation.
-No arguments just launches or focuses the app. Multiple paths, stdin, `--wait`,
-and opening at a line/column are not supported in this release. Help/version and
-invalid-argument errors exit without opening a window; a forwarded file request
-returns before the user completes any prompts in the existing window.
+Launching again brings the existing window forward and opens the files as new
+tabs. A file that is already open is shown in its tab with your edits; it is
+not reloaded from disk. Requests received during a save or dialog wait until it
+finishes. `--` makes every later argument a filename. No arguments just
+launches or focuses the app. Stdin, `--wait`, and opening at a line/column are
+not supported. Help/version and invalid-argument errors exit without opening a
+window; one invalid argument rejects the whole command, so nothing half-opens.
 
 Bundles register `.md` and `.markdown` file associations. Use your file manager's
 **Open With → Textgate** or choose Textgate as the default in OS settings. Finder
@@ -314,17 +336,24 @@ spell checking, and themes.
 | Open | Ctrl/Cmd+O |
 | Save | Ctrl/Cmd+S |
 | Save as | Ctrl/Cmd+Shift+S |
+| Close tab | Ctrl/Cmd+W |
+| Next / previous tab | Ctrl+Tab / Ctrl+Shift+Tab, Ctrl+PageDown / PageUp (Cmd+Shift+] / [ on macOS) |
+| Go to tab 1–8 / last tab | Ctrl/Cmd+1–8 / Ctrl/Cmd+9 |
 | Quit | Ctrl/Cmd+Q |
 | Zoom in / out / actual size | Ctrl/Cmd+= / - / 0 |
 | Check or uncheck tasks on the selected lines | Ctrl/Cmd+Shift+X |
-| Move between outline, editor and preview | F6 / Shift+F6 |
+| Move between tabs, outline, editor and preview | F6 / Shift+F6 |
 
 Choose **View → Vim bindings** to enable Vim editing in either mode. The status
 bar shows the current Vim mode. The file commands use the same save checks as
-the menus: `:w` saves, `:sav` chooses a new file, `:wq` and `:x` save and close,
-`:q` closes (refusing with E37 if there are unsaved changes, as Vim does), and
-`:q!` closes without saving. File names after `:w` and `:wq` are not supported;
-use `:sav`. **View → Relative line numbers** shows the
+the menus: `:w` saves, `:sav` chooses a new file, `:wq` and `:x` save and close
+the tab, `:q` closes it (refusing with E37 if there are unsaved changes, as Vim
+does), and `:q!` closes without saving; closing the last tab closes the window.
+`:qa` closes every tab, refusing with E37 if any has unsaved changes; `:qa!`
+discards them. `gt` / `gT` move between tabs (`3gt` goes to tab 3), as do
+`:tabnext` and `:tabprevious`; `:tabnew` opens an empty tab and `:tabclose` is
+`:q`. File names after `:w`, `:wq` and `:tabedit` are not supported; use `:sav`
+or File → Open. **View → Relative line numbers** shows the
 cursor line's number and every other line's distance from it, as Vim's
 `number` plus `relativenumber` does; it also shows the numbers in Live mode.
 **View → Zoom In/Out** scales the whole window and is remembered on this device.
@@ -343,15 +372,16 @@ out of the editor, press Escape followed by Tab.
 Next milestones:
 
 - Table row/column commands for Live mode.
-- 0.1.6: a workspace folder with a file browser sidebar and document tabs.
+- 0.1.6: document tabs, and a workspace folder with a file browser sidebar.
 - 0.1.7: links between notes (`[[wiki links]]` and Markdown links), file
   watching, autosave and crash recovery; groundwork for Zettelkasten notes in 0.2.0.
 - Local image resolution and external link opening (preview links currently show
   their destination in the status bar; remote images are blocked in the desktop app).
 - Continued package validation across supported platforms.
 
-Only a single document is open at a time. New/open/close ask before discarding
-unsaved changes. There is no crash recovery or autosave yet. File permissions are
+Textgate has one window, with a tab for each open document. Closing a tab or
+quitting asks before discarding unsaved changes. There is no crash recovery or
+autosave yet, and tabs are not restored after a restart. File permissions are
 restricted to paths granted through native file dialogs or native launch/file-open
 requests, plus the dedicated Textgate theme configuration handled by the Rust backend.
 
