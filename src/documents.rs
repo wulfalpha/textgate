@@ -1,3 +1,4 @@
+use crate::workspace::Root;
 use serde::Serialize;
 use std::{
     collections::{HashMap, HashSet},
@@ -212,6 +213,8 @@ struct Slots {
 #[derive(Default)]
 pub struct Documents {
     granted: Arc<Mutex<HashSet<PathBuf>>>,
+    /// The open folder; files inside it need no individual grant.
+    root: Mutex<Option<Root>>,
     next: AtomicU32,
     open: Mutex<HashMap<DocumentId, Slots>>,
 }
@@ -251,6 +254,19 @@ impl Documents {
         }
     }
 
+    /// Chosen in a native dialog or passed by the OS, exactly as given.
+    pub fn chosen(&self, path: &Path) -> bool {
+        self.granted.lock().unwrap().contains(&normalize(path))
+    }
+
+    pub fn root(&self) -> Option<Root> {
+        self.root.lock().unwrap().clone()
+    }
+
+    pub fn set_root(&self, root: Option<Root>) {
+        *self.root.lock().unwrap() = root;
+    }
+
     fn create(&self) -> DocumentId {
         let id = self.next.fetch_add(1, Ordering::Relaxed) + 1;
         self.open.lock().unwrap().insert(id, Slots::default());
@@ -262,7 +278,8 @@ impl Documents {
     }
 
     fn target(&self, path: &Path) -> Result<PathBuf, SaveError> {
-        if !path.is_absolute() || !self.granted.lock().unwrap().contains(&normalize(path)) {
+        let inside = || self.root().is_some_and(|root| root.contains(path));
+        if !path.is_absolute() || !(self.chosen(path) || inside()) {
             return Err(failure(
                 "Choose the file through Open, Save As, or a native file-open request first.",
             ));
@@ -680,6 +697,65 @@ mod tests {
             documents.open(a, &created),
             Err(SaveError::AlreadyOpen { document, .. }) if document == c
         ));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn files_inside_the_open_folder_need_no_grant_and_links_cannot_escape_it() {
+        use std::os::unix::fs::symlink;
+        let dir = tempfile::tempdir().unwrap();
+        let notes = dir.path().join("notes");
+        let outside = dir.path().join("outside");
+        fs::create_dir_all(notes.join("sub")).unwrap();
+        fs::create_dir(&outside).unwrap();
+        let inside = notes.join("sub/a.md");
+        fs::write(&inside, b"old").unwrap();
+        fs::write(outside.join("secret.md"), b"secret").unwrap();
+        symlink(&outside, notes.join("escape")).unwrap();
+        let documents = Documents::default();
+        let doc = documents.create();
+        assert!(
+            documents.open(doc, &inside).is_err(),
+            "no folder is open yet"
+        );
+        documents.set_root(Some(Root::new(&notes).unwrap()));
+        assert_eq!(documents.open(doc, &inside).unwrap(), b"old");
+        documents.keep(doc, &inside).unwrap();
+        documents
+            .save(doc, &inside, b"new", SaveMode::Save)
+            .unwrap();
+        assert_eq!(fs::read(&inside).unwrap(), b"new");
+        // A new file inside the folder is created on its first save.
+        let created = notes.join("new.md");
+        let other = documents.create();
+        documents.open_with(other, &created, true).unwrap();
+        documents.keep(other, &created).unwrap();
+        documents
+            .save(other, &created, b"first", SaveMode::Save)
+            .unwrap();
+        assert_eq!(fs::read(&created).unwrap(), b"first");
+        // Nothing outside it, through a link or `..`, is reachable.
+        let third = documents.create();
+        for path in [
+            notes.join("escape/secret.md"),
+            notes.join("sub/../../outside/secret.md"),
+            outside.join("secret.md"),
+        ] {
+            assert!(documents.open(third, &path).is_err(), "{path:?}");
+            assert!(
+                documents
+                    .save(third, &path, b"x", SaveMode::Replace)
+                    .is_err()
+            );
+        }
+        assert_eq!(fs::read(outside.join("secret.md")).unwrap(), b"secret");
+        // Closing the folder withdraws access again.
+        documents.set_root(None);
+        assert!(
+            documents
+                .save(doc, &inside, b"later", SaveMode::Save)
+                .is_err()
+        );
     }
 
     #[test]

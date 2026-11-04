@@ -5,6 +5,7 @@ mod launch;
 mod markdown;
 mod spelling;
 mod themes;
+mod workspace;
 
 use tauri::Manager;
 use tauri_plugin_fs::FsExt;
@@ -66,6 +67,10 @@ fn main() {
             documents::open_document,
             documents::keep_document,
             documents::save_document,
+            workspace::open_workspace,
+            workspace::workspace,
+            workspace::close_workspace,
+            workspace::list_folder,
             launch::take_open_requests
         ])
         .plugin(tauri_plugin_dialog::init())
@@ -82,6 +87,7 @@ fn main() {
             if let Some(window) = app.get_webview_window("main") {
                 spelling::enable(&window)?;
             }
+            workspace::restore(app.handle());
             launch::receive(app.handle(), Ok(initial), true);
             Ok(())
         })

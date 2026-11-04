@@ -1,0 +1,399 @@
+//! The workspace: one folder the user chose, whose Markdown and text files the
+//! file browser lists and opens. Choosing it grants that folder and nothing
+//! outside it; every path is checked after resolving symbolic links, so a link
+//! inside the workspace cannot reach elsewhere.
+
+use crate::documents::Documents;
+use serde::Serialize;
+use std::{
+    cmp::Ordering,
+    fs, io,
+    path::{Component, Path, PathBuf},
+};
+use tauri::Manager;
+
+/// The chosen folder as the user named it, and where it really is.
+#[derive(Clone, Debug)]
+pub struct Root {
+    given: PathBuf,
+    real: PathBuf,
+}
+
+impl Root {
+    pub fn new(given: &Path) -> io::Result<Self> {
+        if !fs::metadata(given)?.is_dir() {
+            return Err(io::Error::other("Choose a folder."));
+        }
+        Ok(Self {
+            given: given.to_path_buf(),
+            real: fs::canonicalize(given)?,
+        })
+    }
+
+    // Inside the root once symbolic links are resolved. A file that does not
+    // exist yet is placed by its folder. Paths with `..` are refused outright.
+    pub fn contains(&self, path: &Path) -> bool {
+        if !path.is_absolute() || path.components().any(|part| part == Component::ParentDir) {
+            return false;
+        }
+        let real = fs::canonicalize(path).or_else(|_| {
+            let (parent, name) = (path.parent(), path.file_name());
+            match parent.zip(name) {
+                Some((parent, name)) => fs::canonicalize(parent).map(|dir| dir.join(name)),
+                None => Err(io::ErrorKind::NotFound.into()),
+            }
+        });
+        real.is_ok_and(|real| real.starts_with(&self.real))
+    }
+}
+
+#[derive(Debug, Serialize, PartialEq)]
+pub struct Workspace {
+    path: String,
+    name: String,
+}
+
+impl From<&Root> for Workspace {
+    fn from(root: &Root) -> Self {
+        Self {
+            path: root.given.to_string_lossy().into_owned(),
+            name: root
+                .given
+                .file_name()
+                .map(|name| name.to_string_lossy().into_owned())
+                .unwrap_or_else(|| root.given.to_string_lossy().into_owned()),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Entry {
+    name: String,
+    path: String,
+    folder: bool,
+}
+
+#[derive(Debug, Serialize, PartialEq)]
+pub struct Listing {
+    entries: Vec<Entry>,
+    /// Entries left out past the limit.
+    omitted: usize,
+}
+
+const LIMIT: usize = 1000;
+const EXTENSIONS: [&str; 3] = ["md", "markdown", "txt"];
+
+fn shown(name: &str) -> bool {
+    !name.starts_with('.') && name != "node_modules"
+}
+
+// Natural order, ignoring case: "note 2" before "note 10".
+fn natural(a: &str, b: &str) -> Ordering {
+    fn chunks(text: &str) -> Vec<(bool, String)> {
+        let mut parts: Vec<(bool, String)> = Vec::new();
+        for c in text.chars() {
+            let digit = c.is_ascii_digit();
+            match parts.last_mut() {
+                Some((kind, part)) if *kind == digit => part.push(c),
+                _ => parts.push((digit, c.to_string())),
+            }
+        }
+        parts
+    }
+    let (left, right) = (chunks(a), chunks(b));
+    for ((ld, l), (rd, r)) in left.iter().zip(&right) {
+        let order = if *ld && *rd {
+            let (l, r) = (l.trim_start_matches('0'), r.trim_start_matches('0'));
+            l.len().cmp(&r.len()).then_with(|| l.cmp(r))
+        } else {
+            l.to_lowercase().cmp(&r.to_lowercase())
+        };
+        if order != Ordering::Equal {
+            return order;
+        }
+    }
+    left.len().cmp(&right.len()).then_with(|| a.cmp(b))
+}
+
+// One folder's entries: folders, then Markdown and text files, each in natural
+// order. Hidden entries, other files, broken links and links leading outside
+// the workspace are left out.
+fn list(root: &Root, folder: &Path, limit: usize) -> io::Result<Listing> {
+    let mut entries = Vec::new();
+    for entry in fs::read_dir(folder)? {
+        let entry = entry?;
+        let path = entry.path();
+        let (Some(name), Some(text)) =
+            (entry.file_name().to_str().map(str::to_owned), path.to_str())
+        else {
+            continue;
+        };
+        if !shown(&name) {
+            continue;
+        }
+        let Ok(meta) = fs::metadata(&path) else {
+            continue;
+        };
+        let wanted = meta.is_dir()
+            || (meta.is_file()
+                && path
+                    .extension()
+                    .and_then(|extension| extension.to_str())
+                    .is_some_and(|extension| {
+                        EXTENSIONS.contains(&extension.to_ascii_lowercase().as_str())
+                    }));
+        if !wanted || (entry.file_type()?.is_symlink() && !root.contains(&path)) {
+            continue;
+        }
+        entries.push(Entry {
+            path: text.to_owned(),
+            name,
+            folder: meta.is_dir(),
+        });
+    }
+    entries.sort_by(|a, b| {
+        b.folder
+            .cmp(&a.folder)
+            .then_with(|| natural(&a.name, &b.name))
+    });
+    let omitted = entries.len().saturating_sub(limit);
+    entries.truncate(limit);
+    Ok(Listing { entries, omitted })
+}
+
+// The workspace is remembered as one line in Textgate's config folder.
+fn stored_at(app: &tauri::AppHandle) -> Option<PathBuf> {
+    Some(
+        app.path()
+            .config_dir()
+            .ok()?
+            .join("textgate")
+            .join("workspace"),
+    )
+}
+
+fn store(file: &Path, folder: Option<&Path>) -> io::Result<()> {
+    match folder {
+        Some(folder) => {
+            if let Some(parent) = file.parent() {
+                fs::create_dir_all(parent)?;
+            }
+            let text = folder
+                .to_str()
+                .ok_or_else(|| io::Error::other("The folder path is not valid Unicode."))?;
+            fs::write(file, text)
+        }
+        None => match fs::remove_file(file) {
+            Err(error) if error.kind() != io::ErrorKind::NotFound => Err(error),
+            _ => Ok(()),
+        },
+    }
+}
+
+fn stored(file: &Path) -> Option<PathBuf> {
+    let text = fs::read_to_string(file).ok()?;
+    let path = PathBuf::from(text.trim_end_matches(['\r', '\n']));
+    path.is_absolute().then_some(path)
+}
+
+/// Reopens the remembered workspace at startup, if the folder still exists.
+pub fn restore(app: &tauri::AppHandle) {
+    let folder = stored_at(app).and_then(|file| stored(&file));
+    if let Some(root) = folder.and_then(|folder| Root::new(&folder).ok()) {
+        app.state::<Documents>().set_root(Some(root));
+    }
+}
+
+fn opened(documents: &Documents, path: &Path) -> Result<Root, String> {
+    if !documents.chosen(path) {
+        return Err("Choose the folder through File → Open Folder first.".into());
+    }
+    Root::new(path).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn open_workspace(
+    app: tauri::AppHandle,
+    documents: tauri::State<'_, Documents>,
+    path: PathBuf,
+) -> Result<Workspace, String> {
+    let root = opened(&documents, &path)?;
+    if let Some(file) = stored_at(&app) {
+        // Not remembering it is no reason to refuse the folder now.
+        let _ = store(&file, Some(&root.given));
+    }
+    let workspace = Workspace::from(&root);
+    documents.set_root(Some(root));
+    Ok(workspace)
+}
+
+#[tauri::command]
+pub fn workspace(documents: tauri::State<'_, Documents>) -> Option<Workspace> {
+    documents.root().as_ref().map(Workspace::from)
+}
+
+#[tauri::command]
+pub fn close_workspace(app: tauri::AppHandle, documents: tauri::State<'_, Documents>) {
+    documents.set_root(None);
+    if let Some(file) = stored_at(&app) {
+        let _ = store(&file, None);
+    }
+}
+
+#[tauri::command]
+pub async fn list_folder(app: tauri::AppHandle, path: PathBuf) -> Result<Listing, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let root = app
+            .state::<Documents>()
+            .root()
+            .ok_or("No folder is open.")?;
+        if !root.contains(&path) {
+            return Err("That folder is outside the open folder.".into());
+        }
+        list(&root, &path, LIMIT).map_err(|error| error.to_string())
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[cfg(unix)]
+    use std::os::unix::fs::symlink;
+
+    #[cfg(unix)]
+    fn names(listing: &Listing) -> Vec<&str> {
+        listing
+            .entries
+            .iter()
+            .map(|entry| entry.name.as_str())
+            .collect()
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn the_root_contains_only_paths_that_resolve_inside_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let notes = dir.path().join("notes");
+        let outside = dir.path().join("outside");
+        fs::create_dir_all(notes.join("sub")).unwrap();
+        fs::create_dir(&outside).unwrap();
+        fs::write(outside.join("secret.md"), "x").unwrap();
+        fs::write(notes.join("a.md"), "x").unwrap();
+        symlink(&outside, notes.join("escape")).unwrap();
+        symlink(outside.join("secret.md"), notes.join("secret.md")).unwrap();
+        symlink(notes.join("sub"), notes.join("inner")).unwrap();
+        let root = Root::new(&notes).unwrap();
+        assert!(root.contains(&notes));
+        assert!(root.contains(&notes.join("a.md")));
+        assert!(
+            root.contains(&notes.join("sub/new.md")),
+            "a file not created yet"
+        );
+        assert!(
+            root.contains(&notes.join("inner/new.md")),
+            "a link that stays inside"
+        );
+        assert!(!root.contains(&notes.join("escape/secret.md")));
+        assert!(!root.contains(&notes.join("secret.md")));
+        assert!(!root.contains(&notes.join("sub/../a.md")), ".. is refused");
+        assert!(!root.contains(&notes.join("../outside/secret.md")));
+        assert!(!root.contains(&outside.join("secret.md")));
+        assert!(
+            !root.contains(Path::new("a.md")),
+            "relative paths are refused"
+        );
+        assert!(!root.contains(&notes.join("missing/deeper/new.md")));
+        assert!(
+            Root::new(&notes.join("a.md")).is_err(),
+            "a file is not a folder"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn listings_show_folders_then_markdown_and_text_in_natural_order() {
+        let dir = tempfile::tempdir().unwrap();
+        let notes = dir.path().join("notes");
+        let outside = dir.path().join("outside");
+        fs::create_dir_all(&outside).unwrap();
+        for folder in ["Zeta", "alpha", ".git", "node_modules", "docs 10", "docs 2"] {
+            fs::create_dir_all(notes.join(folder)).unwrap();
+        }
+        for file in [
+            "note 10.md",
+            "Note 2.MD",
+            "b.markdown",
+            "c.txt",
+            "image.png",
+            ".hidden.md",
+            "README",
+        ] {
+            fs::write(notes.join(file), "x").unwrap();
+        }
+        fs::write(outside.join("away.md"), "x").unwrap();
+        symlink(outside.join("away.md"), notes.join("away.md")).unwrap();
+        symlink(notes.join("missing.md"), notes.join("broken.md")).unwrap();
+        symlink(notes.join("c.txt"), notes.join("linked.txt")).unwrap();
+        let root = Root::new(&notes).unwrap();
+        let listing = list(&root, &notes, LIMIT).unwrap();
+        assert_eq!(
+            names(&listing),
+            [
+                "alpha",
+                "docs 2",
+                "docs 10",
+                "Zeta",
+                "b.markdown",
+                "c.txt",
+                "linked.txt",
+                "Note 2.MD",
+                "note 10.md"
+            ]
+        );
+        assert_eq!(listing.omitted, 0);
+        let alpha = &listing.entries[0];
+        assert!(alpha.folder);
+        assert_eq!(alpha.path, notes.join("alpha").to_str().unwrap());
+        let limited = list(&root, &notes, 3).unwrap();
+        assert_eq!(names(&limited), ["alpha", "docs 2", "docs 10"]);
+        assert_eq!(limited.omitted, 6);
+    }
+
+    #[test]
+    fn natural_order_compares_numbers_by_value() {
+        let mut names = vec!["a10", "a2", "a02b", "A1", "b", "a"];
+        names.sort_by(|a, b| natural(a, b));
+        assert_eq!(names, ["a", "A1", "a2", "a02b", "a10", "b"]);
+    }
+
+    #[test]
+    fn the_workspace_is_remembered_and_forgotten() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("config/textgate/workspace");
+        assert_eq!(stored(&file), None);
+        store(&file, Some(dir.path())).unwrap();
+        assert_eq!(stored(&file).as_deref(), Some(dir.path()));
+        store(&file, None).unwrap();
+        store(&file, None).unwrap();
+        assert_eq!(stored(&file), None);
+        fs::write(&file, "relative/path").unwrap();
+        assert_eq!(stored(&file), None, "only absolute paths are trusted");
+    }
+
+    #[test]
+    fn only_a_folder_chosen_in_the_dialog_becomes_the_workspace() {
+        let dir = tempfile::tempdir().unwrap();
+        let documents = Documents::default();
+        assert!(opened(&documents, dir.path()).is_err());
+        documents.granter()(dir.path());
+        let root = opened(&documents, dir.path()).unwrap();
+        assert_eq!(Workspace::from(&root).path, dir.path().to_str().unwrap());
+        let file = dir.path().join("a.md");
+        fs::write(&file, "x").unwrap();
+        documents.granter()(&file);
+        assert!(opened(&documents, &file).is_err(), "a file is not a folder");
+    }
+}
