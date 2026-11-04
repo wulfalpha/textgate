@@ -11,6 +11,7 @@ function setup(folders) {
   document.body.replaceChildren(container);
   const listed = [];
   const opened = [];
+  const openFocus = [];
   const errors = [];
   const menus = [];
   const commands = [];
@@ -26,14 +27,14 @@ function setup(folders) {
       const entries = folders[path].map((name) => ({ name: name.replace(/\/$/, ''), path: `${path}/${name.replace(/\/$/, '')}`, folder: name.endsWith('/') }));
       return { entries, omitted: path === '/w/big' ? 5 : 0 };
     },
-    open: (path) => opened.push(path),
+    open: (path, options) => { opened.push(path); openFocus.push(options?.focus); },
     report: (error) => errors.push(error.message),
   });
   const items = () => [...container.querySelectorAll('[role="treeitem"]')];
   const labels = () => items().map((item) => `${'  '.repeat(Number(item.getAttribute('aria-level') ?? 1) - 1)}${item.querySelector('.tree-name')?.textContent ?? item.textContent}`);
   const key = (name) => document.activeElement.dispatchEvent(new window.KeyboardEvent('keydown', { key: name, bubbles: true, cancelable: true }));
   const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
-  return { tree, container, listed, opened, errors, menus, commands, remembered, items, labels, key, settle };
+  return { tree, container, listed, opened, openFocus, errors, menus, commands, remembered, items, labels, key, settle };
 }
 
 const workspace = {
@@ -188,6 +189,24 @@ test('F2 renames and Delete trashes the chosen row; a rename keeps folders open'
   assert.deepEqual(env.labels(), ['docs', '  deep', '    x.md', '  guide.md', 'big', 'a.md', 'b.txt'], 'names update on refresh');
   assert.equal(env.items()[2].dataset.path, '/w/notes/deep/x.md');
   assert.equal(env.items()[2].getAttribute('tabindex'), '0', 'the selection follows');
+});
+
+test('a click opens a file and keeps focus on it; Enter opens it and moves into it', async () => {
+  const env = setup(workspace);
+  await env.tree.setRoot({ path: '/w', name: 'w' });
+  // A real click focuses the row it lands on, then the click handler runs.
+  const a = env.items().find((item) => item.dataset.path === '/w/a.md');
+  a.focus();
+  a.click();
+  assert.deepEqual(env.opened, ['/w/a.md']);
+  assert.deepEqual(env.openFocus, [false], 'the editor does not take focus');
+  assert.equal(document.activeElement.dataset.path, '/w/a.md', 'focus stays on the clicked row');
+  // So Cmd+Backspace right after the click trashes that file, as in Finder.
+  document.activeElement.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Backspace', metaKey: true, bubbles: true, cancelable: true }));
+  assert.deepEqual(env.commands, [['trash', '/w/a.md']]);
+  env.key('Enter');
+  assert.deepEqual(env.opened, ['/w/a.md', '/w/a.md']);
+  assert.deepEqual(env.openFocus, [false, true], 'Enter moves into the document');
 });
 
 test('folders left open reopen with the workspace, skipping ones that are gone', async () => {

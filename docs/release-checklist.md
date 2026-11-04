@@ -246,10 +246,9 @@ release artifacts or claim the M1 installation issue resolved until tested.
       same-named files, saving each tab, all three close-dialog buttons, three
       files at launch, forwarding files to a running window (a new file and a
       linked-folder path to an open file), `:w` creating the new file.
-- [ ] macOS and Windows: tab switching keys (Cmd+Shift+] / [ and Cmd+1–9 on
-      macOS; Ctrl+Tab, Ctrl+PageDown/PageUp and Ctrl+1–9 on Windows), Cmd/Ctrl+W
-      and the native File → Close Tab item, the Save / Don't Save / Cancel
-      buttons, and the quit prompt listing unsaved tabs.
+- [ ] Windows: tab switching keys (Ctrl+Tab, Ctrl+PageDown/PageUp and Ctrl+1–9),
+      Ctrl+W and the native File → Close Tab item, the Save / Don't Save / Cancel
+      buttons, and the quit prompt listing unsaved tabs (macOS passed, below).
 - [ ] macOS: Finder multi-select → Open With Textgate opens every file; Windows:
       `textgate.exe a.md b.md` and Explorer Open With on several files.
 - [ ] Packaged Linux: file-manager multi-select → Open With (desktop entry `%U`).
@@ -266,6 +265,10 @@ release artifacts or claim the M1 installation issue resolved until tested.
       RENAME_EXCL, Linux `renameat2` RENAME_NOREPLACE, Windows `MoveFileExW`
       without replace), so an entry created after the name check is never
       replaced; case-only renames of the same entry still work.
-- [ ] macOS: trash without a Finder permission prompt, Cmd+Backspace, Show in
-      Finder, a case-only rename; Windows: trash to the Recycle Bin, Show in
-      Explorer, a case-only rename.
+- [x] macOS (M4, dev build): trash without a Finder permission prompt, Show in
+      Finder and a case-only rename passed; tabs (switching keys, Cmd+W, Close Tab,
+      Save / Don't Save / Cancel, quit prompt) passed.
+- [ ] macOS: Cmd+Backspace failed after clicking a file (the click moved focus to
+      the editor). Clicks now keep focus in the list; Enter moves into the file.
+      Retest.
+- [ ] Windows: trash to the Recycle Bin, Show in Explorer, a case-only rename.

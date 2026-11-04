@@ -64,8 +64,10 @@ shows the first 1,000. `textgate ~/notes` opens a folder the same way. The
 workspace, and the folders left open in it, are reopened at the next launch;
 **File → Close Folder** closes it, and open tabs stay open.
 
-Click a file, or press Enter, to open it in a tab. The current tab's file is
-highlighted and its folders open to show it; files open in other tabs are
+Click a file to open it in a tab with focus left in the list (so F2 and
+Delete or Cmd+Backspace act on it), or press Enter to open it and move into it.
+The current tab's file is highlighted and its folders open to show it; files
+open in other tabs are
 marked, and unsaved ones show a dot. The list refreshes when the window regains
 focus, after Textgate's own changes, and with the ↻ button.
 

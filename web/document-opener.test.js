@@ -66,3 +66,24 @@ test('read, decoding and keep failures release the new document and show nothing
     assert.ok(!env.events.some(([kind]) => kind === 'place' || kind === 'show'));
   }
 });
+
+test('the caller decides whether opening moves keyboard focus into the document', async () => {
+  const calls = [];
+  const documents = { create: () => ({ read: async () => bytes('text'), remember: async () => {}, close: async () => {} }) };
+  const tab = { name: 'open' };
+  const opener = createDocumentOpener({
+    documents,
+    existing: (path) => (path === '/open' ? tab : null),
+    holder: async () => null,
+    show: (shown, options) => calls.push(['show', options]),
+    place: (opened, options) => { calls.push(['place', options]); return { name: opened.path }; },
+  });
+  await opener('/new', { focus: false });
+  await opener('/open', { focus: false });
+  await opener('/new');
+  await opener('/open');
+  assert.deepEqual(calls, [
+    ['place', { focus: false }], ['show', { focus: false }],
+    ['place', { focus: true }], ['show', { focus: true }],
+  ]);
+});

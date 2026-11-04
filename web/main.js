@@ -230,17 +230,17 @@ function showTab(tab, options) {
   load(tab, options);
 }
 // Each document has its own state, so undo history stays with its tab.
-function addTab({ text = '', path = null, format = defaultFormat, file = documents.create() } = {}) {
+function addTab({ text = '', path = null, format = defaultFormat, file = documents.create() } = {}, options) {
   const state = EditorState.create({ doc: text, extensions: extensions(format) });
   const tab = tabs.add({ path, file, state, savedDoc: state.doc, savedFormat: state.field(documentFormat) }, { activate: false });
-  showTab(tab);
+  showTab(tab, options);
   return tab;
 }
 // A newly opened file takes the place of a blank Untitled tab.
-function place(opened) {
+function place(opened, options) {
   const blank = tabs.active;
   const reuse = pristine(blank);
-  const tab = addTab(opened);
+  const tab = addTab(opened, options);
   if (reuse) discardTab(blank);
   return tab;
 }
@@ -340,7 +340,7 @@ function tabShortcut(event) {
 const fileTree = createFileTree({
   container: $('file-tree'),
   list: (path) => invoke('list_folder', { path }),
-  open: (path) => run.enqueue(() => openFile(path)),
+  open: (path, options) => run.enqueue(() => openFile(path, options)),
   report,
   menu: (target, position) => { showTreeMenu(target, position).catch(report); },
   command: (name, target) => run(() => (name === 'rename' ? renameEntry(target) : trashEntry(target))),

@@ -119,7 +119,9 @@ export function createFileTree({ container, list, open, report, menu = () => {},
     const path = row.dataset.path;
     selected = path;
     if (row.classList.contains('folder')) void setExpanded(path, !expanded.has(path));
-    else { render(); open(path); }
+    // A click opens the file but keeps focus here, as in Finder, so F2 and
+    // Delete/Cmd+Backspace act on the row just clicked.
+    else { render(); open(path, { focus: false }); }
   });
   container.addEventListener('keydown', (event) => {
     const chosen = rows().some((row) => row.path === selected && !row.note);
@@ -156,7 +158,8 @@ export function createFileTree({ container, list, open, report, menu = () => {},
         break;
       case 'Enter':
         if (row?.folder) void setExpanded(row.path, !expanded.has(row.path));
-        else if (row && !row.note) open(row.path);
+        // Enter opens the file and moves into it, ready to type.
+        else if (row && !row.note) open(row.path, { focus: true });
         break;
       default: {
         // Type-ahead: jump to the next name starting with the typed letters.
