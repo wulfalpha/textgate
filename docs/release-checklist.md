@@ -268,7 +268,8 @@ release artifacts or claim the M1 installation issue resolved until tested.
 - [x] macOS (M4, dev build): trash without a Finder permission prompt, Show in
       Finder and a case-only rename passed; tabs (switching keys, Cmd+W, Close Tab,
       Save / Don't Save / Cancel, quit prompt) passed.
-- [ ] macOS: Cmd+Backspace failed after clicking a file (the click moved focus to
+- [x] macOS: Cmd+Backspace failed after clicking a file (the click moved focus to
       the editor). Clicks now keep focus in the list; Enter moves into the file.
-      Retest.
+      Retested on M4: Cmd+Backspace trashes the clicked file, its tab keeps the
+      text so it can be recovered, and quitting asks before discarding it.
 - [ ] Windows: trash to the Recycle Bin, Show in Explorer, a case-only rename.
