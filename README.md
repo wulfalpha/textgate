@@ -32,6 +32,13 @@ do not collapse into one when the file is reopened. Files that are not valid UTF
 refused rather than opened lossily. The app uses vanilla JavaScript and CSS with
 Vite; no UI framework is required.
 
+> **Windows status.** Tabs, the file browser and opening several files at once
+> are new in 0.1.6. They were checked by hand on Linux and macOS and pass the
+> automated tests on Windows, but have **not yet been confirmed by hand on
+> Windows**. Spell checking does not work on Windows yet (see
+> [Spell checking](#spell-checking)). Windows support may trail Linux and macOS
+> for now; reports are welcome.
+
 ## Tabs
 
 Each open document has its own tab, with its own undo history, cursor and scroll

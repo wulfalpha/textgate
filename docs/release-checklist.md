@@ -246,6 +246,9 @@ release artifacts or claim the M1 installation issue resolved until tested.
       same-named files, saving each tab, all three close-dialog buttons, three
       files at launch, forwarding files to a running window (a new file and a
       linked-folder path to an open file), `:w` creating the new file.
+- [ ] Windows manual checks below could not be completed for this round; the
+      README and 0.1.6 notes say so. Retry with the packages from the manual
+      release run on `tabs` (run 41772419650).
 - [ ] Windows: tab switching keys (Ctrl+Tab, Ctrl+PageDown/PageUp and Ctrl+1–9),
       Ctrl+W and the native File → Close Tab item, the Save / Don't Save / Cancel
       buttons, and the quit prompt listing unsaved tabs (macOS passed, below).
