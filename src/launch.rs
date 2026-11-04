@@ -5,18 +5,19 @@ use std::{
 };
 use tauri::{Emitter, Manager};
 
-pub const HELP: &str = "Textgate — a Markdown editor\n\nUsage: textgate [OPTIONS] [--] [FILE]\n\n  -h, --help       Show this help\n  -V, --version    Show the version\n  --              Treat the next argument as a filename\n\nOpen one UTF-8 file, or prepare a new file (created only on Save).\nRelative paths use the caller's working directory. An existing Textgate\nwindow receives the file and asks before discarding unsaved changes.\nLocal file:// URLs are also accepted. Multiple files and stdin are not supported.\n";
+pub const HELP: &str = "Textgate — a Markdown editor\n\nUsage: textgate [OPTIONS] [--] [FILE]...\n\n  -h, --help       Show this help\n  -V, --version    Show the version\n  --              Treat every later argument as a filename\n\nOpen UTF-8 files, each in its own tab, or prepare new files (created only\non Save). Relative paths use the caller's working directory. An existing\nTextgate window receives the files as new tabs; a file that is already\nopen is shown. Local file:// URLs are also accepted. Stdin is not supported.\n";
 
 #[derive(Debug, PartialEq)]
 pub enum Command {
     ShowHelp,
     ShowVersion,
-    Launch(Option<PathBuf>),
+    /// Files to open, in order; none starts with an Untitled document.
+    Launch(Vec<PathBuf>),
 }
 
 pub fn parse(args: &[String], cwd: &Path) -> Result<Command, String> {
     if args.is_empty() {
-        return Ok(Command::Launch(None));
+        return Ok(Command::Launch(Vec::new()));
     }
     if args.len() == 1 {
         match args[0].as_str() {
@@ -24,17 +25,28 @@ pub fn parse(args: &[String], cwd: &Path) -> Result<Command, String> {
             "-V" | "--version" => return Ok(Command::ShowVersion),
             // Older Launch Services versions can pass a process serial number.
             arg if cfg!(target_os = "macos") && arg.starts_with("-psn_") => {
-                return Ok(Command::Launch(None));
+                return Ok(Command::Launch(Vec::new()));
             }
             _ => {}
         }
     }
-    let literal = args[0] == "--";
-    let paths = if literal { &args[1..] } else { args };
-    if paths.len() != 1 {
-        return Err("Textgate opens one file at a time. Usage: textgate [--] FILE".into());
+    // One bad argument rejects the whole command, so nothing half-opens.
+    let mut literal = false;
+    let mut paths = Vec::new();
+    for argument in args {
+        if !literal && argument == "--" {
+            literal = true;
+            continue;
+        }
+        paths.push(path_argument(argument, literal, cwd)?);
     }
-    let argument = &paths[0];
+    if paths.is_empty() {
+        return Err("Expected a filename after --.".into());
+    }
+    Ok(Command::Launch(paths))
+}
+
+fn path_argument(argument: &str, literal: bool, cwd: &Path) -> Result<PathBuf, String> {
     if argument.is_empty() {
         return Err("The file path must not be empty.".into());
     }
@@ -68,20 +80,19 @@ pub fn parse(args: &[String], cwd: &Path) -> Result<Command, String> {
         return Err("The file path is not valid Unicode.".into());
     }
     // Do not lexically collapse .. across symlinks: the filesystem must resolve it.
-    Ok(Command::Launch(Some(path)))
+    Ok(path)
 }
 
 // Finder delivers files as OS URLs rather than command-line arguments.
 #[cfg(any(target_os = "macos", test))]
 pub fn from_urls(urls: &[tauri::Url]) -> Result<Command, String> {
-    match urls {
-        [] => Ok(Command::Launch(None)),
-        [url] => url
-            .to_file_path()
-            .map(|path| Command::Launch(Some(path)))
-            .map_err(|_| "Only local files can be opened.".into()),
-        _ => Err("Textgate opens one file at a time. Select a single file in Finder.".into()),
-    }
+    urls.iter()
+        .map(|url| {
+            url.to_file_path()
+                .map_err(|_| "Only local files can be opened.".to_owned())
+        })
+        .collect::<Result<_, _>>()
+        .map(Command::Launch)
 }
 
 #[derive(Clone, Debug, PartialEq, serde::Serialize)]
@@ -114,26 +125,32 @@ pub fn focus(app: &tauri::AppHandle) {
 }
 
 pub fn receive(app: &tauri::AppHandle, command: Result<Command, String>, create: bool) {
-    let request = match command {
-        Ok(Command::Launch(Some(path))) => match path.to_str() {
-            Some(text) => {
-                // Only native launch arguments/OS file events can grant these
-                // paths. There is no webview command to grant arbitrary access.
-                app.state::<crate::documents::Documents>().granter()(&path);
-                Some(OpenRequest::File {
-                    path: text.to_owned(),
-                    create,
-                })
-            }
-            None => Some(OpenRequest::Error {
-                message: "The file path is not valid Unicode.".into(),
-            }),
-        },
-        Err(message) => Some(OpenRequest::Error { message }),
-        _ => None,
+    let requests: Vec<OpenRequest> = match command {
+        Ok(Command::Launch(paths)) => paths
+            .iter()
+            .map(|path| match path.to_str() {
+                Some(text) => {
+                    // Only native launch arguments/OS file events can grant these
+                    // paths. There is no webview command to grant arbitrary access.
+                    app.state::<crate::documents::Documents>().granter()(path);
+                    OpenRequest::File {
+                        path: text.to_owned(),
+                        create,
+                    }
+                }
+                None => OpenRequest::Error {
+                    message: "The file path is not valid Unicode.".into(),
+                },
+            })
+            .collect(),
+        Err(message) => vec![OpenRequest::Error { message }],
+        _ => Vec::new(),
     };
-    if let Some(request) = request {
-        app.state::<OpenRequests>().push(request);
+    if !requests.is_empty() {
+        let queue = app.state::<OpenRequests>();
+        for request in requests {
+            queue.push(request);
+        }
         // The persistent queue also covers events before the webview is ready.
         let _ = app.emit_to("main", "open-request", ());
     }
@@ -166,17 +183,17 @@ mod tests {
         ] {
             assert_eq!(
                 parse(&args(&[name]), &base),
-                Ok(Command::Launch(Some(base.join(name))))
+                Ok(Command::Launch(vec![base.join(name)]))
             );
         }
         let absolute = base.join("absolute.md");
         assert_eq!(
             parse(&[absolute.to_str().unwrap().into()], Path::new("unused")),
-            Ok(Command::Launch(Some(absolute)))
+            Ok(Command::Launch(vec![absolute]))
         );
         assert_eq!(
             parse(&args(&["--", "-notes.md"]), &base),
-            Ok(Command::Launch(Some(base.join("-notes.md"))))
+            Ok(Command::Launch(vec![base.join("-notes.md")]))
         );
     }
 
@@ -186,7 +203,7 @@ mod tests {
         let url = tauri::Url::from_file_path(&path).unwrap();
         assert_eq!(
             parse(&[url.to_string()], &cwd()),
-            Ok(Command::Launch(Some(path)))
+            Ok(Command::Launch(vec![path]))
         );
         assert!(parse(&args(&["https://example.com/notes.md"]), &cwd()).is_err());
         assert!(parse(&args(&["file://"]), &cwd()).is_err());
@@ -194,7 +211,7 @@ mod tests {
 
     #[test]
     fn handles_help_version_and_rejects_ambiguous_arguments() {
-        assert_eq!(parse(&[], &cwd()), Ok(Command::Launch(None)));
+        assert_eq!(parse(&[], &cwd()), Ok(Command::Launch(Vec::new())));
         for flag in ["-h", "--help"] {
             assert_eq!(parse(&args(&[flag]), &cwd()), Ok(Command::ShowHelp));
         }
@@ -202,8 +219,9 @@ mod tests {
             assert_eq!(parse(&args(&[flag]), &cwd()), Ok(Command::ShowVersion));
         }
         for values in [
-            &["a.md", "b.md"][..],
-            &["--"],
+            &["--"][..],
+            &["a.md", "--wat"],
+            &["a.md", "https://example.com/b.md"],
             &[""],
             &["--wat"],
             &["--help", "a.md"],
@@ -214,15 +232,41 @@ mod tests {
     }
 
     #[test]
-    fn os_open_events_reject_multiple_files_and_keep_url_decoding() {
+    fn opens_several_files_in_order_and_dash_dash_covers_every_later_argument() {
+        let base = cwd();
+        assert_eq!(
+            parse(&args(&["a.md", "b.md", "a.md"]), &base),
+            Ok(Command::Launch(vec![
+                base.join("a.md"),
+                base.join("b.md"),
+                base.join("a.md")
+            ]))
+        );
+        assert_eq!(
+            parse(&args(&["a.md", "--", "-b.md", "--"]), &base),
+            Ok(Command::Launch(vec![
+                base.join("a.md"),
+                base.join("-b.md"),
+                base.join("--")
+            ]))
+        );
+    }
+
+    #[test]
+    fn os_open_events_accept_several_files_and_keep_url_decoding() {
         let path = cwd().join("日本語 and space.md");
         let url = tauri::Url::from_file_path(&path).unwrap();
-        assert_eq!(from_urls(&[]), Ok(Command::Launch(None)));
+        assert_eq!(from_urls(&[]), Ok(Command::Launch(Vec::new())));
         assert_eq!(
             from_urls(std::slice::from_ref(&url)),
-            Ok(Command::Launch(Some(path)))
+            Ok(Command::Launch(vec![path.clone()]))
         );
-        assert!(from_urls(&[url.clone(), url]).is_err());
+        let other = cwd().join("b.md");
+        assert_eq!(
+            from_urls(&[url.clone(), tauri::Url::from_file_path(&other).unwrap()]),
+            Ok(Command::Launch(vec![path, other]))
+        );
+        assert!(from_urls(&[url, tauri::Url::parse("https://example.com").unwrap()]).is_err());
         assert!(from_urls(&[tauri::Url::parse("https://example.com").unwrap()]).is_err());
     }
 

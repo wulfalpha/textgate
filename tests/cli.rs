@@ -26,7 +26,12 @@ fn help_and_version_work_without_a_display() {
 
 #[test]
 fn bad_arguments_exit_without_starting_the_app() {
-    for args in [&["--unknown"][..], &["a.md", "b.md"], &["--"]] {
+    for args in [
+        &["--unknown"][..],
+        &["a.md", "--unknown"],
+        &["a.md", "https://example.com/b.md"],
+        &["--"],
+    ] {
         let output = cli(args);
         assert_eq!(output.status.code(), Some(2));
         assert!(String::from_utf8_lossy(&output.stderr).contains("Textgate:"));
