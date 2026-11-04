@@ -189,3 +189,18 @@ main[data-mode="source"] #format-toolbar { display: none; }
 .preview-pane > h2 { display: flex; align-items: center; justify-content: space-between; height: auto; min-height: 36px; flex-shrink: 0; }
 #refresh-preview { padding: 3px 8px; font-size: 12px; text-transform: none; }
 #preview-note { margin: 0; padding: 8px 16px; color: var(--tg-muted); font-size: 12px; }
+
+/* Tabs: one per open document, between the mode bar and the panes. */
+#tabbar { display: flex; flex-shrink: 0; overflow-x: auto; scrollbar-width: thin; background: var(--tg-sidebar); border-bottom: 1px solid var(--tg-border); }
+.tab-item { display: flex; align-items: stretch; flex-shrink: 0; max-width: 260px; border-right: 1px solid var(--tg-border); }
+.tab-item.active { background: var(--tg-surface); box-shadow: inset 0 2px 0 var(--tg-accent); }
+.tab-item button { border: 0; border-radius: 0; background: transparent; color: var(--tg-muted); }
+.tab-item button:focus-visible { outline-offset: -2px; }
+.tab-item.active button { color: var(--tg-text); }
+.tab { display: flex; align-items: center; gap: 6px; min-width: 0; padding: 7px 4px 7px 14px; }
+.tab-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tab-dirty { color: var(--tg-warning); font-size: 10px; }
+.tab-close { padding: 0 10px; font-size: 16px; line-height: 1; }
+.tab-item:hover, .tab-item button:hover { background: var(--tg-hover); }
+.tab-item.active:hover, .tab-item.active button:hover { background: var(--tg-surface); }
+.tab-close:hover { color: var(--tg-text); }

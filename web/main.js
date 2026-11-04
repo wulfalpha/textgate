@@ -23,7 +23,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { open, save, confirm } from '@tauri-apps/plugin-dialog';
 import { createDocumentStore } from './document-store.js';
-import { createTabs, fileName } from './tabs.js';
+import { createTabs, fileName, tabLabels } from './tabs.js';
 import { createActionRunner } from './action-runner.js';
 import { encodeDocument, defaultFormat, lineEndingLabel, documentFormat, preserveDocumentFormat, sameDocumentFormat, normalizeLineEndings, snapshotDocument } from './document-format.js';
 import { createRenderer } from './markdown.js';
@@ -73,15 +73,24 @@ tabs.add({ path: null, file: documents.create(), savedDoc: view.state.doc, saved
 // Start ready to type. Platform spell checkers also begin checking an editable
 // region only once it has focus.
 view.focus();
+const stateOf = (tab) => (tab === tabs.active ? view.state : tab.state);
+// Cached per tab, so typing does not compare every open document each keystroke.
 function dirty(tab = tabs.active) {
-  const state = tab === tabs.active ? view.state : tab.state;
-  return !state.doc.eq(tab.savedDoc) || !sameDocumentFormat(state.field(documentFormat), tab.savedFormat, state.doc);
+  const state = stateOf(tab);
+  const memo = tab.dirtyMemo;
+  if (memo?.state === state && memo.savedDoc === tab.savedDoc && memo.savedFormat === tab.savedFormat) return memo.value;
+  const value = !state.doc.eq(tab.savedDoc) || !sameDocumentFormat(state.field(documentFormat), tab.savedFormat, state.doc);
+  tab.dirtyMemo = { state, savedDoc: tab.savedDoc, savedFormat: tab.savedFormat, value };
+  return value;
 }
+// A blank Untitled tab (including the welcome text) that a newly opened file replaces.
+const pristine = (tab) => !tab.path && !dirty(tab);
 const name = () => fileName(tabs.active.path);
 const previewVisible = () => mode === 'source' && $('toggle-preview').getAttribute('aria-pressed') === 'true';
 
 function refresh() {
   updateEditorStatus();
+  renderTabs();
   const changed = dirty();
   $('filename').textContent = name();
   // Screen readers ignore aria-label on a plain span; give them real text.
@@ -155,24 +164,155 @@ function documentChanged() {
   refresh();
 }
 function report(error) { $('status').textContent = `Error: ${error.message ?? error}`; }
-async function canDiscard() {
-  return !dirty() || (isTauri()
-    ? await confirm('Discard unsaved changes?', { title: 'Textgate', kind: 'warning', okLabel: 'Discard', cancelLabel: 'Keep editing' })
-    : window.confirm('Discard unsaved changes?'));
+function askDiscard(message) {
+  return isTauri()
+    ? confirm(message, { title: 'Textgate', kind: 'warning', okLabel: 'Discard', cancelLabel: 'Keep editing' })
+    : Promise.resolve(window.confirm(message));
 }
-function replaceDocument(text, nextPath, nextFormat = defaultFormat) {
-  const tab = tabs.active;
-  tab.path = nextPath;
-  // New state intentionally clears undo history between documents.
-  view.setState(EditorState.create({ doc: text, extensions: extensions(nextFormat) }));
-  tab.savedDoc = view.state.doc;
-  tab.savedFormat = view.state.field(documentFormat);
+// Asks until the answer covers the latest edits: typing can continue while a
+// native confirmation is on screen, and approval must not discard that too.
+async function approveDiscard(list, message) {
+  while (true) {
+    const changed = list.filter((tab) => tabs.list.includes(tab) && dirty(tab));
+    if (!changed.length) return true;
+    const before = changed.map((tab) => snapshotDocument(stateOf(tab)));
+    if (!await askDiscard(message(changed))) return false;
+    if (changed.every((tab, i) => tabs.list.includes(tab) && snapshotDocument(stateOf(tab)).eq(before[i]))) return true;
+  }
+}
+const approveQuit = () => approveDiscard(tabs.list, (changed) => (changed.length === 1
+  ? `Discard unsaved changes to ${fileName(changed[0].path)}?`
+  : `Discard unsaved changes in ${changed.length} documents?\n\n${changed.map((tab) => fileName(tab.path)).join('\n')}`));
+
+// Shows a tab's stored editor state. Settings are global, so the state's
+// compartments are brought up to date; Vim starts again in Normal mode.
+function load(tab, { focus = true } = {}) {
+  const { state, scroll } = tab;
+  tab.state = tab.scroll = null;
+  view.setState(state);
+  view.dispatch({ effects: [
+    vimMode.reconfigure(vimEnabled ? vimExtensions() : []),
+    numbersMode.reconfigure(relativeNumbers ? relativeLineNumbers() : []),
+    spellcheckMode.reconfigure(spellchecking ? spellcheck() : []),
+    liveMode.reconfigure(mode === 'live' ? livePreview({ render }) : []),
+    ...(scroll ? [scroll] : []),
+  ] });
   previewRenderedDoc = null;
   $('preview').replaceChildren();
   delete $('outline').dataset.outlineLimit;
   documentChanged();
   updateToolbar();
-  view.focus();
+  if (focus) view.focus();
+}
+function showTab(tab, options) {
+  const current = tabs.active;
+  if (tab === current) { if (options?.focus !== false) view.focus(); return; }
+  current.state = view.state;
+  current.scroll = view.scrollSnapshot();
+  tabs.activate(tab);
+  load(tab, options);
+}
+// Each document has its own state, so undo history stays with its tab.
+function addTab({ text = '', path = null, format = defaultFormat, file = documents.create() } = {}) {
+  const state = EditorState.create({ doc: text, extensions: extensions(format) });
+  const tab = tabs.add({ path, file, state, savedDoc: state.doc, savedFormat: state.field(documentFormat) }, { activate: false });
+  showTab(tab);
+  return tab;
+}
+// A newly opened file takes the place of a blank Untitled tab.
+function place(opened) {
+  const blank = tabs.active;
+  const reuse = pristine(blank);
+  const tab = addTab(opened);
+  if (reuse) discardTab(blank);
+  return tab;
+}
+// Closes without asking; an empty Untitled tab replaces the last one.
+function discardTab(tab) {
+  if (tabs.size === 1) addTab();
+  const shown = tab === tabs.active;
+  const next = tabs.close(tab);
+  tab.file.close().catch(report);
+  if (shown) load(next);
+  refresh();
+}
+async function closeTab(tab = tabs.active) {
+  // Show what is about to be discarded before asking.
+  if (dirty(tab)) showTab(tab);
+  if (!await approveDiscard([tab], () => `Discard unsaved changes to ${fileName(tab.path)}?`)) return false;
+  if (tabs.list.includes(tab)) discardTab(tab);
+  return true;
+}
+// The tab bar is rebuilt only when a label, unsaved marker or the active tab changes.
+let tabBarKey = '';
+function renderTabs() {
+  const labels = tabLabels(tabs.list);
+  const entries = tabs.list.map((tab) => ({ tab, label: labels.get(tab), changed: dirty(tab), active: tab === tabs.active }));
+  const key = JSON.stringify(entries.map(({ tab, label, changed, active }) => [tab.id, label, tab.path, changed, active]));
+  if (key === tabBarKey) return;
+  tabBarKey = key;
+  const bar = $('tabbar');
+  const focused = bar.contains(document.activeElement);
+  const element = (tag, attributes, ...children) => {
+    const node = document.createElement(tag);
+    for (const [name, value] of Object.entries(attributes)) node.setAttribute(name, value);
+    node.append(...children);
+    return node;
+  };
+  bar.replaceChildren(...entries.map(({ tab, label, changed, active }) => element('div', { class: `tab-item${active ? ' active' : ''}`, role: 'presentation', 'data-tab': tab.id },
+    element('button', { class: 'tab', role: 'tab', id: `tab-${tab.id}`, 'aria-selected': String(active), 'aria-controls': 'editor', tabindex: active ? '0' : '-1', title: tab.path ?? 'Not saved yet' },
+      element('span', { class: 'tab-label' }, label),
+      ...(changed ? [element('span', { class: 'tab-dirty', 'aria-hidden': 'true' }, '●'), element('span', { class: 'visually-hidden' }, ', unsaved changes')] : [])),
+    element('button', { class: 'tab-close', tabindex: '-1', 'aria-label': `Close ${label}`, title: 'Close tab' }, '×'))));
+  const current = $(`tab-${tabs.active.id}`);
+  if (focused) current.focus();
+  current.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+}
+const tabFor = (target) => tabs.list.find((tab) => String(tab.id) === target.closest('[data-tab]')?.dataset.tab);
+$('tabbar').addEventListener('click', (event) => {
+  const tab = tabFor(event.target);
+  if (!tab) return;
+  if (event.target.closest('.tab-close')) run(() => closeTab(tab));
+  else showTab(tab);
+});
+// Middle-click closes, as in browsers.
+$('tabbar').addEventListener('auxclick', (event) => {
+  const tab = event.button === 1 && tabFor(event.target);
+  if (tab) { event.preventDefault(); run(() => closeTab(tab)); }
+});
+$('tabbar').addEventListener('mousedown', (event) => { if (event.button === 1) event.preventDefault(); });
+// Arrow keys move between tabs and show each one; Delete closes; Enter or
+// Escape returns to the editor.
+$('tabbar').addEventListener('keydown', (event) => {
+  const tab = tabFor(event.target);
+  if (!tab) return;
+  const list = tabs.list;
+  const at = list.indexOf(tab);
+  const target = { ArrowLeft: list[(at + list.length - 1) % list.length], ArrowRight: list[(at + 1) % list.length], Home: list[0], End: list.at(-1) }[event.key];
+  if (target) {
+    showTab(target, { focus: false });
+    renderTabs();
+    $(`tab-${target.id}`).focus();
+  } else if (event.key === 'Delete') run(() => closeTab(tab));
+  else if (['Enter', ' ', 'Escape'].includes(event.key)) { showTab(tab); view.focus(); }
+  else return;
+  event.preventDefault();
+});
+const mac = /Mac/.test(navigator.platform);
+// Tab switching keys, as in browsers: Ctrl+Tab and Ctrl+PageDown/PageUp, plus
+// Cmd+Shift+] / [ on macOS; Ctrl/Cmd+1-8 go to a tab and 9 to the last.
+function tabShortcut(event) {
+  const mod = mac ? event.metaKey : event.ctrlKey;
+  if (event.ctrlKey && !event.metaKey && !event.altKey && event.key === 'Tab') return tabs.step(event.shiftKey ? -1 : 1);
+  if (event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey && ['PageDown', 'PageUp'].includes(event.key)) return tabs.step(event.key === 'PageDown' ? 1 : -1);
+  if (mac && event.metaKey && event.shiftKey && !event.altKey && ['BracketRight', 'BracketLeft'].includes(event.code)) return tabs.step(event.code === 'BracketRight' ? 1 : -1);
+  const digit = /^Digit([1-9])$/.exec(event.code);
+  if (mod && digit && !event.shiftKey && !event.altKey) return tabs.at(Number(digit[1])) ?? tabs.active;
+  return null;
+}
+async function tabWithDocument(id) {
+  for (const tab of tabs.list) if (await tab.file.id() === id) return tab;
+  return null;
 }
 const vimExtensions = () => [vim(), fullHeightVimCursor];
 function extensions(initialFormat = defaultFormat) {
@@ -201,22 +341,19 @@ const run = createActionRunner({
   onQueued: () => { $('status').textContent = 'File open request queued until the current operation finishes.'; },
 });
 const openPath = createDocumentOpener({
-  // Opening still replaces the shown tab's document.
-  documents: { read: (...args) => tabs.active.file.read(...args), remember: (...args) => tabs.active.file.remember(...args) },
-  snapshot: () => snapshotDocument(view.state), canDiscard, replace: replaceDocument,
-  opened: (_path, opened) => {
-    $('status').textContent = opened.mixed
-      ? `Opened ${name()}. It mixes line endings; existing line endings will be preserved.`
-      : `Opened ${name()}`;
-  },
+  documents, existing: (path) => tabs.withPath(path), holder: tabWithDocument, show: showTab, place,
 });
+async function openFile(path, options) {
+  const { tab, format: opened, already } = await openPath(path, options);
+  const label = fileName(tab.path);
+  $('status').textContent = already ? `${label} is already open`
+    : opened.mixed ? `Opened ${label}. It mixes line endings; existing line endings will be preserved.`
+    : `Opened ${label}`;
+}
 async function openDocument() {
   if (!isTauri()) { $('status').textContent = 'Run npm run tauri dev to open and save local files.'; return; }
-  const beforeOpen = snapshotDocument(view.state);
-  if (!await canDiscard()) return;
-  const selected = await open({ multiple: false, filters });
-  if (!selected) return;
-  await openPath(selected, { approved: beforeOpen });
+  const selected = await open({ multiple: true, filters });
+  for (const path of [selected ?? []].flat()) await openFile(path);
 }
 // Resolves true only when the document was written.
 async function saveDocument(saveAs = false) {
@@ -227,7 +364,7 @@ async function saveDocument(saveAs = false) {
   const chosen = !tab.path || saveAs;
   const destination = chosen ? await save({ defaultPath: tab.path ?? 'Untitled.md', filters }) : tab.path;
   if (!destination) return false;
-  const state = tab === tabs.active ? view.state : tab.state;
+  const state = stateOf(tab);
   const snapshot = state.doc;
   const snapshotFormat = state.field(documentFormat);
   if (!await tab.file.save(destination, encodeDocument(snapshot.toString(), snapshotFormat), { chosen })) {
@@ -241,7 +378,14 @@ async function saveDocument(saveAs = false) {
   $('status').textContent = `Saved ${fileName(destination)}`;
   return true;
 }
-$('new').onclick = () => run(async () => { if (await canDiscard()) { replaceDocument('', null); $('status').textContent = 'New document'; } });
+$('new').onclick = () => {
+  if (!(pristine(tabs.active) && !view.state.doc.length)) addTab();
+  view.focus();
+  $('status').textContent = 'New document';
+};
+$('close-tab').onclick = () => run(() => closeTab());
+$('next-tab').onclick = () => showTab(tabs.step(1));
+$('previous-tab').onclick = () => showTab(tabs.step(-1));
 $('open').onclick = () => run(openDocument);
 $('save').onclick = () => run(() => saveDocument());
 $('save-as').onclick = () => run(() => saveDocument(true));
@@ -291,15 +435,17 @@ function updateEditorStatus() {
 view.dom.addEventListener('keydown', () => queueMicrotask(updateEditorStatus));
 $('quit').onclick = () => run(async () => {
   if (!isTauri()) { $('status').textContent = 'Close this browser tab to quit.'; return; }
-  if (await canDiscard()) await getCurrentWindow().destroy();
+  if (await approveQuit()) await getCurrentWindow().destroy();
 });
 defineVimFileCommands(Vim, {
   run,
   save: () => saveDocument(),
   saveAs: () => saveDocument(true),
   isDirty: () => dirty(),
-  // Callers have already saved or chosen to discard, so close without asking.
+  // Callers have already saved or chosen to discard, so close the tab without
+  // asking; closing the last one closes the window.
   close: async () => {
+    if (tabs.size > 1) { discardTab(tabs.active); return; }
     if (!isTauri()) { $('status').textContent = 'Close this browser tab to quit.'; return; }
     await getCurrentWindow().destroy();
   },
@@ -346,6 +492,7 @@ $('app-version').textContent = packageInfo.version;
 function cyclePanes(backwards) {
   const main = document.querySelector('main');
   const panes = [
+    [$('tabbar'), () => $(`tab-${tabs.active.id}`)?.focus()],
     !main.classList.contains('hide-outline') && [$('outline'), () => ($('outline').querySelector('button') ?? $('outline')).focus()],
     [$('editor'), () => view.focus()],
     previewVisible() && [$('preview'), () => $('preview').focus()],
@@ -361,6 +508,13 @@ window.addEventListener('keydown', (event) => {
     cyclePanes(event.shiftKey);
     return;
   }
+  const switchTo = tabShortcut(event);
+  if (switchTo) {
+    event.preventDefault();
+    event.stopPropagation();
+    showTab(switchTo, { focus: !$('tabbar').contains(document.activeElement) });
+    return;
+  }
   if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
   const key = event.key.toLowerCase();
   // Many layouts need Shift for +, which the Ctrl/Cmd+= menu shortcut misses.
@@ -371,8 +525,9 @@ window.addEventListener('keydown', (event) => {
     $({ '=': 'zoom-in', '-': 'zoom-out', 0: 'zoom-reset' }[key]).click();
     return;
   }
-  if (!['n', 'o', 's', 'q'].includes(key)) return;
+  if (!['n', 'o', 's', 'q', 'w'].includes(key)) return;
   event.preventDefault();
+  if (key === 'w') $('close-tab').click();
   if (key === 'n') $('new').click();
   if (key === 'o') $('open').click();
   if (key === 's') run(() => saveDocument(event.shiftKey));
@@ -391,11 +546,11 @@ $('preview').addEventListener('click', (event) => {
   if (target) target.scrollIntoView({ block: 'start' });
   else $('status').textContent = `Link: ${href}`;
 });
-window.addEventListener('beforeunload', (event) => { if (dirty()) { event.preventDefault(); event.returnValue = ''; } });
+window.addEventListener('beforeunload', (event) => { if (tabs.list.some((tab) => dirty(tab))) { event.preventDefault(); event.returnValue = ''; } });
 if (isTauri()) {
   getCurrentWindow().onCloseRequested(async (event) => {
     event.preventDefault();
-    await run(async () => { if (await canDiscard()) await getCurrentWindow().destroy(); });
+    await run(async () => { if (await approveQuit()) await getCurrentWindow().destroy(); });
   }).catch(report);
 }
 function setMode(next) {
@@ -474,10 +629,7 @@ setMode('live');
 updateToolbar();
 
 setupExternalOpen({ desktop: isTauri(), listen, invoke, run, report,
-  openPath: async (selected, options) => {
-    if (selected === tabs.active.path) { view.focus(); return; }
-    await openPath(selected, options);
-  },
+  openPath: openFile,
 }).catch(report);
 setupThemes({ document, desktop: isTauri(), invoke });
 setupMenus({ document, desktop: isTauri(), onError: report }).then((menus) => { nativeMenus = menus; }).catch(report);

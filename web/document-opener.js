@@ -1,28 +1,29 @@
 import { decodeDocument } from './document-format.js';
 
-// Both dialogs and native launches use this transaction. Reading/decoding must
-// succeed and discard approval must cover the latest editor contents before
-// the visible buffer (and then its Rust save baseline) is replaced.
-export function createDocumentOpener({ documents, snapshot, canDiscard, replace, opened }) {
-  return async (path, { create = false, approved } = {}) => {
-    async function approveLatest() {
-      while (true) {
-        const current = snapshot();
-        if (approved && current.eq(approved)) return true;
-        if (!await canDiscard()) return false;
-        if (snapshot().eq(current)) { approved = current; return true; }
-        // Editing can continue while a native confirmation is on screen.
-      }
+// Dialogs and native launches open files through here. Each file gets its own
+// tab, so opening never replaces unsaved work and needs no discard prompt.
+//
+// - `existing(path)`: the tab showing exactly this path, if any.
+// - `holder(id)`: the tab whose Rust document has this id (the same file
+//   reached through another path, such as a linked folder).
+// - `show(tab)`: switch to a tab that already has the file.
+// - `place(opened)`: show a newly read file, in a new tab or a blank Untitled one.
+export function createDocumentOpener({ documents, existing, holder, show, place }) {
+  return async (path, { create = false } = {}) => {
+    const open = existing(path);
+    if (open) { show(open); return { tab: open, already: true }; }
+    // Read through a fresh document so a failure leaves every tab untouched.
+    const file = documents.create();
+    try {
+      const { text, format } = decodeDocument(await file.read(path, { create }));
+      await file.remember(path);
+      return { tab: place({ text, path, format, file }), format, already: false };
+    } catch (error) {
+      await file.close();
+      const tab = error?.kind === 'alreadyOpen' ? await holder(error.document) : null;
+      if (!tab) throw error;
+      show(tab);
+      return { tab, already: true };
     }
-    if (!await approveLatest()) return false;
-    const bytes = await documents.read(path, { create });
-    const { text, format } = decodeDocument(bytes);
-    if (!await approveLatest()) return false;
-    // No await between the final check and replacing the document. A subsequent
-    // IPC acknowledgement must not open a gap in which edits can be discarded.
-    replace(text, path, format);
-    await documents.remember(path);
-    opened(path, format);
-    return true;
   };
 }

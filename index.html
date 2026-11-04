@@ -6,7 +6,7 @@
   <nav id="menubar" aria-label="Application menu">
     <details><summary>File</summary><div class="menu-popup">
       <button id="new" data-shortcut="CmdOrCtrl+N">New</button><button id="open" data-shortcut="CmdOrCtrl+O">Open…</button><hr>
-      <button id="save" data-shortcut="CmdOrCtrl+S">Save</button><button id="save-as" data-shortcut="CmdOrCtrl+Shift+S">Save As…</button><hr><button id="quit" data-shortcut="CmdOrCtrl+Q">Quit</button>
+      <button id="save" data-shortcut="CmdOrCtrl+S">Save</button><button id="save-as" data-shortcut="CmdOrCtrl+Shift+S">Save As…</button><hr><button id="close-tab" data-shortcut="CmdOrCtrl+W">Close Tab</button><hr><button id="quit" data-shortcut="CmdOrCtrl+Q">Quit</button>
     </div></details>
     <details><summary>Edit</summary><div class="menu-popup">
       <button id="edit-undo">Undo</button><button id="edit-redo">Redo</button><hr><button id="normalize-endings">Normalize line endings…</button><hr>
@@ -16,11 +16,13 @@
       <button id="view-live" aria-pressed="true">Live preview</button><button id="view-source" aria-pressed="false">Source mode</button><hr>
       <button id="toggle-preview" aria-pressed="true">Preview pane</button><button id="toggle-outline" aria-pressed="true">Outline</button><button id="vim" aria-pressed="false">Vim bindings</button><button id="relative-numbers" aria-pressed="false">Relative line numbers</button><button id="spellcheck" aria-pressed="true">Check spelling</button><hr>
       <button id="zoom-in" data-shortcut="CmdOrCtrl+=">Zoom In</button><button id="zoom-out" data-shortcut="CmdOrCtrl+-">Zoom Out</button><button id="zoom-reset" data-shortcut="CmdOrCtrl+0">Actual Size</button><hr>
+      <button id="next-tab">Next Tab</button><button id="previous-tab">Previous Tab</button><hr>
       <button id="theme-info">Themes…</button>
     </div></details>
     <details><summary>Help</summary><div class="menu-popup"><button id="shortcuts">Keyboard shortcuts</button><button id="about">About Textgate</button></div></details>
   </nav>
   <div class="modebar"><div role="group" aria-label="Editing mode"><button id="mode-live" aria-pressed="true">Live</button><button id="mode-source" aria-pressed="false">Source</button></div><span id="mode-hint">Markdown styled as you write</span></div>
+  <div id="tabbar" role="tablist" aria-label="Open documents"></div>
   <main data-mode="live"><aside><h2>Outline</h2><nav id="outline" aria-label="Document outline" tabindex="-1"></nav></aside><section class="pane source-pane"><h2>Markdown</h2>
       <div id="format-toolbar" role="group" aria-label="Formatting">
         <select id="block-type" aria-label="Paragraph style"><option value="paragraph">Paragraph</option><option value="1">Heading 1</option><option value="2">Heading 2</option><option value="3">Heading 3</option><option value="4">Heading 4</option><option value="5">Heading 5</option><option value="6">Heading 6</option></select>
@@ -51,7 +53,7 @@
     <button id="apply-line-endings" type="button">Normalize</button>
     <form method="dialog"><button>Cancel</button></form>
   </dialog>
-  <dialog id="shortcuts-dialog"><h3>Keyboard shortcuts</h3><dl><dt>Ctrl/Cmd+N / O / S</dt><dd>New / Open / Save</dd><dt>Ctrl/Cmd+Shift+S</dt><dd>Save As</dd><dt>Ctrl/Cmd+Z / Shift+Z</dt><dd>Undo / Redo</dd><dt>Ctrl/Cmd+B / I</dt><dd>Bold / Italic</dd><dt>Ctrl/Cmd+Shift+X</dt><dd>Check or uncheck tasks</dd><dt>Ctrl/Cmd+= / - / 0</dt><dd>Zoom in / out / actual size</dd><dt>Ctrl/Cmd+F</dt><dd>Find and replace</dd><dt>Tab / Shift+Tab</dt><dd>Indent / Unindent</dd><dt>F6 / Shift+F6</dt><dd>Move between outline, editor and preview</dd><dt>Escape, then Tab</dt><dd>Move focus out of the editor</dd><dt>Ctrl/Cmd+Alt+0</dt><dd>Reset theme</dd></dl><p>Enable Vim in View. Escape returns to Normal mode.</p><form method="dialog"><button>Close</button></form></dialog>
+  <dialog id="shortcuts-dialog"><h3>Keyboard shortcuts</h3><dl><dt>Ctrl/Cmd+N / O / S</dt><dd>New / Open / Save</dd><dt>Ctrl/Cmd+Shift+S</dt><dd>Save As</dd><dt>Ctrl/Cmd+Z / Shift+Z</dt><dd>Undo / Redo</dd><dt>Ctrl/Cmd+B / I</dt><dd>Bold / Italic</dd><dt>Ctrl/Cmd+Shift+X</dt><dd>Check or uncheck tasks</dd><dt>Ctrl/Cmd+= / - / 0</dt><dd>Zoom in / out / actual size</dd><dt>Ctrl/Cmd+F</dt><dd>Find and replace</dd><dt>Tab / Shift+Tab</dt><dd>Indent / Unindent</dd><dt>Ctrl/Cmd+W</dt><dd>Close tab</dd><dt>Ctrl+Tab / Ctrl+Shift+Tab</dt><dd>Next / previous tab (also Ctrl+PageDown / PageUp; Cmd+Shift+] / [ on macOS)</dd><dt>Ctrl/Cmd+1 … 9</dt><dd>Go to a tab (9: the last)</dd><dt>F6 / Shift+F6</dt><dd>Move between tabs, outline, editor and preview</dd><dt>Escape, then Tab</dt><dd>Move focus out of the editor</dd><dt>Ctrl/Cmd+Alt+0</dt><dd>Reset theme</dd></dl><p>Enable Vim in View. Escape returns to Normal mode.</p><form method="dialog"><button>Close</button></form></dialog>
   <dialog id="about-dialog"><img class="about-logo" src="/icons/source.svg" alt="Textgate omega logo"><h3>Textgate</h3><p>A quiet place to write Markdown.</p><p>Version <span id="app-version"></span> · MIT License</p><p>Copyright © 2026 WulfAlpha and Textgate contributors</p><form method="dialog"><button>Close</button></form></dialog>
   <footer><span id="editor-status">Live</span><span id="status" role="status">Ready</span><span id="stats"></span></footer>
   <script type="module" src="/web/main.js"></script>
