@@ -23,6 +23,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { open, save, confirm } from '@tauri-apps/plugin-dialog';
 import { createDocumentStore } from './document-store.js';
+import { createTabs, fileName } from './tabs.js';
 import { createActionRunner } from './action-runner.js';
 import { encodeDocument, defaultFormat, lineEndingLabel, documentFormat, preserveDocumentFormat, sameDocumentFormat, normalizeLineEndings, snapshotDocument } from './document-format.js';
 import { createRenderer } from './markdown.js';
@@ -40,14 +41,12 @@ const documents = createDocumentStore({ invoke, confirmOverwrite: (destination, 
     : `The file changed outside Textgate:\n${destination}\n\nOverwrite it with your editor contents? Cancel keeps both versions unchanged; use Save As to keep a separate copy.`,
   { title: 'File changed on disk', kind: 'warning', okLabel: missing ? 'Recreate' : 'Overwrite', cancelLabel: 'Cancel' },
 ) });
-// The window's one document for now; each tab will get its own handle.
-const file = documents.create();
+// Each tab holds its path, its Rust document handle and the version last opened
+// or saved. The shown tab's editor state lives in the view; others keep theirs.
+const tabs = createTabs();
 
 const $ = (id) => document.getElementById(id);
 const initial = '# Welcome to Textgate\n\nA quiet place to write Markdown.\n\n## Start writing\n\nOpen a document or create a new one. Your preview updates as you type.\n\n- **Bold**, *italic*, and ~~strikethrough~~\n- Keyboard-friendly editing\n- Optional Vim keybindings\n- [x] Your Markdown is never rewritten\n\n## Tables\n\n| Feature | Status |\n| --- | --- |\n| Live preview | Ready |\n| GFM tables | Ready |\n\n```rust\nfn main() {\n    println!("Hello, Textgate!");\n}\n```\n';
-let path = null;
-let savedDoc;
-let savedFormat;
 let vimEnabled = false;
 let relativeNumbers = false;
 const storage = (() => { try { return window.localStorage; } catch { return null; } })();
@@ -70,13 +69,15 @@ const view = new EditorView({
   parent: $('editor'),
   state: EditorState.create({ doc: initial, extensions: extensions() }),
 });
-savedDoc = view.state.doc;
-savedFormat = view.state.field(documentFormat);
+tabs.add({ path: null, file: documents.create(), savedDoc: view.state.doc, savedFormat: view.state.field(documentFormat) });
 // Start ready to type. Platform spell checkers also begin checking an editable
 // region only once it has focus.
 view.focus();
-const dirty = () => !view.state.doc.eq(savedDoc) || !sameDocumentFormat(view.state.field(documentFormat), savedFormat, view.state.doc);
-const name = () => path?.split(/[\\/]/).pop() ?? 'Untitled.md';
+function dirty(tab = tabs.active) {
+  const state = tab === tabs.active ? view.state : tab.state;
+  return !state.doc.eq(tab.savedDoc) || !sameDocumentFormat(state.field(documentFormat), tab.savedFormat, state.doc);
+}
+const name = () => fileName(tabs.active.path);
 const previewVisible = () => mode === 'source' && $('toggle-preview').getAttribute('aria-pressed') === 'true';
 
 function refresh() {
@@ -160,11 +161,12 @@ async function canDiscard() {
     : window.confirm('Discard unsaved changes?'));
 }
 function replaceDocument(text, nextPath, nextFormat = defaultFormat) {
-  path = nextPath;
+  const tab = tabs.active;
+  tab.path = nextPath;
   // New state intentionally clears undo history between documents.
   view.setState(EditorState.create({ doc: text, extensions: extensions(nextFormat) }));
-  savedDoc = view.state.doc;
-  savedFormat = view.state.field(documentFormat);
+  tab.savedDoc = view.state.doc;
+  tab.savedFormat = view.state.field(documentFormat);
   previewRenderedDoc = null;
   $('preview').replaceChildren();
   delete $('outline').dataset.outlineLimit;
@@ -199,7 +201,9 @@ const run = createActionRunner({
   onQueued: () => { $('status').textContent = 'File open request queued until the current operation finishes.'; },
 });
 const openPath = createDocumentOpener({
-  documents: file, snapshot: () => snapshotDocument(view.state), canDiscard, replace: replaceDocument,
+  // Opening still replaces the shown tab's document.
+  documents: { read: (...args) => tabs.active.file.read(...args), remember: (...args) => tabs.active.file.remember(...args) },
+  snapshot: () => snapshotDocument(view.state), canDiscard, replace: replaceDocument,
   opened: (_path, opened) => {
     $('status').textContent = opened.mixed
       ? `Opened ${name()}. It mixes line endings; existing line endings will be preserved.`
@@ -217,20 +221,24 @@ async function openDocument() {
 // Resolves true only when the document was written.
 async function saveDocument(saveAs = false) {
   if (!isTauri()) { $('status').textContent = 'Run npm run tauri dev to open and save local files.'; return false; }
-  const chosen = !path || saveAs;
-  const destination = chosen ? await save({ defaultPath: path ?? 'Untitled.md', filters }) : path;
+  // The tab is fixed now: a save that finishes after switching tabs updates
+  // the tab it started from.
+  const tab = tabs.active;
+  const chosen = !tab.path || saveAs;
+  const destination = chosen ? await save({ defaultPath: tab.path ?? 'Untitled.md', filters }) : tab.path;
   if (!destination) return false;
-  const snapshot = view.state.doc;
-  const snapshotFormat = view.state.field(documentFormat);
-  if (!await file.save(destination, encodeDocument(snapshot.toString(), snapshotFormat), { chosen })) {
+  const state = tab === tabs.active ? view.state : tab.state;
+  const snapshot = state.doc;
+  const snapshotFormat = state.field(documentFormat);
+  if (!await tab.file.save(destination, encodeDocument(snapshot.toString(), snapshotFormat), { chosen })) {
     $('status').textContent = 'Save cancelled. Your edits are still in the editor.';
     return false;
   }
-  path = destination;
-  savedDoc = snapshot;
-  savedFormat = snapshotFormat;
+  tab.path = destination;
+  tab.savedDoc = snapshot;
+  tab.savedFormat = snapshotFormat;
   refresh();
-  $('status').textContent = `Saved ${name()}`;
+  $('status').textContent = `Saved ${fileName(destination)}`;
   return true;
 }
 $('new').onclick = () => run(async () => { if (await canDiscard()) { replaceDocument('', null); $('status').textContent = 'New document'; } });
@@ -289,7 +297,7 @@ defineVimFileCommands(Vim, {
   run,
   save: () => saveDocument(),
   saveAs: () => saveDocument(true),
-  isDirty: dirty,
+  isDirty: () => dirty(),
   // Callers have already saved or chosen to discard, so close without asking.
   close: async () => {
     if (!isTauri()) { $('status').textContent = 'Close this browser tab to quit.'; return; }
@@ -467,7 +475,7 @@ updateToolbar();
 
 setupExternalOpen({ desktop: isTauri(), listen, invoke, run, report,
   openPath: async (selected, options) => {
-    if (selected === path) { view.focus(); return; }
+    if (selected === tabs.active.path) { view.focus(); return; }
     await openPath(selected, options);
   },
 }).catch(report);
