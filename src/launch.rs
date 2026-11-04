@@ -5,7 +5,7 @@ use std::{
 };
 use tauri::{Emitter, Manager};
 
-pub const HELP: &str = "Textgate — a Markdown editor\n\nUsage: textgate [OPTIONS] [--] [FILE]...\n\n  -h, --help       Show this help\n  -V, --version    Show the version\n  --              Treat every later argument as a filename\n\nOpen UTF-8 files, each in its own tab, or prepare new files (created only\non Save). Relative paths use the caller's working directory. An existing\nTextgate window receives the files as new tabs; a file that is already\nopen is shown. Local file:// URLs are also accepted. Stdin is not supported.\n";
+pub const HELP: &str = "Textgate — a Markdown editor\n\nUsage: textgate [OPTIONS] [--] [FILE | FOLDER]...\n\n  -h, --help       Show this help\n  -V, --version    Show the version\n  --              Treat every later argument as a filename\n\nOpen UTF-8 files, each in its own tab, or prepare new files (created only\non Save). A folder opens in the file browser (one at a time). Relative paths\nuse the caller's working directory. An existing Textgate window receives\nthe files as new tabs; a file that is already open is shown. Local file://\nURLs are also accepted. Stdin is not supported.\n";
 
 #[derive(Debug, PartialEq)]
 pub enum Command {
@@ -98,8 +98,16 @@ pub fn from_urls(urls: &[tauri::Url]) -> Result<Command, String> {
 #[derive(Clone, Debug, PartialEq, serde::Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum OpenRequest {
-    File { path: String, create: bool },
-    Error { message: String },
+    File {
+        path: String,
+        create: bool,
+    },
+    Folder {
+        workspace: crate::workspace::Workspace,
+    },
+    Error {
+        message: String,
+    },
 }
 
 #[derive(Default)]
@@ -125,10 +133,24 @@ pub fn focus(app: &tauri::AppHandle) {
 }
 
 pub fn receive(app: &tauri::AppHandle, command: Result<Command, String>, create: bool) {
+    let mut folder = None;
     let requests: Vec<OpenRequest> = match command {
         Ok(Command::Launch(paths)) => paths
             .iter()
             .map(|path| match path.to_str() {
+                Some(_) if path.is_dir() => {
+                    if folder.is_some() {
+                        return OpenRequest::Error {
+                            message: "Textgate opens one folder at a time; the first one was used."
+                                .into(),
+                        };
+                    }
+                    folder = Some(path);
+                    match crate::workspace::launched(app, path) {
+                        Ok(workspace) => OpenRequest::Folder { workspace },
+                        Err(message) => OpenRequest::Error { message },
+                    }
+                }
                 Some(text) => {
                     // Only native launch arguments/OS file events can grant these
                     // paths. There is no webview command to grant arbitrary access.

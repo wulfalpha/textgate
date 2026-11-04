@@ -59,7 +59,7 @@ impl Root {
     }
 }
 
-#[derive(Debug, Serialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, PartialEq)]
 pub struct Workspace {
     path: String,
     name: String,
@@ -370,13 +370,25 @@ pub fn open_workspace(
     path: PathBuf,
 ) -> Result<Workspace, String> {
     let root = opened(&documents, &path)?;
-    if let Some(file) = stored_at(&app) {
+    Ok(adopt(&app, &documents, root))
+}
+
+// Makes a folder the workspace and remembers it for the next launch.
+fn adopt(app: &tauri::AppHandle, documents: &Documents, root: Root) -> Workspace {
+    if let Some(file) = stored_at(app) {
         // Not remembering it is no reason to refuse the folder now.
         let _ = store(&file, Some(&root.given));
     }
     let workspace = Workspace::from(&root);
     documents.set_root(Some(root));
-    Ok(workspace)
+    workspace
+}
+
+/// A folder passed on the command line or by the OS, which grants it as the
+/// workspace just as choosing it in the Open Folder dialog does.
+pub fn launched(app: &tauri::AppHandle, path: &Path) -> Result<Workspace, String> {
+    let root = Root::new(path).map_err(|error| error.to_string())?;
+    Ok(adopt(app, &app.state::<Documents>(), root))
 }
 
 #[tauri::command]

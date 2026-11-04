@@ -7,7 +7,8 @@
 // - `menu(target, { x, y })` shows a context menu for `{ path, folder, parent }`
 //   (the workspace itself when no row was chosen).
 // - `command(name, target)` runs `rename` (F2) or `trash` (Delete) on a row.
-export function createFileTree({ container, list, open, report, menu = () => {}, command = () => {} }) {
+// - `expanded(paths)` is told which folders are open, to remember them.
+export function createFileTree({ container, list, open, report, menu = () => {}, command = () => {}, expanded: remember = () => {} }) {
   const document = container.ownerDocument;
   let root = null;
   let failure = null;
@@ -41,7 +42,10 @@ export function createFileTree({ container, list, open, report, menu = () => {},
     node.append(...children);
     return node;
   }
+  let remembered = '';
   function render() {
+    const paths = JSON.stringify([...expanded]);
+    if (root && paths !== remembered) { remembered = paths; remember([...expanded]); }
     const focused = container.contains(document.activeElement);
     const visible = rows();
     // Until a row is chosen, the first one is where the keyboard enters.
@@ -169,15 +173,28 @@ export function createFileTree({ container, list, open, report, menu = () => {},
 
   return {
     get root() { return root; },
-    // Shows a workspace (`{ path, name }`), or nothing.
-    async setRoot(workspace) {
+    // Shows a workspace (`{ path, name }`), or nothing, reopening the folders
+    // given in `open` that still exist (parents before children).
+    async setRoot(workspace, { open = [] } = {}) {
       const run = ++generation;
       root = workspace;
       failure = null;
       listings.clear();
       expanded.clear();
       selected = null;
+      // An unreadable folder does not forget which folders were open.
+      remembered = '[]';
       if (root && !await load(root.path) && run === generation) failure = 'This folder cannot be read. It may have been moved or deleted.';
+      if (root && !failure) {
+        const sep = separator();
+        const visible = (path) => listings.get(path.slice(0, path.lastIndexOf(sep)) || root.path)?.entries.some((entry) => entry.folder && entry.path === path);
+        for (const path of [...open].sort((a, b) => a.length - b.length)) {
+          if (run !== generation) return;
+          if (!visible(path)) continue;
+          try { listings.set(path, await list(path)); expanded.add(path); } catch { /* gone or unreadable: stays closed */ }
+        }
+        if (run === generation) remembered = JSON.stringify([...expanded]);
+      }
       if (run === generation) render();
     },
     // Lists the workspace and every expanded folder again.

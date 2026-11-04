@@ -1,6 +1,6 @@
 // Register first, then drain startup requests. The Rust queue is authoritative;
 // events are wake-ups only, so requests arriving before JS starts are retained.
-export async function setupExternalOpen({ desktop, listen, invoke, run, openPath, report }) {
+export async function setupExternalOpen({ desktop, listen, invoke, run, openPath, openFolder = async () => {}, report }) {
   if (!desktop) return () => {};
   let draining = false, requested = false, disposed = false;
   async function drain() {
@@ -16,6 +16,7 @@ export async function setupExternalOpen({ desktop, listen, invoke, run, openPath
           await run.enqueue(async () => {
             if (request.kind === 'error') throw new Error(request.message);
             if (request.kind === 'file') await openPath(request.path, { create: request.create });
+            if (request.kind === 'folder') await openFolder(request.workspace);
           });
         }
       }

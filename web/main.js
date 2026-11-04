@@ -25,6 +25,7 @@ import { open, save, confirm, message as messageDialog } from '@tauri-apps/plugi
 import { createDocumentStore } from './document-store.js';
 import { createTabs, fileName, tabLabels } from './tabs.js';
 import { createFileTree } from './file-tree.js';
+import { setupSidebarWidth } from './sidebar-width.js';
 import { createActionRunner } from './action-runner.js';
 import { encodeDocument, defaultFormat, lineEndingLabel, documentFormat, preserveDocumentFormat, sameDocumentFormat, normalizeLineEndings, snapshotDocument } from './document-format.js';
 import { createRenderer } from './markdown.js';
@@ -343,7 +344,18 @@ const fileTree = createFileTree({
   report,
   menu: (target, position) => { showTreeMenu(target, position).catch(report); },
   command: (name, target) => run(() => (name === 'rename' ? renameEntry(target) : trashEntry(target))),
+  expanded: (paths) => {
+    if (!fileTree.root) return;
+    try { storage?.setItem('textgate.expanded', JSON.stringify({ root: fileTree.root.path, paths: paths.slice(0, 200) })); } catch { /* keep it for this session */ }
+  },
 });
+// The folders left open in this workspace last time, on this device.
+function openFolders(workspace) {
+  try {
+    const stored = JSON.parse(storage?.getItem('textgate.expanded') ?? 'null');
+    return stored?.root === workspace?.path && Array.isArray(stored.paths) ? stored.paths.filter((path) => typeof path === 'string') : [];
+  } catch { return []; }
+}
 // Asks for a name in an app dialog. `submit(name)` may throw to show why and
 // keep the dialog open; resolves with its result, or null if cancelled.
 function askName({ title, label = 'Name', value = '', hint = '', action = 'Create', selection = null, submit }) {
@@ -491,8 +503,17 @@ async function setWorkspace(workspace) {
   $('files-actions').hidden = !workspace;
   $('close-folder').disabled = !workspace;
   revealed = null;
-  await fileTree.setRoot(workspace);
+  await fileTree.setRoot(workspace, { open: openFolders(workspace) });
   markFiles();
+}
+// A folder from the command line, the file manager or a second launch.
+let folderLaunched = false;
+async function showLaunchedFolder(workspace) {
+  folderLaunched = true;
+  await setWorkspace(workspace);
+  showSidebar('files');
+  if ($('toggle-outline').getAttribute('aria-pressed') !== 'true') $('toggle-outline').click();
+  $('status').textContent = `Opened folder ${workspace.name}`;
 }
 // Files or Outline, remembered on this device.
 function showSidebar(view, { focus = false } = {}) {
@@ -877,18 +898,21 @@ updateToolbar();
 
 setupExternalOpen({ desktop: isTauri(), listen, invoke, run, report,
   openPath: openFile,
+  openFolder: showLaunchedFolder,
 }).catch(report);
 // The folder from the last session, and the sidebar view last chosen.
 const storedSidebar = (() => { try { return storage?.getItem('textgate.sidebar'); } catch { return null; } })();
 if (isTauri()) {
   invoke('workspace').then(async (workspace) => {
+    if (folderLaunched) return;
     await setWorkspace(workspace);
-    showSidebar(storedSidebar ?? (workspace ? 'files' : 'outline'));
+    if (!folderLaunched) showSidebar(storedSidebar ?? (workspace ? 'files' : 'outline'));
   }).catch(report);
 } else {
   $('files-empty').firstChild.textContent = 'Run the desktop app to browse folders.';
   showSidebar(storedSidebar === 'files' ? 'files' : 'outline');
 }
+setupSidebarWidth({ handle: $('sidebar-resize'), main: document.querySelector('main'), storage, window });
 setupThemes({ document, desktop: isTauri(), invoke });
 setupMenus({ document, desktop: isTauri(), onError: report }).then((menus) => { nativeMenus = menus; }).catch(report);
 

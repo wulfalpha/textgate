@@ -253,4 +253,15 @@ release artifacts or claim the M1 installation issue resolved until tested.
 - [ ] macOS: Finder multi-select → Open With Textgate opens every file; Windows:
       `textgate.exe a.md b.md` and Explorer Open With on several files.
 - [ ] Packaged Linux: file-manager multi-select → Open With (desktop entry `%U`).
-- [ ] File browser sidebar (planned separately).
+- [x] File browser (plan: docs/plans/0.1.6-file-browser.md): workspace roots,
+      the Files sidebar, creating, rename and trash, folder argument, sidebar
+      width and remembered folders.
+- [x] Linux (dev build): browsing, opening and saving deep and linked files,
+      refresh on focus, remembered workspace, New File/Folder from the menu and
+      buttons, refused names, renaming open files and folders, trash (with the
+      tab kept), Show in File Manager, keyboard.
+- [x] Linux: `textgate <folder>` at launch and forwarded to a running window;
+      sidebar resizing; folders reopening.
+- [ ] macOS: trash without a Finder permission prompt, Cmd+Backspace, Show in
+      Finder, a case-only rename; Windows: trash to the Recycle Bin, Show in
+      Explorer, a case-only rename.

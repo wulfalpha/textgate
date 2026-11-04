@@ -14,9 +14,11 @@ function setup(folders) {
   const errors = [];
   const menus = [];
   const commands = [];
+  const remembered = [];
   const tree = createFileTree({
     menu: (target, position) => menus.push(target),
     command: (name, target) => commands.push([name, target.path]),
+    expanded: (paths) => remembered.push(paths),
     container,
     list: async (path) => {
       listed.push(path);
@@ -31,7 +33,7 @@ function setup(folders) {
   const labels = () => items().map((item) => `${'  '.repeat(Number(item.getAttribute('aria-level') ?? 1) - 1)}${item.querySelector('.tree-name')?.textContent ?? item.textContent}`);
   const key = (name) => document.activeElement.dispatchEvent(new window.KeyboardEvent('keydown', { key: name, bubbles: true, cancelable: true }));
   const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
-  return { tree, container, listed, opened, errors, menus, commands, items, labels, key, settle };
+  return { tree, container, listed, opened, errors, menus, commands, remembered, items, labels, key, settle };
 }
 
 const workspace = {
@@ -186,4 +188,17 @@ test('F2 renames and Delete trashes the chosen row; a rename keeps folders open'
   assert.deepEqual(env.labels(), ['docs', '  deep', '    x.md', '  guide.md', 'big', 'a.md', 'b.txt'], 'names update on refresh');
   assert.equal(env.items()[2].dataset.path, '/w/notes/deep/x.md');
   assert.equal(env.items()[2].getAttribute('tabindex'), '0', 'the selection follows');
+});
+
+test('folders left open reopen with the workspace, skipping ones that are gone', async () => {
+  const env = setup(workspace);
+  await env.tree.setRoot({ path: '/w', name: 'w' }, { open: ['/w/docs/deep', '/w/gone', '/w/docs', '/w/big/missing'] });
+  assert.deepEqual(env.labels(), ['docs', '  deep', '    x.md', '  guide.md', 'big', 'a.md', 'b.txt']);
+  assert.deepEqual(env.remembered, [], 'reopening is not a change to remember');
+  env.items()[0].click();
+  await env.settle();
+  assert.deepEqual(env.remembered.at(-1), ['/w/docs/deep']);
+  env.items()[1].click();
+  await env.settle();
+  assert.deepEqual(env.remembered.at(-1), ['/w/docs/deep', '/w/big']);
 });

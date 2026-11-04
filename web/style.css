@@ -129,7 +129,7 @@ header { height: 54px; flex-shrink: 0; }
 .menu-popup button[aria-pressed=true]::before { visibility: visible; }
 .menu-popup button[aria-pressed=true] { color: var(--tg-text); background: var(--tg-hover); }
 .menu-popup hr { border: 0; border-top: 1px solid var(--tg-border); margin: 4px; }
-main { --outline-width: 190px; grid-template-columns: var(--outline-width) minmax(0, 1fr) minmax(0, 1fr); }
+main { --outline-width: var(--sidebar-width, var(--sidebar-default, 190px)); grid-template-columns: var(--outline-width) minmax(0, 1fr) minmax(0, 1fr); }
 main.hide-outline { --outline-width: 0px; }
 main.hide-outline > aside { display: none; }
 .source-pane { grid-column: 2; }
@@ -142,7 +142,7 @@ main.hide-preview .source-pane { grid-column: 2 / -1; }
 #about-dialog { text-align: center; }
 dialog dd { margin: 3px 0 12px; color: var(--tg-muted); }
 dialog .theme-controls { display: flex; gap: 8px; margin-bottom: 20px; }
-@media (max-width: 900px) { main { --outline-width: 130px; } }
+@media (max-width: 900px) { main { --sidebar-default: 130px; } }
 
 /* Live mode: one editor, preview pane hidden, Markdown styled in place. */
 main[data-mode="live"] .preview-pane, main[data-mode="live"] .source-pane > h2 { display: none; }
@@ -229,3 +229,9 @@ main[data-mode="source"] #format-toolbar { display: none; }
 .files-actions button { padding: 3px 8px; font-size: 11px; }
 #name-hint { font-size: 12px; color: var(--tg-muted); min-height: 1em; margin: 8px 0 0; }
 #name-error { font-size: 12px; color: var(--tg-error); min-height: 1em; }
+/* The sidebar's edge: drag it, or focus it and use the arrow keys. */
+main { position: relative; }
+#sidebar-resize { position: absolute; top: 0; bottom: 0; left: calc(var(--outline-width) - 3px); width: 6px; cursor: col-resize; z-index: 2; touch-action: none; }
+#sidebar-resize:hover, #sidebar-resize:focus-visible, main.resizing #sidebar-resize { background: var(--tg-accent); opacity: 0.5; outline: none; }
+main.hide-outline #sidebar-resize { display: none; }
+main.resizing { cursor: col-resize; user-select: none; }
