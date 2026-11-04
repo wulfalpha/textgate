@@ -249,8 +249,10 @@ release artifacts or claim the M1 installation issue resolved until tested.
 - [ ] Windows: tab switching keys (Ctrl+Tab, Ctrl+PageDown/PageUp and Ctrl+1–9),
       Ctrl+W and the native File → Close Tab item, the Save / Don't Save / Cancel
       buttons, and the quit prompt listing unsaved tabs (macOS passed, below).
-- [ ] macOS: Finder multi-select → Open With Textgate opens every file; Windows:
-      `textgate.exe a.md b.md` and Explorer Open With on several files.
+- [x] macOS (M4, locally packaged app installed in Applications): Finder
+      multi-select → Open With Textgate opened every file in its own tab, both at
+      launch and into the running window; files open from the file browser.
+- [ ] Windows: `textgate.exe a.md b.md` and Explorer Open With on several files.
 - [ ] Packaged Linux: file-manager multi-select → Open With (desktop entry `%U`).
 - [x] File browser (plan: docs/plans/0.1.6-file-browser.md): workspace roots,
       the Files sidebar, creating, rename and trash, folder argument, sidebar
