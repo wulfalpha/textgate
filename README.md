@@ -2,16 +2,14 @@
 
 A lightweight desktop Markdown editor built with Rust, Tauri 2, CodeMirror 6, and comrak.
 
-**Status: early release.** v0.1.5 is available for Linux, Windows and macOS
-(Apple Silicon and Intel), adding spell checking, Vim file commands and bundled
-fonts to 0.1.4's command-line/file-manager opening and line-ending preservation.
-See the [0.1.5 release notes](docs/releases/0.1.5.md),
+**Status: early release.** v0.1.6 adds document tabs, a workspace file browser,
+multi-file opening and safer file-browser renames, plus a Linux AppImage
+spell-checking fix. Packages target Linux, Windows and macOS (Apple Silicon
+and Intel).
+See the [0.1.6 release notes](docs/releases/0.1.6.md),
 [release checklist](docs/release-checklist.md),
 [package testing guide](docs/testing-0.1.4.md) and
 [contributor guide](CONTRIBUTING.md).
-
-The 0.1.6 candidate adds tabs and a file browser; see the
-[draft 0.1.6 release notes](docs/releases/0.1.6.md) for testing status.
 
 ![Textgate in Live mode: headings, task list, link, and table rendered in place](docs/screenshots/live.png)
 
@@ -160,14 +158,11 @@ code blocks, URLs, raw HTML and YAML front matter are not checked.
   `hunspell-en_us` on Arch or `hunspell-en-us` on Debian/Ubuntu. Textgate picks
   languages from `LANGUAGE`, `LC_ALL`, `LC_MESSAGES` and `LANG`, falling back to
   US English.
-- **Published 0.1.5 Linux AppImage: known issue.** The AppImage finds dictionaries only on
-  Debian- and Ubuntu-based systems. On Arch, Fedora, openSUSE and others nothing
-  is underlined; use the `.rpm` on Fedora or openSUSE, or a source build. The
-  bundled spelling library looks for its Hunspell plugin at Debian's fixed
-  path. The 0.1.6 candidate bundles a relocatable library and Hunspell provider;
-  the build-time dictionary check and manual Arch test pass. Downloaded-package
-  checks on Fedora and Debian/Ubuntu remain pending.
-- **Windows: known issue.** Spelling is not underlined on Windows in 0.1.5 or 0.1.6,
+- **Linux AppImage:** 0.1.6 bundles a relocatable spelling library and Hunspell
+  provider, removing 0.1.5's fixed Debian/Ubuntu provider path. The Ubuntu
+  build-time dictionary check and manual Arch test pass. Downloaded packages
+  have not been tested by hand on Fedora or Debian/Ubuntu.
+- **Windows: known issue.** Spelling is not underlined on Windows in 0.1.6,
   although the setting is present. The cause has not been identified yet;
   WebView2, the system component Textgate uses to display the editor, does not
   apply its spell checker to the editor in our testing. Nothing else is
@@ -251,8 +246,8 @@ collaborators with access.
 For the Linux AppImage, make the downloaded file executable and run it:
 
 ```sh
-chmod +x Textgate_0.1.5_amd64.AppImage
-./Textgate_0.1.5_amd64.AppImage
+chmod +x Textgate_0.1.6_amd64.AppImage
+./Textgate_0.1.6_amd64.AppImage
 ```
 
 Open the macOS DMG and copy Textgate to Applications. Mac builds from the current
@@ -276,8 +271,9 @@ launch remain unverified. Existing 0.1.3 release files are unchanged.
 See [Tauri's ad-hoc signing guidance](https://tauri.app/distribute/sign/macos/#ad-hoc-signing).
 
 On Windows, run either installer. Windows installers are unsigned; if SmartScreen
-warns for a download you trust, choose **More info → Run anyway**. Linux packages
-still need compatible system libraries; an AppImage is not a guarantee of
+warns for a download you trust, choose **More info → Run anyway**. The MSI installs
+to `C:\Program Files\Textgate` by default; approve its UAC prompt to complete
+installation. Linux packages still need compatible system libraries; an AppImage is not a guarantee of
 compatibility with every distribution.
 
 ## Command-line and file-manager opening
