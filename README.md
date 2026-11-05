@@ -35,8 +35,8 @@ Vite; no UI framework is required.
 > **Windows status.** Tabs, the file browser and opening several files at once
 > are new in 0.1.6. Windows MSI testing confirmed tab switching, close and quit
 > dialogs, file creation/rename/trash, and CLI/Explorer multi-file opening.
-> Ctrl+S and Ctrl+W failed in the first package; the shortcut fix awaits a
-> rebuilt-package retest. Explorer Open With required adding Textgate manually.
+> Ctrl+S, Ctrl+Shift+S and Ctrl+W also passed with the expected prompts in the
+> rebuilt MSI. Explorer Open With required adding Textgate manually.
 > Spell checking does not work on Windows yet (see
 > [Spell checking](#spell-checking)). Windows support may trail Linux and macOS
 > for now; reports are welcome.

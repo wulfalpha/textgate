@@ -246,13 +246,13 @@ release artifacts or claim the M1 installation issue resolved until tested.
       same-named files, saving each tab, all three close-dialog buttons, three
       files at launch, forwarding files to a running window (a new file and a
       linked-folder path to an open file), `:w` creating the new file.
-- [ ] Finish Windows manual checks below. Testing is underway with the 0.1.6
-      MSI from the manual release run on `tabs` (run 41879520058); the shortcut
-      fix needs a rebuilt package. README and release-note platform status
-      reflect the checks completed so far.
+- [x] Windows MSI feature testing recorded below, using the initial 0.1.6
+      package (run 41879520058) and the shortcut-fix rebuild (run 41958938880,
+      commit d0af70c). README and release-note platform status reflect the
+      completed checks; the standalone native Close Tab menu check remains below.
 - [x] Windows MSI 0.1.6: tab switching works (user-verified).
-- [ ] Windows: native File → Close Tab item. Close-dialog buttons passed;
-      Ctrl+W needs a retest after the fix.
+- [ ] Windows: standalone native File → Close Tab item. Close-dialog buttons
+      and Ctrl+W passed.
 - [x] Windows MSI 0.1.6: quit-dialog Quit Without Saving and Cancel both work
       (user-verified).
 - [x] macOS (M4, locally packaged app installed in Applications): Finder
@@ -299,6 +299,7 @@ release artifacts or claim the M1 installation issue resolved until tested.
       remains the known Windows issue.
 - [x] Windows MSI 0.1.6: Save / Don't Save / Cancel on the tab-close dialog
       all work (user-verified).
-- [ ] Windows MSI 0.1.6: user reported Ctrl+W and Ctrl+S do nothing. Keep the
-      page shortcut handler active on Windows even with native menus installed;
-      regression checks pass locally, but a rebuilt Windows package needs a retest.
+- [x] Windows MSI 0.1.6 rebuild (run 41958938880, commit d0af70c): Ctrl+S,
+      Ctrl+Shift+S and Ctrl+W all work with the proper prompts (user-verified).
+      The fix keeps the page shortcut handler active on Windows even with
+      native menus installed.
