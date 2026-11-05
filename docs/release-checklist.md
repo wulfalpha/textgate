@@ -327,3 +327,7 @@ release artifacts or claim the M1 installation issue resolved until tested.
 - [x] Windows MSI rename retest (run 41962285977, commit 2ded875): case-only
       rename works; renaming a different file to Test.md is refused with
       "Test.md already exists" (user-verified).
+- [x] Merge PR #2 to main at 530ad9d, tag v0.1.6, and publish as Latest with
+      all nine package assets. Tag Checks run 41966129910 and Release run
+      41966129973 passed, including both Mac signatures and AppImage spelling.
+      Release: https://github.com/wulfalpha/textgate/releases/tag/v0.1.6.

@@ -5,7 +5,7 @@ A lightweight desktop Markdown editor built with Rust, Tauri 2, CodeMirror 6, an
 **Status: early release.** v0.1.6 adds document tabs, a workspace file browser,
 multi-file opening and safer file-browser renames, plus a Linux AppImage
 spell-checking fix. Packages target Linux, Windows and macOS (Apple Silicon
-and Intel).
+and Intel). Download [v0.1.6](https://github.com/wulfalpha/textgate/releases/tag/v0.1.6).
 See the [0.1.6 release notes](docs/releases/0.1.6.md),
 [release checklist](docs/release-checklist.md),
 [package testing guide](docs/testing-0.1.4.md) and
