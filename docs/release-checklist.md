@@ -307,7 +307,7 @@ release artifacts or claim the M1 installation issue resolved until tested.
 ### Final 0.1.6 review
 
 - [x] Six manifest/lockfile versions agree and match the proposed v0.1.6 tag.
-- [x] Tested app code at d0af70c is unchanged by the later testing-note commits.
+- [x] Windows shortcut fix at d0af70c passed manual testing.
       Checks run 41958924980 and all packaging jobs in run 41958938880 passed
       (Intel Mac packaging passed on retry after a syntax-highlighting test failed).
 - [x] Scope AppImage spelling claims to verified build checks and manual Arch
@@ -324,5 +324,6 @@ release artifacts or claim the M1 installation issue resolved until tested.
       filesystem supports them, and a stale same-entry check on Windows.
 - [x] All four packaging jobs passed for the rename fixes (run 41962285977,
       commit 2ded875), including Mac signatures and the AppImage spelling check.
-- [ ] Retest file-browser case-only renames and refusal to replace an existing
-      destination in the rebuilt Windows MSI (run 41962285977, commit 2ded875).
+- [x] Windows MSI rename retest (run 41962285977, commit 2ded875): case-only
+      rename works; renaming a different file to Test.md is refused with
+      "Test.md already exists" (user-verified).
