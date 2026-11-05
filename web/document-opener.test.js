@@ -1,90 +1,89 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Text, EditorState } from '@codemirror/state';
 import { createDocumentOpener } from './document-opener.js';
-import { preserveDocumentFormat, normalizeLineEndings, snapshotDocument } from './document-format.js';
-const text = (value) => Text.of(value.split('\n'));
 const bytes = (value) => new TextEncoder().encode(value);
-function setup({ read = async () => bytes('new'), confirm = async () => true, remember = async () => {} } = {}) {
-  let doc = text('old');
+
+// A fake store: each handle records its calls; `read` decides what the file holds.
+function setup({ read = async () => bytes('new'), remember = async () => {}, open = {}, holders = {} } = {}) {
   const events = [];
-  const open = createDocumentOpener({
-    documents: { read, remember: async (path) => { events.push(['keep', path]); await remember(); } },
-    snapshot: () => doc, canDiscard: confirm,
-    replace: (source, path, format) => { events.push(['replace', path, format]); doc = text(source); },
-    opened: (path) => events.push(['opened', path]),
+  const handles = [];
+  const documents = { create() {
+    const handle = {
+      n: handles.length + 1,
+      read: (path, options) => { events.push(['read', handle.n, path, options]); return read(path, options); },
+      remember: async (path) => { events.push(['keep', handle.n, path]); await remember(); },
+      close: async () => { events.push(['close', handle.n]); },
+    };
+    handles.push(handle);
+    return handle;
+  } };
+  const opener = createDocumentOpener({
+    documents,
+    existing: (path) => open[path] ?? null,
+    holder: async (id) => holders[id] ?? null,
+    show: (tab) => events.push(['show', tab]),
+    place: (opened) => { events.push(['place', opened.path, opened.text, opened.format, opened.file.n]); return { name: opened.path }; },
   });
-  return { open, events, edit: (value) => { doc = text(value); }, current: () => doc };
+  return { open: opener, events };
 }
 
-test('cancelled open never reads, replaces or changes the saved baseline', async () => {
-  const env = setup({ confirm: async () => false, read: () => assert.fail() });
-  assert.equal(await env.open('/a'), false);
-  assert.deepEqual(env.events, []);
-  assert.equal(env.current().toString(), 'old');
+test('a file opens in its own document and is kept before it is shown', async () => {
+  const env = setup({ read: async () => bytes('﻿new\r\n') });
+  const result = await env.open('/a', { create: true });
+  assert.deepEqual(result.tab, { name: '/a' });
+  assert.equal(result.already, false);
+  assert.deepEqual(env.events, [
+    ['read', 1, '/a', { create: true }],
+    ['keep', 1, '/a'],
+    ['place', '/a', 'new\n', { bom: true, lineEnding: '\r\n', mixed: false, endings: null }, 1],
+  ]);
 });
 
-test('read and UTF-8 errors preserve the original document', async () => {
-  for (const read of [async () => { throw new Error('Unreadable'); }, async () => new Uint8Array([0xff])]) {
-    const env = setup({ read });
+test('a path that is already open switches to its tab without reading', async () => {
+  const tab = { name: 'open' };
+  const env = setup({ open: { '/a': tab }, read: () => assert.fail('must not read') });
+  assert.deepEqual(await env.open('/a'), { tab, already: true });
+  assert.deepEqual(env.events, [['show', tab]]);
+});
+
+test('the same file under another path switches to the tab Rust names', async () => {
+  const tab = { name: 'linked' };
+  const env = setup({ holders: { 4: tab }, read: async () => { throw { kind: 'alreadyOpen', document: 4, message: 'open elsewhere' }; } });
+  assert.deepEqual(await env.open('/link/a'), { tab, already: true });
+  assert.deepEqual(env.events.slice(1), [['close', 1], ['show', tab]]);
+});
+
+test('read, decoding and keep failures release the new document and show nothing', async () => {
+  const failures = [
+    { read: async () => { throw new Error('Unreadable'); } },
+    { read: async () => new Uint8Array([0xff]) },
+    { remember: async () => { throw { kind: 'alreadyOpen', document: 9, message: 'raced' }; } },
+  ];
+  for (const options of failures) {
+    const env = setup(options);
     await assert.rejects(env.open('/a'));
-    assert.deepEqual(env.events, []);
-    assert.equal(env.current().toString(), 'old');
+    assert.deepEqual(env.events.at(-1), ['close', 1]);
+    assert.ok(!env.events.some(([kind]) => kind === 'place' || kind === 'show'));
   }
 });
 
-test('edits during file read require fresh discard approval', async () => {
-  let finishRead, prompts = 0;
-  const env = setup({ read: () => new Promise((resolve) => { finishRead = resolve; }), confirm: async () => ++prompts === 1 });
-  const opening = env.open('/a');
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  env.edit('keep these newer edits');
-  finishRead(bytes('new'));
-  assert.equal(await opening, false);
-  assert.equal(prompts, 2);
-  assert.equal(env.current().toString(), 'keep these newer edits');
-  assert.deepEqual(env.events, []);
-});
-
-test('approval cannot discard edits made while the confirmation itself is open', async () => {
-  let prompts = 0;
-  const env = setup({ confirm: async () => {
-    if (++prompts === 1) { env.edit('changed during confirmation'); return true; }
-    return false;
-  } });
-  assert.equal(await env.open('/a'), false);
-  assert.equal(prompts, 2);
-  assert.equal(env.current().toString(), 'changed during confirmation');
-});
-
-test('BOM/CRLF are decoded and later edits survive the baseline acknowledgement', async () => {
-  let finishKeep;
-  const env = setup({ read: async () => bytes('\ufeffnew\r\n'), remember: () => new Promise((resolve) => { finishKeep = resolve; }) });
-  const opening = env.open('/a', { create: true });
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  assert.equal(env.current().toString(), 'new\n');
-  assert.deepEqual(env.events[0], ['replace', '/a', { bom: true, lineEnding: '\r\n', mixed: false, endings: null }]);
-  env.edit('edits to the new file');
-  finishKeep();
-  assert.equal(await opening, true);
-  assert.equal(env.current().toString(), 'edits to the new file');
-});
-
-
-test('normalization during a file read requires new discard approval', async () => {
-  let state = EditorState.create({ doc: 'old\n', extensions: preserveDocumentFormat() });
-  let finishRead, prompts = 0;
-  const view = { get state() { return state; }, dispatch: (transaction) => { state = transaction.state; } };
-  const open = createDocumentOpener({
-    documents: { read: () => new Promise((resolve) => { finishRead = resolve; }), remember: () => assert.fail('cancelled open') },
-    snapshot: () => snapshotDocument(state), canDiscard: async () => ++prompts === 1,
-    replace: () => assert.fail('must preserve normalization'), opened: () => assert.fail('cancelled open'),
+test('the caller decides whether opening moves keyboard focus into the document', async () => {
+  const calls = [];
+  const documents = { create: () => ({ read: async () => bytes('text'), remember: async () => {}, close: async () => {} }) };
+  const tab = { name: 'open' };
+  const opener = createDocumentOpener({
+    documents,
+    existing: (path) => (path === '/open' ? tab : null),
+    holder: async () => null,
+    show: (shown, options) => calls.push(['show', options]),
+    place: (opened, options) => { calls.push(['place', options]); return { name: opened.path }; },
   });
-  const opening = open('/a');
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  assert.ok(normalizeLineEndings(view, '\r\n'));
-  finishRead(bytes('new'));
-  assert.equal(await opening, false);
-  assert.equal(prompts, 2);
-  assert.equal(state.doc.toString(), 'old\n');
+  await opener('/new', { focus: false });
+  await opener('/open', { focus: false });
+  await opener('/new');
+  await opener('/open');
+  assert.deepEqual(calls, [
+    ['place', { focus: false }], ['show', { focus: false }],
+    ['place', { focus: true }], ['show', { focus: true }],
+  ]);
 });

@@ -12,7 +12,7 @@ test('app switches modes without rewriting Markdown and keeps one undo history',
   const dom = installDom(readFileSync(new URL('../index.html', import.meta.url), 'utf8'));
   t.after(() => dom.window.close());
   const $ = (id) => document.getElementById(id);
-  const { flushDetails } = await import('./main.js');
+  const { flushDetails, handleAppKeydown } = await import('./main.js');
   const view = EditorView.findFromDOM(document.querySelector('.cm-editor'));
   const text = () => view.state.doc.toString();
   const replace = (insert) => view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert } });
@@ -28,6 +28,16 @@ test('app switches modes without rewriting Markdown and keeps one undo history',
   $('toggle-outline').click();
   assert.ok(document.querySelector('main').classList.contains('hide-outline'));
   $('toggle-outline').click();
+  // The sidebar shows Files or Outline; folders need the desktop app.
+  assert.equal($('outline-panel').hidden, false);
+  $('sidebar-files').click();
+  assert.equal($('files-panel').hidden, false);
+  assert.equal($('outline-panel').hidden, true);
+  assert.equal($('view-files').getAttribute('aria-pressed'), 'true');
+  assert.match($('files-empty').textContent, /desktop app/);
+  $('view-outline').click();
+  assert.equal($('outline-panel').hidden, false);
+  assert.equal($('sidebar-outline').getAttribute('aria-selected'), 'true');
 
   $('mode-source').click();
   assert.ok(!view.dom.classList.contains('cm-live'));
@@ -181,7 +191,7 @@ test('app switches modes without rewriting Markdown and keeps one undo history',
   assert.equal(press('Tab', 9).defaultPrevented, false);
   assert.equal(text(), beforeTab);
 
-  // F6 cycles outline → editor → preview; Shift+F6 goes back; hidden panes are skipped.
+  // F6 cycles tabs → outline → editor → preview; Shift+F6 goes back; hidden panes are skipped.
   await flushDetails();
   const f6 = (shiftKey = false) => {
     const event = new window.KeyboardEvent('keydown', { key: 'F6', shiftKey, bubbles: true, cancelable: true });
@@ -190,11 +200,12 @@ test('app switches modes without rewriting Markdown and keeps one undo history',
   };
   view.focus();
   f6();
+  assert.equal(document.activeElement.getAttribute('role'), 'tab', 'Live mode has no preview pane');
+  assert.equal(document.activeElement.getAttribute('aria-selected'), 'true');
+  f6();
   assert.ok($('outline').contains(document.activeElement));
   f6();
   assert.ok(view.hasFocus);
-  f6();
-  assert.ok($('outline').contains(document.activeElement), 'Live mode has no preview pane');
   $('mode-source').click();
   view.focus();
   f6();
@@ -203,7 +214,7 @@ test('app switches modes without rewriting Markdown and keeps one undo history',
   assert.ok(view.hasFocus);
   $('toggle-outline').click();
   f6(true);
-  assert.equal(document.activeElement, $('preview'), 'a hidden outline is skipped');
+  assert.equal(document.activeElement.getAttribute('role'), 'tab', 'a hidden outline is skipped');
   $('toggle-outline').click();
   $('mode-live').click();
 
@@ -225,19 +236,95 @@ test('app switches modes without rewriting Markdown and keeps one undo history',
   assert.equal($('preview-note').hidden, true);
   assert.equal($('preview').textContent.trim(), 'small again');
 
-  window.confirm = () => false;
+  // Tabs. New opens a tab with its own document and undo history.
+  const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+  const tabButtons = () => [...document.querySelectorAll('#tabbar [role="tab"]')];
+  const selected = () => tabButtons().map((button) => button.getAttribute('aria-selected'));
+  const first = text();
+  assert.equal(tabButtons().length, 1);
+  assert.match(tabButtons()[0].textContent, /^Untitled\.md●, unsaved changes$/);
   $('new').click();
-  // Quit arriving before the discard operation settles must give feedback.
+  assert.deepEqual(selected(), ['false', 'true']);
+  assert.equal(text(), '');
+  assert.equal(tabButtons()[1].textContent, 'Untitled-2.md');
+  assert.equal(document.querySelector('[data-command="undo"]').disabled, true, 'a new tab has no undo history');
+  $('new').click();
+  assert.equal(tabButtons().length, 2, 'an empty Untitled tab is reused');
+  replace('second tab');
+  // Settings are global: they follow every tab.
+  $('mode-source').click();
+  $('relative-numbers').click();
+  const key = (init) => {
+    const event = new window.KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init });
+    view.contentDOM.dispatchEvent(event);
+    return event;
+  };
+  assert.equal(key({ key: 'Tab', ctrlKey: true }).defaultPrevented, true);
+  assert.equal(text(), first, 'Ctrl+Tab wraps to the first tab');
+  assert.ok(!view.dom.classList.contains('cm-live'));
+  assert.ok(view.dom.classList.contains('cm-relative-numbers'));
+  assert.ok(view.hasFocus);
+  $('edit-undo').click();
+  assert.notEqual(text(), first, 'undo history stays with its tab');
+  $('edit-redo').click();
+  assert.equal(text(), first);
+  key({ key: 'PageDown', ctrlKey: true });
+  assert.equal(text(), 'second tab');
+  key({ key: '1', code: 'Digit1', ctrlKey: true });
+  assert.equal(text(), first);
+  key({ key: '9', code: 'Digit9', ctrlKey: true });
+  assert.equal(text(), 'second tab', '9 is the last tab');
+  $('relative-numbers').click();
+  $('mode-live').click();
+  // Arrow keys in the tab bar show each tab and keep focus in the bar.
+  tabButtons()[1].focus();
+  tabButtons()[1].dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true }));
+  assert.equal(text(), first);
+  assert.equal(document.activeElement, tabButtons()[0]);
+  assert.deepEqual(selected(), ['true', 'false']);
+  assert.equal(document.title, '• Untitled.md — Textgate');
+
+  // Closing a tab with unsaved changes asks first; the right-hand tab is shown next.
+  // Windows keeps a page fallback even after native menus have been installed.
+  // macOS/Linux continue to leave these keys to their native accelerators.
+  const nativeKey = (key, platform = 'Win32') => {
+    const event = new window.KeyboardEvent('keydown', { key, ctrlKey: true, cancelable: true });
+    handleAppKeydown(event, { native: true, platform });
+    return event;
+  };
+  assert.equal(nativeKey('s', 'MacIntel').defaultPrevented, false);
+  assert.equal(nativeKey('s', 'Linux x86_64').defaultPrevented, false);
+  assert.equal(nativeKey('s').defaultPrevented, true);
+  await tick();
+  assert.match($('status').textContent, /desktop|tauri dev/, 'Ctrl+S reaches the save action');
+  window.confirm = () => false;
+  assert.equal(nativeKey('w').defaultPrevented, true);
+  await tick();
+  assert.equal(tabButtons().length, 2);
+  assert.equal(text(), first);
+  window.confirm = () => true;
+  assert.equal(nativeKey('w').defaultPrevented, true);
+  await tick();
+  assert.equal(tabButtons().length, 1);
+  assert.equal(text(), 'second tab');
+  // Quit arriving while a close is still settling must give feedback.
+  $('close-tab').click();
   $('quit').click();
   assert.match($('status').textContent, /file operation is still in progress/);
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  assert.equal(text(), 'small again');
-  window.confirm = () => true;
-  $('new').click();
-  await new Promise((resolve) => setTimeout(resolve, 0));
+  await tick();
+  // Closing the last tab leaves an empty Untitled one.
+  assert.equal(tabButtons().length, 1);
   assert.equal(text(), '');
   assert.equal($('dirty').textContent, '');
   assert.equal(document.querySelector('[data-command="undo"]').disabled, true);
+  // The close button and middle-click close a tab as well.
+  $('new').click();
+  replace('third');
+  $('new').click();
+  assert.equal(tabButtons().length, 2);
+  document.querySelector('#tabbar .tab-close').click();
+  await tick();
+  assert.equal(tabButtons().length, 1);
   await flushDetails();
   view.destroy();
 });

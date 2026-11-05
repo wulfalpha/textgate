@@ -32,3 +32,18 @@ test('browser-only mode does not subscribe or invoke native commands', async () 
   const dispose = await setupExternalOpen({ desktop: false, listen: assert.fail, invoke: assert.fail });
   dispose();
 });
+
+test('a folder request opens the workspace in order with the files', async () => {
+  const events = [];
+  const run = createActionRunner({ onBusy: assert.fail, onError: assert.fail });
+  const workspace = { path: '/notes', name: 'notes' };
+  const pending = [{ kind: 'folder', workspace }, { kind: 'file', path: '/notes/a.md', create: false }];
+  await setupExternalOpen({ desktop: true, run, report: assert.fail,
+    listen: async () => () => {},
+    invoke: async () => pending.splice(0),
+    openPath: async (path) => events.push(['file', path]),
+    openFolder: async (opened) => events.push(['folder', opened]),
+  });
+  await tick();
+  assert.deepEqual(events, [['folder', workspace], ['file', '/notes/a.md']]);
+});

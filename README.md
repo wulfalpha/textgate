@@ -10,6 +10,9 @@ See the [0.1.5 release notes](docs/releases/0.1.5.md),
 [package testing guide](docs/testing-0.1.4.md) and
 [contributor guide](CONTRIBUTING.md).
 
+The 0.1.6 candidate adds tabs and a file browser; see the
+[draft 0.1.6 release notes](docs/releases/0.1.6.md) for testing status.
+
 ![Textgate in Live mode: headings, task list, link, and table rendered in place](docs/screenshots/live.png)
 
 The [Textgate logo](docs/branding/README.md) combines a segmented omega
@@ -32,6 +35,74 @@ do not collapse into one when the file is reopened. Files that are not valid UTF
 refused rather than opened lossily. The app uses vanilla JavaScript and CSS with
 Vite; no UI framework is required.
 
+> **Windows status.** Tabs, the file browser and opening several files at once
+> are new in 0.1.6. Windows MSI testing confirmed tab switching, close and quit
+> dialogs, file creation/rename/trash, and CLI/Explorer multi-file opening.
+> Ctrl+S, Ctrl+Shift+S and Ctrl+W also passed with the expected prompts in the
+> rebuilt MSI. Explorer Open With required adding Textgate manually.
+> Spell checking does not work on Windows yet (see
+> [Spell checking](#spell-checking)). Windows support may trail Linux and macOS
+> for now; reports are welcome.
+
+## Tabs
+
+Each open document has its own tab, with its own undo history, cursor and scroll
+position. Live/Source mode, Vim, line numbers and spell checking apply to every
+tab. **New** opens an empty tab, and **Open** accepts several files at once. A
+file that is already open, even through a symbolic link or linked folder, is
+shown in its existing tab rather than opened twice. Opening a file while the
+current tab is a blank Untitled one (including the welcome text) replaces it.
+
+Close a tab with **File → Close Tab** (Ctrl/Cmd+W), its × button, a middle-click,
+or Delete while the tab has keyboard focus. A tab with unsaved changes asks
+**Save / Don't Save / Cancel**; if the save is cancelled or fails, the tab stays
+open. Closing the last tab leaves an empty Untitled one. Quitting lists every
+tab with unsaved changes. Save As onto a file that is open in another tab is
+refused; close that tab first.
+
+Tabs with the same file name show their folder (`notes.md — work`), and hovering
+a tab shows its full path. The tab bar is a keyboard tab list: arrow keys, Home
+and End move between tabs, and Enter or Escape returns to the editor. Tabs are
+not restored after a restart yet.
+
+## File browser
+
+**File → Open Folder…** makes one folder the workspace, and the sidebar's
+**Files** view lists its folders, Markdown files (`.md`, `.markdown`) and text
+files (`.txt`). Hidden entries (starting with `.`, such as `.git`),
+`node_modules` and other files are left out; folders come first, then files, in
+natural order (`note 2` before `note 10`). A folder with more than 1,000 entries
+shows the first 1,000. `textgate ~/notes` opens a folder the same way. The
+workspace, and the folders left open in it, are reopened at the next launch;
+**File → Close Folder** closes it, and open tabs stay open.
+
+Click a file to open it in a tab with focus left in the list (so F2 and
+Delete or Cmd+Backspace act on it), or press Enter to open it and move into it.
+The current tab's file is highlighted and its folders open to show it; files
+open in other tabs are
+marked, and unsaved ones show a dot. The list refreshes when the window regains
+focus, after Textgate's own changes, and with the ↻ button.
+
+Right-click (or press the menu key or Shift+F10) for:
+
+- **New File…** and **New Folder…**, inside the folder clicked (or the clicked
+  file's folder). New files get `.md` unless named `.md`, `.markdown` or `.txt`,
+  are created empty and open in a tab. The **New File** and **New Folder**
+  buttons use the selected folder.
+- **Rename…** (F2). A file keeps its extension unless a Markdown or text one is
+  typed. Open tabs follow the rename, including files inside a renamed folder.
+- **Move to Trash…** (Delete, or Cmd+Backspace on macOS), after asking. Items go
+  to the system trash, never deleted outright; a trashed file's open tab keeps
+  its text, and saving it recreates the file.
+- **Show in File Manager** and **Refresh**.
+
+Nothing is ever replaced: creating or renaming onto an existing name is refused.
+Names must be valid on every platform (no `/ \ : * ? " < > |`, no leading or
+trailing dot). Choose **Files** or **Outline** at the top of the sidebar or in
+the View menu; **View → Sidebar** shows or hides it. Drag the sidebar's edge to
+resize it (or focus the edge and use the arrow keys; double-click resets it).
+The file browser does not watch for outside changes yet (0.1.7).
+
 ## Saving documents
 
 Saves write and flush a temporary file in the document's directory before
@@ -41,8 +112,8 @@ file changed or disappeared, you can cancel or explicitly overwrite/recreate it.
 Cancel keeps your edits in the editor; Save As lets you keep a separate copy.
 If you try another menu file action or close the window while an operation is
 running, the status bar asks you to finish or cancel that operation and try again.
-Closing is not queued. Incoming command-line/file-manager opens do queue and ask
-before replacing unsaved work once the current operation finishes.
+Closing is not queued. Incoming command-line/file-manager opens queue until the
+current operation finishes, then open in their own tabs.
 
 This detects external changes but does not lock out other editors during the
 final replacement. Directory syncing is best effort. Symbolic links and linked folders are followed when opening and saving; the
@@ -89,12 +160,14 @@ code blocks, URLs, raw HTML and YAML front matter are not checked.
   `hunspell-en_us` on Arch or `hunspell-en-us` on Debian/Ubuntu. Textgate picks
   languages from `LANGUAGE`, `LC_ALL`, `LC_MESSAGES` and `LANG`, falling back to
   US English.
-- **Linux AppImage: known issue.** The AppImage finds dictionaries only on
+- **Published 0.1.5 Linux AppImage: known issue.** The AppImage finds dictionaries only on
   Debian- and Ubuntu-based systems. On Arch, Fedora, openSUSE and others nothing
   is underlined; use the `.rpm` on Fedora or openSUSE, or a source build. The
   bundled spelling library looks for its Hunspell plugin at Debian's fixed
-  path; a relocatable build is planned for 0.1.6.
-- **Windows: known issue.** Spelling is not underlined on Windows in 0.1.5,
+  path. The 0.1.6 candidate bundles a relocatable library and Hunspell provider;
+  the build-time dictionary check and manual Arch test pass. Downloaded-package
+  checks on Fedora and Debian/Ubuntu remain pending.
+- **Windows: known issue.** Spelling is not underlined on Windows in 0.1.5 or 0.1.6,
   although the setting is present. The cause has not been identified yet;
   WebView2, the system component Textgate uses to display the editor, does not
   apply its spell checker to the editor in our testing. Nothing else is
@@ -207,12 +280,14 @@ warns for a download you trust, choose **More info → Run anyway**. Linux packa
 still need compatible system libraries; an AppImage is not a guarantee of
 compatibility with every distribution.
 
-## Command-line and file-manager opening (0.1.4)
+## Command-line and file-manager opening
 
-Textgate opens one file per invocation in a single editor window:
+Textgate opens each file in its own tab, in a single editor window:
 
 ```sh
 textgate notes.md
+textgate notes.md todo.md ideas.md
+textgate ~/notes
 textgate "notes with spaces.md"
 textgate ../project/notes.md
 textgate -- -notes.md
@@ -244,13 +319,13 @@ A missing file opens as an empty named document and is created only when saved;
 its parent folder must already exist. If another program creates it first, the
 save-conflict prompt protects that new disk version. Non-UTF-8 content is rejected.
 
-Launching again brings the existing window forward. A request for the same path
-already shown keeps your edits; it does not reload from disk. Requests received
-during a save/dialog wait and then use the usual unsaved-change confirmation.
-No arguments just launches or focuses the app. Multiple paths, stdin, `--wait`,
-and opening at a line/column are not supported in this release. Help/version and
-invalid-argument errors exit without opening a window; a forwarded file request
-returns before the user completes any prompts in the existing window.
+Launching again brings the existing window forward and opens the files as new
+tabs. A file that is already open is shown in its tab with your edits; it is
+not reloaded from disk. Requests received during a save or dialog wait until it
+finishes. `--` makes every later argument a filename. No arguments just
+launches or focuses the app. Stdin, `--wait`, and opening at a line/column are
+not supported. Help/version and invalid-argument errors exit without opening a
+window; one invalid argument rejects the whole command, so nothing half-opens.
 
 Bundles register `.md` and `.markdown` file associations. Use your file manager's
 **Open With → Textgate** or choose Textgate as the default in OS settings. Finder
@@ -305,7 +380,7 @@ JavaScript, Rust, formatting, and Clippy checks on Linux, macOS, and Windows.
 The desktop app has native **File**, **Edit**, **View**, and **Help** menus.
 On macOS, About and Quit appear in the application menu. Browser-only development
 uses an in-page menu bar. The Live/Source switch and formatting toolbar
-remain visible; View controls the outline, preview pane, Vim bindings, line numbers,
+remain visible; View controls the sidebar (Files or Outline), preview pane, Vim bindings, line numbers,
 spell checking, and themes.
 
 | Action | Shortcut |
@@ -314,17 +389,26 @@ spell checking, and themes.
 | Open | Ctrl/Cmd+O |
 | Save | Ctrl/Cmd+S |
 | Save as | Ctrl/Cmd+Shift+S |
+| Close tab | Ctrl/Cmd+W |
+| Next / previous tab | Ctrl+Tab / Ctrl+Shift+Tab, Ctrl+PageDown / PageUp (Cmd+Shift+] / [ on macOS) |
+| Go to tab 1–8 / last tab | Ctrl/Cmd+1–8 / Ctrl/Cmd+9 |
 | Quit | Ctrl/Cmd+Q |
 | Zoom in / out / actual size | Ctrl/Cmd+= / - / 0 |
 | Check or uncheck tasks on the selected lines | Ctrl/Cmd+Shift+X |
-| Move between outline, editor and preview | F6 / Shift+F6 |
+| Move between tabs, sidebar, editor and preview | F6 / Shift+F6 |
+| Rename / move to trash (file browser) | F2 / Delete (Cmd+Backspace on macOS) |
+| File browser menu | Menu key or Shift+F10 |
 
 Choose **View → Vim bindings** to enable Vim editing in either mode. The status
 bar shows the current Vim mode. The file commands use the same save checks as
-the menus: `:w` saves, `:sav` chooses a new file, `:wq` and `:x` save and close,
-`:q` closes (refusing with E37 if there are unsaved changes, as Vim does), and
-`:q!` closes without saving. File names after `:w` and `:wq` are not supported;
-use `:sav`. **View → Relative line numbers** shows the
+the menus: `:w` saves, `:sav` chooses a new file, `:wq` and `:x` save and close
+the tab, `:q` closes it (refusing with E37 if there are unsaved changes, as Vim
+does), and `:q!` closes without saving; closing the last tab closes the window.
+`:qa` closes every tab, refusing with E37 if any has unsaved changes; `:qa!`
+discards them. `gt` / `gT` move between tabs (`3gt` goes to tab 3), as do
+`:tabnext` and `:tabprevious`; `:tabnew` opens an empty tab and `:tabclose` is
+`:q`. File names after `:w`, `:wq` and `:tabedit` are not supported; use `:sav`
+or File → Open. **View → Relative line numbers** shows the
 cursor line's number and every other line's distance from it, as Vim's
 `number` plus `relativenumber` does; it also shows the numbers in Live mode.
 **View → Zoom In/Out** scales the whole window and is remembered on this device.
@@ -343,17 +427,19 @@ out of the editor, press Escape followed by Tab.
 Next milestones:
 
 - Table row/column commands for Live mode.
-- 0.1.6: a workspace folder with a file browser sidebar and document tabs.
 - 0.1.7: links between notes (`[[wiki links]]` and Markdown links), file
   watching, autosave and crash recovery; groundwork for Zettelkasten notes in 0.2.0.
 - Local image resolution and external link opening (preview links currently show
   their destination in the status bar; remote images are blocked in the desktop app).
 - Continued package validation across supported platforms.
 
-Only a single document is open at a time. New/open/close ask before discarding
-unsaved changes. There is no crash recovery or autosave yet. File permissions are
+Textgate has one window, with a tab for each open document. Closing a tab or
+quitting asks before discarding unsaved changes. There is no crash recovery or
+autosave yet, and tabs are not restored after a restart. File permissions are
 restricted to paths granted through native file dialogs or native launch/file-open
-requests, plus the dedicated Textgate theme configuration handled by the Rust backend.
+requests, the one workspace folder chosen the same way (checked after resolving
+symbolic links, so a link inside it cannot reach outside), plus the dedicated
+Textgate theme configuration handled by the Rust backend.
 
 ## License
 

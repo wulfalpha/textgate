@@ -239,3 +239,91 @@ release artifacts or claim the M1 installation issue resolved until tested.
 - [x] That run's AppImage on Arch: misspellings underlined (user-verified).
 - [ ] Downloaded AppImage on one RPM distribution (Fedora) and Debian/Ubuntu;
       then drop the README known issue.
+- [x] Tabs (plan: docs/plans/0.1.6-tabs.md): per-document Rust baselines and
+      file identity, tab bar and switching, Save / Don't Save / Cancel on close,
+      Vim tab commands, several files from the command line and file manager.
+- [x] Linux (dev build): opening several files at once and one at a time,
+      same-named files, saving each tab, all three close-dialog buttons, three
+      files at launch, forwarding files to a running window (a new file and a
+      linked-folder path to an open file), `:w` creating the new file.
+- [x] Windows MSI feature testing recorded below, using the initial 0.1.6
+      package (run 41879520058) and the shortcut-fix rebuild (run 41958938880,
+      commit d0af70c). README and release-note platform status reflect the
+      completed checks.
+- [x] Windows MSI 0.1.6: tab switching works (user-verified).
+- [x] Windows MSI 0.1.6: native File → Close Tab works (user-verified).
+      Close-dialog buttons and Ctrl+W also passed.
+- [x] Windows MSI 0.1.6: quit-dialog Quit Without Saving and Cancel both work
+      (user-verified).
+- [x] macOS (M4, locally packaged app installed in Applications): Finder
+      multi-select → Open With Textgate opened every file in its own tab, both at
+      launch and into the running window; files open from the file browser.
+- [x] Windows MSI 0.1.6: CLI opens a new file, switches to an already-open
+      file's tab, and opens multiple files (user-verified).
+- [x] Windows MSI 0.1.6: after manually adding Textgate as an Open With option,
+      Explorer opens each selected file in its own tab, including into an
+      already-running Textgate (user-verified). Automatic Open With discovery
+      remains unverified.
+- [x] Packaged Linux: file-manager multi-select → Open With (desktop entry `%U`)
+      opened every file (user-verified).
+- [x] File browser (plan: docs/plans/0.1.6-file-browser.md): workspace roots,
+      the Files sidebar, creating, rename and trash, folder argument, sidebar
+      width and remembered folders.
+- [x] Linux (dev build): browsing, opening and saving deep and linked files,
+      refresh on focus, remembered workspace, New File/Folder from the menu and
+      buttons, refused names, renaming open files and folders, trash (with the
+      tab kept), Show in File Manager, keyboard.
+- [x] Linux: `textgate <folder>` at launch and forwarded to a running window;
+      sidebar resizing; folders reopening.
+- [x] Renames use the platform's exclusive rename (macOS `renamex_np`
+      RENAME_EXCL, Linux `renameat2` RENAME_NOREPLACE, Windows `MoveFileExW`
+      without replace), so an entry created after the name check is never
+      replaced; case-only renames of the same entry still work.
+- [x] macOS (M4, dev build): trash without a Finder permission prompt, Show in
+      Finder and a case-only rename passed; tabs (switching keys, Cmd+W, Close Tab,
+      Save / Don't Save / Cancel, quit prompt) passed.
+- [x] macOS: Cmd+Backspace failed after clicking a file (the click moved focus to
+      the editor). Clicks now keep focus in the list; Enter moves into the file.
+      Retested on M4: Cmd+Backspace trashes the clicked file, its tab keeps the
+      text so it can be recovered, and quitting asks before discarding it.
+- [x] Windows MSI 0.1.6: Show in File Manager and Move to Trash work;
+      creating text.md, renaming to glory.md and Text.md, and creating test.txt
+      work (user-verified).
+- [x] Windows MSI 0.1.6: changing only a letter's capitalization in a rename
+      works; trashing an open file keeps its text; creating a file named
+      test1.1 works (user-verified).
+- [x] Windows MSI 0.1.6: an open tab follows a file-browser rename
+      (user-verified).
+- [x] Windows MSI 0.1.6: user confirmed installation with elevation, launch,
+      version 0.1.6, Files panel and tabs visible. Menu Save works; spelling
+      remains the known Windows issue.
+- [x] Windows MSI 0.1.6: Save / Don't Save / Cancel on the tab-close dialog
+      all work (user-verified).
+- [x] Windows MSI 0.1.6 rebuild (run 41958938880, commit d0af70c): Ctrl+S,
+      Ctrl+Shift+S and Ctrl+W all work with the proper prompts (user-verified).
+      The fix keeps the page shortcut handler active on Windows even with
+      native menus installed.
+
+### Final 0.1.6 review
+
+- [x] Six manifest/lockfile versions agree and match the proposed v0.1.6 tag.
+- [x] Windows shortcut fix at d0af70c passed manual testing.
+      Checks run 41958924980 and all packaging jobs in run 41958938880 passed
+      (Intel Mac packaging passed on retry after a syntax-highlighting test failed).
+- [x] Scope AppImage spelling claims to verified build checks and manual Arch
+      testing; retain Fedora and Debian/Ubuntu downloaded-package checks above.
+- [x] Windows same_entry compares volume and 128-bit file ids through live
+      handles opened on the entries themselves. Windows always uses a
+      non-replacing move, including after an earlier same-entry check.
+- [x] Remove the check-then-replace Unix rename fallback when exclusive rename
+      is unsupported; report an error rather than risk replacing another entry.
+- [x] Validate the rename fixes in hosted Linux/macOS/Windows Checks
+      (run 41962274582, commit 2ded875). Local macOS: 40 Rust unit tests,
+      2 CLI tests and Clippy pass.
+      Regression coverage includes distinct case-sensitive entries where the
+      filesystem supports them, and a stale same-entry check on Windows.
+- [x] All four packaging jobs passed for the rename fixes (run 41962285977,
+      commit 2ded875), including Mac signatures and the AppImage spelling check.
+- [x] Windows MSI rename retest (run 41962285977, commit 2ded875): case-only
+      rename works; renaming a different file to Test.md is refused with
+      "Test.md already exists" (user-verified).

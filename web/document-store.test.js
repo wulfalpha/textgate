@@ -6,13 +6,15 @@ import { createDocumentStore } from './document-store.js';
 // cover the commands and save modes the webview sends.
 function setup(results, confirmOverwrite = async () => false) {
   const calls = [];
-  const store = createDocumentStore({ confirmOverwrite, invoke: async (command, args) => {
+  let next = 7;
+  const documents = createDocumentStore({ confirmOverwrite, invoke: async (command, args) => {
     calls.push({ command, ...args });
+    if (command === 'new_document') return next++;
     const result = results.shift();
     if (result instanceof Error || result?.kind) throw result;
     return result;
   } });
-  return { store, calls };
+  return { documents, store: documents.create(), calls };
 }
 const modes = (calls) => calls.filter((call) => call.command === 'save_document').map((call) => call.mode);
 
@@ -20,7 +22,26 @@ test('open returns raw bytes and keeps the document only when asked', async () =
   const env = setup([new Uint8Array([0xef, 0xbb, 0xbf, 0x61]).buffer, undefined]);
   assert.deepEqual([...await env.store.read('/a')], [0xef, 0xbb, 0xbf, 0x61]);
   await env.store.remember('/a');
-  assert.deepEqual(env.calls.map((call) => call.command), ['open_document', 'keep_document']);
+  assert.deepEqual(env.calls.map((call) => call.command), ['new_document', 'open_document', 'keep_document']);
+});
+
+test('each handle has its own Rust document, created on first use and released on close', async () => {
+  const env = setup([undefined, undefined, undefined]);
+  const other = env.documents.create();
+  assert.equal(await env.store.id(), null, 'an untouched Untitled tab needs no Rust document');
+  await env.store.save('/a', 'one');
+  await other.save('/b', 'two');
+  await env.store.save('/a', 'three');
+  assert.deepEqual(env.calls.filter((call) => call.command === 'save_document').map((call) => call.document), [7, 8, 7]);
+  assert.equal(await env.store.id(), 7);
+  await env.store.close();
+  assert.deepEqual(env.calls.at(-1), { command: 'close_document', document: 7 });
+  await assert.rejects(env.store.save('/a', 'late'), /no longer open/);
+  await other.close();
+  const unused = env.documents.create();
+  const before = env.calls.length;
+  await unused.close();
+  assert.equal(env.calls.length, before, 'closing an unused handle sends nothing');
 });
 
 test('saves check the baseline; dialog-chosen paths replace', async () => {
@@ -28,8 +49,9 @@ test('saves check the baseline; dialog-chosen paths replace', async () => {
   assert.equal(await env.store.save('/a', 'one'), true);
   assert.equal(await env.store.save('/b', 'two', { chosen: true }), true);
   assert.deepEqual(modes(env.calls), ['save', 'replace']);
-  assert.equal(env.calls[0].contents, 'one');
-  assert.equal(env.calls[0].expected, undefined, 'no disk bytes are sent');
+  const [first] = env.calls.filter((call) => call.command === 'save_document');
+  assert.equal(first.contents, 'one');
+  assert.equal(first.expected, undefined, 'no disk bytes are sent');
 });
 
 test('conflicts ask first; cancelling leaves the file alone', async () => {
@@ -60,5 +82,5 @@ test('missing-file creation is explicit and omitted for ordinary dialog opens', 
   const env = setup([new ArrayBuffer(0), new ArrayBuffer(0)]);
   await env.store.read('/new.md', { create: true });
   await env.store.read('/old.md');
-  assert.deepEqual(env.calls.map((call) => call.allowMissing), [true, false]);
+  assert.deepEqual(env.calls.filter((call) => call.command === 'open_document').map((call) => call.allowMissing), [true, false]);
 });
