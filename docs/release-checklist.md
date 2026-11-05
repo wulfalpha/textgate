@@ -249,10 +249,10 @@ release artifacts or claim the M1 installation issue resolved until tested.
 - [x] Windows MSI feature testing recorded below, using the initial 0.1.6
       package (run 41879520058) and the shortcut-fix rebuild (run 41958938880,
       commit d0af70c). README and release-note platform status reflect the
-      completed checks; the standalone native Close Tab menu check remains below.
+      completed checks.
 - [x] Windows MSI 0.1.6: tab switching works (user-verified).
-- [ ] Windows: standalone native File → Close Tab item. Close-dialog buttons
-      and Ctrl+W passed.
+- [x] Windows MSI 0.1.6: native File → Close Tab works (user-verified).
+      Close-dialog buttons and Ctrl+W also passed.
 - [x] Windows MSI 0.1.6: quit-dialog Quit Without Saving and Cancel both work
       (user-verified).
 - [x] macOS (M4, locally packaged app installed in Applications): Finder
