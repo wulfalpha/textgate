@@ -246,16 +246,24 @@ release artifacts or claim the M1 installation issue resolved until tested.
       same-named files, saving each tab, all three close-dialog buttons, three
       files at launch, forwarding files to a running window (a new file and a
       linked-folder path to an open file), `:w` creating the new file.
-- [ ] Windows manual checks below could not be completed for this round; the
-      README and 0.1.6 notes say so. Retry with the packages from the manual
-      release run on `tabs` (run 41772419650).
-- [ ] Windows: tab switching keys (Ctrl+Tab, Ctrl+PageDown/PageUp and Ctrl+1–9),
-      Ctrl+W and the native File → Close Tab item, the Save / Don't Save / Cancel
-      buttons, and the quit prompt listing unsaved tabs (macOS passed, below).
+- [ ] Finish Windows manual checks below. Testing is underway with the 0.1.6
+      MSI from the manual release run on `tabs` (run 41879520058); the shortcut
+      fix needs a rebuilt package. README and release-note platform status
+      reflect the checks completed so far.
+- [x] Windows MSI 0.1.6: tab switching works (user-verified).
+- [ ] Windows: native File → Close Tab item. Close-dialog buttons passed;
+      Ctrl+W needs a retest after the fix.
+- [x] Windows MSI 0.1.6: quit-dialog Quit Without Saving and Cancel both work
+      (user-verified).
 - [x] macOS (M4, locally packaged app installed in Applications): Finder
       multi-select → Open With Textgate opened every file in its own tab, both at
       launch and into the running window; files open from the file browser.
-- [ ] Windows: `textgate.exe a.md b.md` and Explorer Open With on several files.
+- [x] Windows MSI 0.1.6: CLI opens a new file, switches to an already-open
+      file's tab, and opens multiple files (user-verified).
+- [x] Windows MSI 0.1.6: after manually adding Textgate as an Open With option,
+      Explorer opens each selected file in its own tab, including into an
+      already-running Textgate (user-verified). Automatic Open With discovery
+      remains unverified.
 - [x] Packaged Linux: file-manager multi-select → Open With (desktop entry `%U`)
       opened every file (user-verified).
 - [x] File browser (plan: docs/plans/0.1.6-file-browser.md): workspace roots,
@@ -278,4 +286,19 @@ release artifacts or claim the M1 installation issue resolved until tested.
       the editor). Clicks now keep focus in the list; Enter moves into the file.
       Retested on M4: Cmd+Backspace trashes the clicked file, its tab keeps the
       text so it can be recovered, and quitting asks before discarding it.
-- [ ] Windows: trash to the Recycle Bin, Show in Explorer, a case-only rename.
+- [x] Windows MSI 0.1.6: Show in File Manager and Move to Trash work;
+      creating text.md, renaming to glory.md and Text.md, and creating test.txt
+      work (user-verified).
+- [x] Windows MSI 0.1.6: changing only a letter's capitalization in a rename
+      works; trashing an open file keeps its text; creating a file named
+      test1.1 works (user-verified).
+- [x] Windows MSI 0.1.6: an open tab follows a file-browser rename
+      (user-verified).
+- [x] Windows MSI 0.1.6: user confirmed installation with elevation, launch,
+      version 0.1.6, Files panel and tabs visible. Menu Save works; spelling
+      remains the known Windows issue.
+- [x] Windows MSI 0.1.6: Save / Don't Save / Cancel on the tab-close dialog
+      all work (user-verified).
+- [ ] Windows MSI 0.1.6: user reported Ctrl+W and Ctrl+S do nothing. Keep the
+      page shortcut handler active on Windows even with native menus installed;
+      regression checks pass locally, but a rebuilt Windows package needs a retest.

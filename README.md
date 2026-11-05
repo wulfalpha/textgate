@@ -33,9 +33,11 @@ refused rather than opened lossily. The app uses vanilla JavaScript and CSS with
 Vite; no UI framework is required.
 
 > **Windows status.** Tabs, the file browser and opening several files at once
-> are new in 0.1.6. They were checked by hand on Linux and macOS and pass the
-> automated tests on Windows, but have **not yet been confirmed by hand on
-> Windows**. Spell checking does not work on Windows yet (see
+> are new in 0.1.6. Windows MSI testing confirmed tab switching, close and quit
+> dialogs, file creation/rename/trash, and CLI/Explorer multi-file opening.
+> Ctrl+S and Ctrl+W failed in the first package; the shortcut fix awaits a
+> rebuilt-package retest. Explorer Open With required adding Textgate manually.
+> Spell checking does not work on Windows yet (see
 > [Spell checking](#spell-checking)). Windows support may trail Linux and macOS
 > for now; reports are welcome.
 

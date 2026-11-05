@@ -12,7 +12,7 @@ test('app switches modes without rewriting Markdown and keeps one undo history',
   const dom = installDom(readFileSync(new URL('../index.html', import.meta.url), 'utf8'));
   t.after(() => dom.window.close());
   const $ = (id) => document.getElementById(id);
-  const { flushDetails } = await import('./main.js');
+  const { flushDetails, handleAppKeydown } = await import('./main.js');
   const view = EditorView.findFromDOM(document.querySelector('.cm-editor'));
   const text = () => view.state.doc.toString();
   const replace = (insert) => view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert } });
@@ -285,13 +285,25 @@ test('app switches modes without rewriting Markdown and keeps one undo history',
   assert.equal(document.title, '• Untitled.md — Textgate');
 
   // Closing a tab with unsaved changes asks first; the right-hand tab is shown next.
+  // Windows keeps a page fallback even after native menus have been installed.
+  // macOS/Linux continue to leave these keys to their native accelerators.
+  const nativeKey = (key, platform = 'Win32') => {
+    const event = new window.KeyboardEvent('keydown', { key, ctrlKey: true, cancelable: true });
+    handleAppKeydown(event, { native: true, platform });
+    return event;
+  };
+  assert.equal(nativeKey('s', 'MacIntel').defaultPrevented, false);
+  assert.equal(nativeKey('s', 'Linux x86_64').defaultPrevented, false);
+  assert.equal(nativeKey('s').defaultPrevented, true);
+  await tick();
+  assert.match($('status').textContent, /desktop|tauri dev/, 'Ctrl+S reaches the save action');
   window.confirm = () => false;
-  $('close-tab').click();
+  assert.equal(nativeKey('w').defaultPrevented, true);
   await tick();
   assert.equal(tabButtons().length, 2);
   assert.equal(text(), first);
   window.confirm = () => true;
-  $('close-tab').click();
+  assert.equal(nativeKey('w').defaultPrevented, true);
   await tick();
   assert.equal(tabButtons().length, 1);
   assert.equal(text(), 'second tab');

@@ -769,7 +769,7 @@ function cyclePanes(backwards) {
   const next = current === -1 ? (backwards ? panes.length - 1 : 0) : (current + (backwards ? panes.length - 1 : 1)) % panes.length;
   panes[next][1]();
 }
-window.addEventListener('keydown', (event) => {
+export function handleAppKeydown(event, { native = Boolean(nativeMenus), platform = navigator.platform } = {}) {
   if (appDialogOpen(document)) return;
   if (event.key === 'F6' && !event.ctrlKey && !event.metaKey && !event.altKey) {
     event.preventDefault();
@@ -787,7 +787,10 @@ window.addEventListener('keydown', (event) => {
   const key = event.key.toLowerCase();
   // Many layouts need Shift for +, which the Ctrl/Cmd+= menu shortcut misses.
   if (key === '+' && isTauri()) { event.preventDefault(); $('zoom-in').click(); return; }
-  if (nativeMenus) return;
+  // WebView2 can deliver these keys to the page without invoking the native
+  // menu accelerator. Keep the capture handler as a fallback on Windows.
+  // Keys consumed by Tauri's native accelerator loop never reach this handler.
+  if (native && !/Win/.test(platform)) return;
   if (isTauri() && ['=', '-', '0'].includes(key)) {
     event.preventDefault();
     $({ '=': 'zoom-in', '-': 'zoom-out', 0: 'zoom-reset' }[key]).click();
@@ -795,12 +798,14 @@ window.addEventListener('keydown', (event) => {
   }
   if (!['n', 'o', 's', 'q', 'w'].includes(key)) return;
   event.preventDefault();
+  event.stopPropagation();
   if (key === 'w') $('close-tab').click();
   if (key === 'n') $('new').click();
   if (key === 'o') $('open').click();
   if (key === 's') run(() => saveDocument(event.shiftKey));
   if (key === 'q') $('quit').click();
-}, true);
+}
+window.addEventListener('keydown', handleAppKeydown, true);
 // Preview links must not navigate away from the editor; in-page anchors scroll.
 // Sanitizing prefixes document ids with user-content-, as GitHub does.
 $('preview').addEventListener('click', (event) => {
