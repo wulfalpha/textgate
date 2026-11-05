@@ -258,12 +258,37 @@ fn same_entry(a: &Path, b: &Path) -> bool {
         matches!((fs::symlink_metadata(a), fs::symlink_metadata(b)),
             (Ok(a), Ok(b)) if a.dev() == b.dev() && a.ino() == b.ino())
     }
-    #[cfg(not(unix))]
+    #[cfg(windows)]
     {
-        // Windows file systems ignore case unless a folder opts in.
-        a.file_name().zip(b.file_name()).is_some_and(|(a, b)| {
-            a.to_string_lossy().to_lowercase() == b.to_string_lossy().to_lowercase()
-        })
+        use std::os::windows::{fs::OpenOptionsExt, io::AsRawHandle};
+        use windows_sys::Win32::Storage::FileSystem::{
+            FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OPEN_REPARSE_POINT, FILE_ID_INFO, FileIdInfo,
+            GetFileInformationByHandleEx,
+        };
+        // Keep both handles open while comparing ids. Open the entry itself,
+        // including folders and links, rather than following a link's target.
+        let entry = |path: &Path| -> Option<(fs::File, FILE_ID_INFO)> {
+            let file = fs::OpenOptions::new()
+                .access_mode(0)
+                .custom_flags(FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT)
+                .open(path)
+                .ok()?;
+            // SAFETY: FILE_ID_INFO contains only integer fields and the API
+            // receives a correctly sized, writable buffer and a live handle.
+            let mut info: FILE_ID_INFO = unsafe { std::mem::zeroed() };
+            let success = unsafe {
+                GetFileInformationByHandleEx(
+                    file.as_raw_handle(),
+                    FileIdInfo,
+                    (&mut info as *mut FILE_ID_INFO).cast(),
+                    std::mem::size_of::<FILE_ID_INFO>() as u32,
+                )
+            };
+            (success != 0).then_some((file, info))
+        };
+        matches!((entry(a), entry(b)), (Some((_a, a)), Some((_b, b)))
+            if a.VolumeSerialNumber == b.VolumeSerialNumber
+                && a.FileId.Identifier == b.FileId.Identifier)
     }
 }
 
@@ -674,6 +699,40 @@ mod tests {
         assert!(create(&root, dir.path(), "outside", Kind::File).is_err());
         assert!(!dir.path().join("outside.md").exists());
         assert!(create(&root, &notes.join("missing"), "x", Kind::File).is_err());
+    }
+
+    #[test]
+    fn case_distinct_files_are_never_treated_as_the_same_entry() {
+        let dir = tempfile::tempdir().unwrap();
+        #[cfg(windows)]
+        {
+            // Opt in where supported; ordinary Windows folders ignore case.
+            let _ = std::process::Command::new("fsutil")
+                .args(["file", "setCaseSensitiveInfo"])
+                .arg(dir.path())
+                .arg("enable")
+                .output();
+        }
+        let (lower, upper) = (dir.path().join("a.md"), dir.path().join("A.md"));
+        fs::write(&lower, b"lower").unwrap();
+        let file = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&upper);
+        match file {
+            Ok(file) => drop(file),
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+                eprintln!("case-distinct entry check requires a case-sensitive file system");
+                return;
+            }
+            Err(error) => panic!("{error}"),
+        }
+        fs::write(&upper, b"upper").unwrap();
+        assert!(!same_entry(&lower, &upper));
+        let root = Root::new(dir.path()).unwrap();
+        assert!(rename(&Documents::default(), &root, &lower, "A.md").is_err());
+        assert_eq!(fs::read(&lower).unwrap(), b"lower");
+        assert_eq!(fs::read(&upper).unwrap(), b"upper");
     }
 
     #[test]

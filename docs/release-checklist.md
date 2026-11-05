@@ -303,3 +303,21 @@ release artifacts or claim the M1 installation issue resolved until tested.
       Ctrl+Shift+S and Ctrl+W all work with the proper prompts (user-verified).
       The fix keeps the page shortcut handler active on Windows even with
       native menus installed.
+
+### Final 0.1.6 review
+
+- [x] Six manifest/lockfile versions agree and match the proposed v0.1.6 tag.
+- [x] Tested app code at d0af70c is unchanged by the later testing-note commits.
+      Checks run 41958924980 and all packaging jobs in run 41958938880 passed
+      (Intel Mac packaging passed on retry after a syntax-highlighting test failed).
+- [x] Scope AppImage spelling claims to verified build checks and manual Arch
+      testing; retain Fedora and Debian/Ubuntu downloaded-package checks above.
+- [x] Windows same_entry compares volume and 128-bit file ids through live
+      handles opened on the entries themselves. Windows always uses a
+      non-replacing move, including after an earlier same-entry check.
+- [x] Remove the check-then-replace Unix rename fallback when exclusive rename
+      is unsupported; report an error rather than risk replacing another entry.
+- [ ] Validate the rename fixes in hosted Linux/macOS/Windows Checks and rebuilt
+      packages. Local macOS: 40 Rust unit tests, 2 CLI tests and Clippy pass.
+      Regression coverage includes distinct case-sensitive entries where the
+      filesystem supports them, and a stale same-entry check on Windows.

@@ -240,8 +240,14 @@ fn identity(target: &Path) -> PathBuf {
 /// entry at `to`. A check beforehand cannot rule out another program creating
 /// `to` just before the rename; these calls make the check and the rename one
 /// step. A case-only rename (`a.md` to `A.md`) on a case-insensitive drive names
-/// the same entry twice, so callers pass `same` to use an ordinary rename.
+/// the same entry twice, so Unix callers pass `same` to use an ordinary rename.
+/// Windows always uses its non-replacing native operation, including case changes.
 pub fn rename_new(from: &Path, to: &Path, same: bool) -> io::Result<()> {
+    // Windows can change case with MoveFileExW without enabling replacement.
+    // Do not let a stale identity check enable a replacing rename there.
+    #[cfg(windows)]
+    let _ = same;
+    #[cfg(unix)]
     if same {
         return fs::rename(from, to);
     }
@@ -276,20 +282,19 @@ pub fn rename_new(from: &Path, to: &Path, same: bool) -> io::Result<()> {
             return Ok(());
         }
         let error = io::Error::last_os_error();
-        // Some file systems (and other Unixes) have no exclusive rename. Fall
-        // back to checking first: only a near-simultaneous creation can slip by.
+        // Never fall back to a replacing rename on unsupported file systems.
         let unsupported = result == -2
             || matches!(
                 error.raw_os_error(),
                 Some(libc::EINVAL | libc::ENOSYS | libc::ENOTSUP)
             );
-        if !unsupported {
-            return Err(error);
+        if unsupported {
+            return Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                "This file system does not support renaming without replacement. Rename the item in your file manager.",
+            ));
         }
-        if fs::symlink_metadata(to).is_ok() {
-            return Err(io::ErrorKind::AlreadyExists.into());
-        }
-        fs::rename(from, to)
+        Err(error)
     }
     #[cfg(windows)]
     {
@@ -974,6 +979,20 @@ mod tests {
         rename_new(&a, &c, false).unwrap();
         assert_eq!(fs::read_to_string(&c).unwrap(), "mine");
         assert!(!a.exists());
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn a_stale_same_entry_check_cannot_enable_replacement_on_windows() {
+        let dir = tempfile::tempdir().unwrap();
+        let (from, to) = (dir.path().join("from.md"), dir.path().join("to.md"));
+        fs::write(&from, b"mine").unwrap();
+        fs::write(&to, b"theirs").unwrap();
+        // Even if the earlier check said "same", the native operation must
+        // refuse a different entry now at the destination.
+        assert!(rename_new(&from, &to, true).is_err());
+        assert_eq!(fs::read(&from).unwrap(), b"mine");
+        assert_eq!(fs::read(&to).unwrap(), b"theirs");
     }
 
     #[test]

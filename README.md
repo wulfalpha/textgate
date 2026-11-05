@@ -10,6 +10,9 @@ See the [0.1.5 release notes](docs/releases/0.1.5.md),
 [package testing guide](docs/testing-0.1.4.md) and
 [contributor guide](CONTRIBUTING.md).
 
+The 0.1.6 candidate adds tabs and a file browser; see the
+[draft 0.1.6 release notes](docs/releases/0.1.6.md) for testing status.
+
 ![Textgate in Live mode: headings, task list, link, and table rendered in place](docs/screenshots/live.png)
 
 The [Textgate logo](docs/branding/README.md) combines a segmented omega
@@ -157,12 +160,14 @@ code blocks, URLs, raw HTML and YAML front matter are not checked.
   `hunspell-en_us` on Arch or `hunspell-en-us` on Debian/Ubuntu. Textgate picks
   languages from `LANGUAGE`, `LC_ALL`, `LC_MESSAGES` and `LANG`, falling back to
   US English.
-- **Linux AppImage: known issue.** The AppImage finds dictionaries only on
+- **Published 0.1.5 Linux AppImage: known issue.** The AppImage finds dictionaries only on
   Debian- and Ubuntu-based systems. On Arch, Fedora, openSUSE and others nothing
   is underlined; use the `.rpm` on Fedora or openSUSE, or a source build. The
   bundled spelling library looks for its Hunspell plugin at Debian's fixed
-  path; a relocatable build is planned for 0.1.6.
-- **Windows: known issue.** Spelling is not underlined on Windows in 0.1.5,
+  path. The 0.1.6 candidate bundles a relocatable library and Hunspell provider;
+  the build-time dictionary check and manual Arch test pass. Downloaded-package
+  checks on Fedora and Debian/Ubuntu remain pending.
+- **Windows: known issue.** Spelling is not underlined on Windows in 0.1.5 or 0.1.6,
   although the setting is present. The cause has not been identified yet;
   WebView2, the system component Textgate uses to display the editor, does not
   apply its spell checker to the editor in our testing. Nothing else is
