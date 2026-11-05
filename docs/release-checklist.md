@@ -317,7 +317,12 @@ release artifacts or claim the M1 installation issue resolved until tested.
       non-replacing move, including after an earlier same-entry check.
 - [x] Remove the check-then-replace Unix rename fallback when exclusive rename
       is unsupported; report an error rather than risk replacing another entry.
-- [ ] Validate the rename fixes in hosted Linux/macOS/Windows Checks and rebuilt
-      packages. Local macOS: 40 Rust unit tests, 2 CLI tests and Clippy pass.
+- [x] Validate the rename fixes in hosted Linux/macOS/Windows Checks
+      (run 41962274582, commit 2ded875). Local macOS: 40 Rust unit tests,
+      2 CLI tests and Clippy pass.
       Regression coverage includes distinct case-sensitive entries where the
       filesystem supports them, and a stale same-entry check on Windows.
+- [x] All four packaging jobs passed for the rename fixes (run 41962285977,
+      commit 2ded875), including Mac signatures and the AppImage spelling check.
+- [ ] Retest file-browser case-only renames and refusal to replace an existing
+      destination in the rebuilt Windows MSI (run 41962285977, commit 2ded875).
