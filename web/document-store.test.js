@@ -25,6 +25,18 @@ test('open returns raw bytes and keeps the document only when asked', async () =
   assert.deepEqual(env.calls.map((call) => call.command), ['new_document', 'open_document', 'keep_document']);
 });
 
+test('restored handles reuse the native baseline and Untitled buffers can obtain an id for recovery', async () => {
+  const env = setup([undefined, undefined]);
+  const restored = env.documents.create({ document: 42 });
+  assert.equal(await restored.ensureId(), 42);
+  await restored.save('/recovered.md', 'draft');
+  assert.equal(env.calls.some((call) => call.command === 'new_document'), false);
+  assert.equal(env.calls[0].document, 42);
+  assert.equal(await env.store.ensureId(), 7);
+  assert.equal(await env.store.ensureId(), 7);
+  assert.equal(env.calls.filter((call) => call.command === 'new_document').length, 1);
+});
+
 test('each handle has its own Rust document, created on first use and released on close', async () => {
   const env = setup([undefined, undefined, undefined]);
   const other = env.documents.create();
