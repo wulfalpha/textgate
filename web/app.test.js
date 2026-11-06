@@ -14,6 +14,7 @@ test('app switches modes without rewriting Markdown and keeps one undo history',
   const $ = (id) => document.getElementById(id);
   const { flushDetails, handleAppKeydown } = await import('./main.js');
   const view = EditorView.findFromDOM(document.querySelector('.cm-editor'));
+  assert.ok(forceParsing(view, view.state.doc.length, 1000));
   const text = () => view.state.doc.toString();
   const replace = (insert) => view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert } });
   const original = text();
@@ -97,6 +98,31 @@ test('app switches modes without rewriting Markdown and keeps one undo history',
   $('block-type').value = '2';
   $('block-type').dispatchEvent(new window.Event('change'));
   assert.equal(text(), 'Title\n=====\n\n## __Hello__ **there**\n\n* untouched\n');
+
+  // Starting a list from the toolbar works before any text has been typed,
+  // with the caret after the new marker in either editor mode.
+  for (const mode of ['live', 'source']) {
+    $(`mode-${mode}`).click();
+    for (const [command, marker] of [['bulletList', '- '], ['orderedList', '1. '], ['taskList', '- [ ] ']]) {
+      replace('');
+      document.querySelector(`[data-command="${command}"]`).click();
+      assert.equal(text(), marker);
+      assert.equal(view.state.selection.main.head, marker.length);
+      assert.ok(view.hasFocus);
+    }
+    replace('');
+    document.querySelector('[data-command="orderedList"]').click();
+    view.dispatch(view.state.replaceSelection('first'));
+    const enter = new window.KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true, cancelable: true });
+    view.contentDOM.dispatchEvent(enter);
+    assert.equal(enter.defaultPrevented, true);
+    assert.equal(text(), '1. first\n2. ');
+    view.dispatch(view.state.replaceSelection('second'));
+    $('mode-source').click();
+    await flushDetails();
+    assert.deepEqual([...$('preview').querySelectorAll('ol > li')].map((item) => item.textContent), ['first', 'second']);
+  }
+  $('mode-live').click();
 
   $('find').click();
   assert.equal(document.querySelector('main').dataset.mode, 'live');

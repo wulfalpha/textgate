@@ -105,16 +105,23 @@ const listPatterns = {
 const anyList = /^(\s*)(?:[-*+][ \t]+(?:\[[ xX]\][ \t]+)?|\d{1,9}[.)][ \t]+)/;
 
 export function toggleList(view, kind) {
-  const lines = selectedLines(view.state).filter((line) => line.text.trim());
+  const { state } = view;
+  const selected = selectedLines(state);
+  // A lone blank line starts a new item. Blank separators in a larger
+  // selection stay blank rather than becoming unintended empty items.
+  const lines = selected.filter((line) => line.text.trim() || selected.length === 1);
   const remove = lines.length > 0 && lines.every((line) => listPatterns[kind].test(line.text));
   let number = 0;
-  editPrefixes(view, (text) => {
-    if (!text.trim()) return null;
+  const changes = state.changes(prefixChanges(lines, (text) => {
     const existing = (remove ? listPatterns[kind] : anyList).exec(text);
     const indent = existing?.[1] ?? /^\s*/.exec(text)[0];
     if (remove) return [existing[0].length, indent];
     const marker = kind === 'bullet' ? '- ' : kind === 'task' ? '- [ ] ' : `${++number}. `;
     return [existing?.[0].length ?? indent.length, indent + marker];
+  }));
+  view.dispatch({
+    changes, selection: state.selection.map(changes, 1),
+    userEvent: 'input.format', scrollIntoView: true,
   });
 }
 

@@ -61,6 +61,32 @@ test('lists, tasks and quotes toggle per line without touching content', () => {
   view.destroy();
 });
 
+test('list commands start and cancel an empty item with the cursor ready to type', () => {
+  for (const [kind, marker] of [['bullet', '- '], ['ordered', '1. '], ['task', '- [ ] ']]) {
+    for (const indent of ['', '  ']) {
+      const view = make(indent, indent.length);
+      format.toggleList(view, kind);
+      assert.equal(text(view), indent + marker);
+      assert.equal(view.state.selection.main.head, indent.length + marker.length);
+      format.toggleList(view, kind);
+      assert.equal(text(view), indent);
+      assert.equal(view.state.selection.main.head, indent.length);
+      view.destroy();
+    }
+  }
+});
+
+test('list prefixes put a leading caret after the marker and leave selected blank separators alone', () => {
+  const view = make('one\n\nthree', 0);
+  format.toggleList(view, 'bullet');
+  assert.equal(text(view), '- one\n\nthree');
+  assert.equal(view.state.selection.main.head, 2);
+  view.dispatch({ selection: EditorSelection.single(0, view.state.doc.length) });
+  format.toggleList(view, 'ordered');
+  assert.equal(text(view), '1. one\n\n2. three');
+  view.destroy();
+});
+
 test('code blocks wrap lines and unwrap fences', () => {
   const view = make('let x;\n', 0);
   format.toggleCodeBlock(view);

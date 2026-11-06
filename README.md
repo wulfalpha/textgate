@@ -139,6 +139,13 @@ code, lists, task lists, quotes, and code blocks, inserts tables, and adds, edit
 or removes links. Ctrl/Cmd+B and Ctrl/Cmd+I work in both modes. Enter continues
 lists and quotes.
 
+**View → Show line endings** marks physical line endings in Live and Source
+mode: `↵` for LF, `␍↵` for CRLF and `␍` for CR. It is off by default and
+remembers your choice across sessions. These are editor decorations; they do
+not become document text or change the rendered preview. A single newline in
+an ordinary Markdown paragraph is a soft break, usually displayed as a space
+in Preview; a blank line starts a new paragraph.
+
 The preview is rendered in Rust by [comrak](https://github.com/kivikakk/comrak),
 a port of GitHub's cmark-gfm, with tables, task lists, strikethrough, autolinks,
 footnotes, GitHub alerts (`> [!NOTE]`), and heading anchors; YAML front matter is
@@ -396,7 +403,8 @@ spell checking, and themes.
 | File browser menu | Menu key or Shift+F10 |
 
 Choose **View → Vim bindings** to enable Vim editing in either mode. The status
-bar shows the current Vim mode. The file commands use the same save checks as
+bar shows the current Vim mode. Vim is off by default; turning it on or off is
+remembered across sessions. The file commands use the same save checks as
 the menus: `:w` saves, `:sav` chooses a new file, `:wq` and `:x` save and close
 the tab, `:q` closes it (refusing with E37 if there are unsaved changes, as Vim
 does), and `:q!` closes without saving; closing the last tab closes the window.
