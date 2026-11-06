@@ -22,6 +22,7 @@
 
 ## Validation on the fix branch
 
+- User-verified on M4: line-ending markers work correctly and are unobtrusive.
 - 125 JavaScript tests and the frontend build pass.
 - Isolated M4 test app: starting a blank bullet list and continuing it with
   Enter works; the native Show line endings menu displays LF markers in the
