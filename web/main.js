@@ -28,7 +28,8 @@ import { createTabs, fileName, tabLabels } from './tabs.js';
 import { createFileTree } from './file-tree.js';
 import { setupSidebarWidth } from './sidebar-width.js';
 import { createActionRunner } from './action-runner.js';
-import { encodeDocument, defaultFormat, lineEndingLabel, documentFormat, preserveDocumentFormat, sameDocumentFormat, normalizeLineEndings, snapshotDocument } from './document-format.js';
+import { createSessionRecovery } from './session-recovery.js';
+import { encodeDocument, decodeDocument, defaultFormat, lineEndingLabel, documentFormat, preserveDocumentFormat, sameDocumentFormat, normalizeLineEndings, snapshotDocument } from './document-format.js';
 import { createRenderer } from './markdown.js';
 import { createDocumentDetails, updateOutline, detailsDelay, largeDocument } from './document-details.js';
 import { livePreview } from './live-preview.js';
@@ -64,6 +65,7 @@ let previewVersion = 0;
 let previewRenderedDoc = null;
 let previewBusy = false;
 let previewPromise = null;
+let sessionRecovery = null;
 const details = createDocumentDetails();
 const vimMode = new Compartment();
 const numbersMode = new Compartment();
@@ -83,7 +85,7 @@ const stateOf = (tab) => (tab === tabs.active ? view.state : tab.state);
 // Cached per tab, so typing does not compare every open document each keystroke.
 function dirty(tab = tabs.active) {
   // A file moved to the trash: its tab keeps the text until saved again.
-  if (tab.deleted) return true;
+  if (tab.deleted || tab.recovered) return true;
   const state = stateOf(tab);
   const memo = tab.dirtyMemo;
   if (memo?.state === state && memo.savedDoc === tab.savedDoc && memo.savedFormat === tab.savedFormat) return memo.value;
@@ -112,6 +114,7 @@ function refresh() {
   // Outline, statistics and preview are derived views; batch them while typing.
   clearTimeout(detailsTimer);
   detailsTimer = setTimeout(refreshDetails, detailsDelay(view.state.doc.length));
+  sessionRecovery?.schedule();
 }
 async function refreshDetails() {
   clearTimeout(detailsTimer);
@@ -192,18 +195,42 @@ async function askSave(tab) {
 }
 // Asks until the answer covers the latest edits: typing can continue while a
 // native confirmation is on screen, and approval must not discard that too.
-async function approveDiscard(list, message, okLabel) {
+async function approveDiscard(message, okLabel) {
   while (true) {
-    const changed = list.filter((tab) => tabs.list.includes(tab) && dirty(tab));
+    const changed = tabs.list.filter((tab) => dirty(tab));
     if (!changed.length) return true;
     const before = changed.map((tab) => snapshotDocument(stateOf(tab)));
     if (!await askDiscard(message(changed), okLabel)) return false;
-    if (changed.every((tab, i) => tabs.list.includes(tab) && snapshotDocument(stateOf(tab)).eq(before[i]))) return true;
+    const latest = tabs.list.filter((tab) => dirty(tab));
+    if (latest.length === changed.length && latest.every((tab, i) =>
+      tab === changed[i] && snapshotDocument(stateOf(tab)).eq(before[i]))) return true;
   }
 }
-const approveQuit = () => approveDiscard(tabs.list, (changed) => (changed.length === 1
+export const approveQuit = () => approveDiscard((changed) => (changed.length === 1
   ? `Discard unsaved changes to ${fileName(changed[0].path)}?`
   : `Discard unsaved changes in ${changed.length} documents?\n\n${changed.map((tab) => fileName(tab.path)).join('\n')}`), 'Quit Without Saving');
+
+async function finishQuit(force = false) {
+  while (true) {
+    if (!force && !await approveQuit()) return;
+    const before = tabs.list.map((tab) => ({ tab, path: tab.path, deleted: tab.deleted,
+      snapshot: snapshotDocument(stateOf(tab)) }));
+    if (sessionRecovery && !await sessionRecovery.finish()) return;
+    const current = tabs.list;
+    const unchanged = before.length === current.length && before.every((item, i) =>
+      item.tab === current[i] && item.path === current[i].path && item.deleted === current[i].deleted &&
+      snapshotDocument(stateOf(current[i])).eq(item.snapshot));
+    if (unchanged) {
+      try { await getCurrentWindow().destroy(); }
+      catch (error) { await sessionRecovery?.resume(); throw error; }
+      return;
+    }
+    // New edits during checkpoint I/O need fresh approval, even if the earlier
+    // request was a forced Vim quit. Resume recovery before asking again.
+    await sessionRecovery?.resume();
+    force = false;
+  }
+}
 
 // Shows a tab's stored editor state. Settings are global, so the state's
 // compartments are brought up to date; Vim starts again in Normal mode.
@@ -258,6 +285,18 @@ function discardTab(tab) {
   if (shown) load(next);
   refresh();
 }
+async function closeApprovedTab(tab) {
+  // Persist the tab's removal before discarding its editor state. A failed
+  // checkpoint leaves the tab available, rather than reviving it after a crash.
+  const before = snapshotDocument(stateOf(tab));
+  if (sessionRecovery && !await sessionRecovery.commit(() => captureSession(tab))) return false;
+  if (!snapshotDocument(stateOf(tab)).eq(before)) {
+    sessionRecovery?.schedule();
+    return closeTab(tab);
+  }
+  discardTab(tab);
+  return true;
+}
 // Asks again if the tab changes while the question is open, so later edits are
 // never discarded unseen; a cancelled or failed save keeps the tab open.
 async function closeTab(tab = tabs.active) {
@@ -270,7 +309,7 @@ async function closeTab(tab = tabs.active) {
       if (!await saveDocument(false, tab)) return false;
     } else if (snapshotDocument(stateOf(tab)).eq(before)) break;
   }
-  if (tabs.list.includes(tab)) discardTab(tab);
+  if (tabs.list.includes(tab)) return closeApprovedTab(tab);
   return true;
 }
 // The tab bar is rebuilt only when a label, unsaved marker or the active tab changes.
@@ -632,6 +671,7 @@ async function saveDocument(saveAs = false, tab = tabs.active) {
   }
   tab.path = destination;
   tab.deleted = false;
+  tab.recovered = false;
   tab.savedDoc = snapshot;
   tab.savedFormat = snapshotFormat;
   refresh();
@@ -707,7 +747,7 @@ function updateEditorStatus() {
 view.dom.addEventListener('keydown', () => queueMicrotask(updateEditorStatus));
 $('quit').onclick = () => run(async () => {
   if (!isTauri()) { $('status').textContent = 'Close this browser tab to quit.'; return; }
-  if (await approveQuit()) await getCurrentWindow().destroy();
+  await finishQuit();
 });
 defineVimFileCommands(Vim, {
   run,
@@ -717,9 +757,9 @@ defineVimFileCommands(Vim, {
   // Callers have already saved or chosen to discard, so close the tab without
   // asking; closing the last one closes the window.
   close: async () => {
-    if (tabs.size > 1) { discardTab(tabs.active); return; }
+    if (tabs.size > 1) { await closeApprovedTab(tabs.active); return; }
     if (!isTauri()) { $('status').textContent = 'Close this browser tab to quit.'; return; }
-    await getCurrentWindow().destroy();
+    await finishQuit(true);
   },
   message: (text) => { $('status').textContent = text; },
   // Vim is still handling the key when these run; switch tabs once it is done.
@@ -731,7 +771,7 @@ defineVimFileCommands(Vim, {
     // Callers have checked or chosen to discard unsaved changes.
     closeAll: async () => {
       if (!isTauri()) { $('status').textContent = 'Close this browser tab to quit.'; return; }
-      await getCurrentWindow().destroy();
+      await finishQuit(true);
     },
   },
 });
@@ -839,7 +879,7 @@ window.addEventListener('beforeunload', (event) => { if (tabs.list.some((tab) =>
 if (isTauri()) {
   getCurrentWindow().onCloseRequested(async (event) => {
     event.preventDefault();
-    await run(async () => { if (await approveQuit()) await getCurrentWindow().destroy(); });
+    await run(() => finishQuit());
   }).catch(report);
 }
 function setMode(next) {
@@ -917,10 +957,63 @@ $('link-form').onsubmit = (event) => {
 setMode('live');
 updateToolbar();
 
-setupExternalOpen({ desktop: isTauri(), listen, invoke, run, report,
-  openPath: openFile,
-  openFolder: showLaunchedFolder,
-}).catch(report);
+let startupRecoveryWarning = '';
+function recoveryWarning(message = '') {
+  const text = [startupRecoveryWarning, message].filter(Boolean).join('\n');
+  $('recovery-warning').textContent = text;
+  $('recovery-warning').hidden = !text;
+}
+async function captureSession(exclude = null) {
+  const list = tabs.list.filter((tab) => tab !== exclude && (tab.path || dirty(tab)));
+  const active = Math.max(0, list.indexOf(tabs.active));
+  // Freeze the text before asynchronous handle creation. Edits arriving during
+  // capture schedule the following checkpoint without altering this snapshot.
+  const frozen = list.map((tab) => {
+    const state = stateOf(tab);
+    return { tab, contents: encodeDocument(state.doc.toString(), state.field(documentFormat)),
+      dirty: dirty(tab), anchor: state.selection.main.anchor, head: state.selection.main.head };
+  });
+  const snapshots = await Promise.all(frozen.map(async ({ tab, ...snapshot }) =>
+    ({ ...snapshot, document: await tab.file.ensureId() })));
+  return { tabs: snapshots, active };
+}
+async function restoreSession() {
+  if (!isTauri()) return;
+  sessionRecovery = createSessionRecovery({ invoke, capture: captureSession,
+    enqueue: (action) => run.enqueue(action, { silent: true }), report: recoveryWarning });
+  await run.enqueue(async () => {
+    try {
+      const restored = await sessionRecovery.restore();
+      const restoredTabs = [];
+      for (const entry of restored.tabs) {
+        const { text, format } = decodeDocument(new TextEncoder().encode(entry.contents));
+        const tab = place({ text, format, path: entry.path, file: documents.create({ document: entry.document }) });
+        tab.recovered = entry.dirty;
+        const clamp = (value) => Math.max(0, Math.min(view.state.doc.length, value));
+        view.dispatch({ selection: { anchor: clamp(entry.anchor), head: clamp(entry.head) } });
+        restoredTabs.push(tab);
+      }
+      if (restoredTabs.length) {
+        showTab(restoredTabs[restored.active] ?? restoredTabs[0]);
+        refresh();
+        const unsaved = restoredTabs.filter((tab) => tab.recovered).length;
+        $('status').textContent = unsaved
+          ? `Recovered ${unsaved} unsaved ${unsaved === 1 ? 'tab' : 'tabs'}. Save to keep the recovered text.`
+          : `Reopened ${restoredTabs.length} ${restoredTabs.length === 1 ? 'tab' : 'tabs'}`;
+      }
+      startupRecoveryWarning = restored.warnings.join('\n');
+      recoveryWarning();
+      sessionRecovery.start();
+    } catch (error) {
+      startupRecoveryWarning = `Recovery unavailable: ${error?.message ?? error}. Previous recovery data was left untouched. Save your work before closing.`;
+      recoveryWarning();
+    }
+  }, { silent: true });
+}
+// Native requests stay in Rust's queue while recovery is being restored.
+restoreSession().then(() => setupExternalOpen({ desktop: isTauri(), listen, invoke, run, report,
+  openPath: openFile, openFolder: showLaunchedFolder,
+})).catch(report);
 // The folder from the last session, and the sidebar view last chosen.
 const storedSidebar = (() => { try { return storage?.getItem('textgate.sidebar'); } catch { return null; } })();
 if (isTauri()) {

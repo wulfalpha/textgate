@@ -17,8 +17,8 @@ export function createActionRunner({ onBusy, onError, onQueued = () => {} }) {
     if (busy) { onBusy(); return; }
     await execute(action);
   };
-  run.enqueue = (action) => new Promise((resolve) => {
-    if (busy) { pending.push({ action, resolve }); onQueued(); }
+  run.enqueue = (action, { silent = false } = {}) => new Promise((resolve) => {
+    if (busy) { pending.push({ action, resolve }); if (!silent) onQueued(); }
     else void execute(action).finally(resolve);
   });
   return run;

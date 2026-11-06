@@ -39,6 +39,7 @@
 }
 
 :root { font-family: var(--tg-font-ui); color: var(--tg-text); background: var(--tg-background); font-synthesis: none; }
+.recovery-warning { margin: 0; padding: 8px 20px; border-top: 2px solid var(--tg-warning); background: var(--tg-surface); color: var(--tg-text); font-size: 12px; white-space: pre-wrap; }
 * { box-sizing: border-box; }
 body { margin: 0; height: 100vh; display: flex; flex-direction: column; }
 header { height: 64px; display: flex; align-items: center; padding: 0 24px; gap: 12px; border-bottom: 1px solid var(--tg-border); }

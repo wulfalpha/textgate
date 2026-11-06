@@ -193,7 +193,7 @@ pub enum SaveMode {
 }
 
 pub type DocumentId = u32;
-type Version = (PathBuf, Option<Vec<u8>>);
+pub(crate) type Version = (PathBuf, Option<Vec<u8>>);
 
 // What Rust knows about one open document (one tab).
 #[derive(Default)]
@@ -346,6 +346,62 @@ fn gone() -> SaveError {
 }
 
 impl Documents {
+    /// Only document handles already owned by this process may be checkpointed.
+    /// Paths and original bytes never come from the webview's checkpoint data.
+    pub(crate) fn recovery_baselines(
+        &self,
+        ids: &[DocumentId],
+    ) -> Result<Vec<Option<Version>>, SaveError> {
+        let open = self.open.lock().unwrap();
+        ids.iter()
+            .map(|id| {
+                open.get(id)
+                    .map(|slots| slots.baseline.clone())
+                    .ok_or_else(gone)
+            })
+            .collect()
+    }
+
+    /// Called only with records read by the native recovery store. Dirty
+    /// buffers retain their old baseline; clean tabs read today's disk bytes.
+    pub(crate) fn restore_recovery(
+        &self,
+        original: Option<Version>,
+        contents: &str,
+        dirty: bool,
+    ) -> Result<(DocumentId, Option<PathBuf>, Vec<u8>), SaveError> {
+        if original
+            .as_ref()
+            .is_some_and(|(path, _)| !path.is_absolute())
+        {
+            return Err(failure("The recovery file contains a relative path."));
+        }
+        let id = self.create();
+        let result = (|| {
+            let path = original.as_ref().map(|(path, _)| path.clone());
+            if let Some(path) = &path {
+                self.remember(path);
+            }
+            if !dirty && let Some((path, baseline)) = &original {
+                let bytes = self.open_with(id, path, baseline.is_none())?;
+                self.keep(id, path)?;
+                return Ok((id, Some(path.clone()), bytes));
+            }
+            let mut open = self.open.lock().unwrap();
+            if let Some(path) = &path {
+                let file = identity(path);
+                Self::check_free(&open, id, &file)?;
+                open.get_mut(&id).ok_or_else(gone)?.file = Some(file);
+            }
+            open.get_mut(&id).ok_or_else(gone)?.baseline = original;
+            Ok((id, path, contents.as_bytes().to_vec()))
+        })();
+        if result.is_err() {
+            self.close(id);
+        }
+        result
+    }
+
     // Files chosen in the native Open and Save dialogs. These are the exact
     // paths the user picked, unlike the fs scope, which resolves symlinks and
     // so refuses files reached through linked folders.
@@ -455,7 +511,7 @@ impl Documents {
         id
     }
 
-    fn close(&self, document: DocumentId) {
+    pub(crate) fn close(&self, document: DocumentId) {
         self.open.lock().unwrap().remove(&document);
     }
 
@@ -663,6 +719,61 @@ pub async fn save_document(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn recovered_dirty_buffers_keep_the_old_baseline_and_detect_outside_changes() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("notes.md");
+        fs::write(&path, b"outside edit").unwrap();
+        let documents = Documents::default();
+        let (id, _, recovered) = documents
+            .restore_recovery(
+                Some((path.clone(), Some(b"old disk bytes".to_vec()))),
+                "unsaved buffer",
+                true,
+            )
+            .unwrap();
+        assert_eq!(recovered, b"unsaved buffer");
+        assert!(matches!(
+            documents.save(id, &path, b"unsaved buffer", SaveMode::Save),
+            Err(SaveError::Conflict { missing: false })
+        ));
+        assert_eq!(fs::read(&path).unwrap(), b"outside edit");
+        fs::remove_file(&path).unwrap();
+        assert!(matches!(
+            documents.save(id, &path, b"unsaved buffer", SaveMode::Save),
+            Err(SaveError::Conflict { missing: true })
+        ));
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn restored_clean_tabs_use_a_fresh_baseline_and_missing_prepared_files_stay_absent() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("notes.md");
+        fs::write(&path, b"new disk bytes").unwrap();
+        let documents = Documents::default();
+        let (id, _, bytes) = documents
+            .restore_recovery(
+                Some((path.clone(), Some(b"old disk bytes".to_vec()))),
+                "old disk bytes",
+                false,
+            )
+            .unwrap();
+        assert_eq!(bytes, b"new disk bytes");
+        documents
+            .save(id, &path, b"explicit save", SaveMode::Save)
+            .unwrap();
+        let missing = dir.path().join("new.md");
+        let (id, _, bytes) = documents
+            .restore_recovery(Some((missing.clone(), None)), "", false)
+            .unwrap();
+        assert!(bytes.is_empty() && !missing.exists());
+        documents
+            .save(id, &missing, b"created on Save", SaveMode::Save)
+            .unwrap();
+        assert_eq!(fs::read(&missing).unwrap(), b"created on Save");
+    }
 
     #[test]
     fn saves_exact_bytes_and_detects_same_size_changes_and_deletion() {

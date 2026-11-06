@@ -12,7 +12,7 @@ test('app switches modes without rewriting Markdown and keeps one undo history',
   const dom = installDom(readFileSync(new URL('../index.html', import.meta.url), 'utf8'));
   t.after(() => dom.window.close());
   const $ = (id) => document.getElementById(id);
-  const { flushDetails, handleAppKeydown } = await import('./main.js');
+  const { flushDetails, handleAppKeydown, approveQuit } = await import('./main.js');
   const view = EditorView.findFromDOM(document.querySelector('.cm-editor'));
   assert.ok(forceParsing(view, view.state.doc.length, 1000));
   const text = () => view.state.doc.toString();
@@ -351,6 +351,17 @@ test('app switches modes without rewriting Markdown and keeps one undo history',
   document.querySelector('#tabbar .tab-close').click();
   await tick();
   assert.equal(tabButtons().length, 1);
+  await flushDetails();
+  // A tab that becomes dirty while a quit prompt is open needs its own approval.
+  replace('first unsaved tab');
+  let quitPrompts = 0;
+  window.confirm = () => {
+    quitPrompts++;
+    if (quitPrompts === 1) { $('new').click(); replace('second unsaved tab'); }
+    return true;
+  };
+  assert.equal(await approveQuit(), true);
+  assert.equal(quitPrompts, 2);
   await flushDetails();
   view.destroy();
 });

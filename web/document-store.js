@@ -7,8 +7,8 @@
 // the disk needs none.
 export function createDocumentStore({ invoke, confirmOverwrite }) {
   return {
-    create() {
-      let id = null;
+    create({ document: restoredId = null } = {}) {
+      let id = restoredId === null ? null : Promise.resolve(restoredId);
       let closed = false;
       const document = () => {
         if (closed) return Promise.reject(new Error('This document is no longer open.'));
@@ -18,6 +18,8 @@ export function createDocumentStore({ invoke, confirmOverwrite }) {
       return {
         // The Rust id, or null before the first file operation.
         async id() { return id && await id; },
+        // Recovery includes Untitled buffers, which may not have touched disk.
+        async ensureId() { return document(); },
         async read(path, { create = false } = {}) {
           return new Uint8Array(await invoke('open_document', { document: await document(), path, allowMissing: create }));
         },

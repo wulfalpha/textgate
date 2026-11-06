@@ -438,8 +438,12 @@ Next milestones:
 - Continued package validation across supported platforms.
 
 Textgate has one window, with a tab for each open document. Closing a tab or
-quitting asks before discarding unsaved changes. There is no crash recovery or
-autosave yet, and tabs are not restored after a restart. File permissions are
+quitting asks before discarding unsaved changes. Published 0.1.6 has no crash
+recovery, autosave or tab restoration after a restart. The 0.1.7 development
+branch adds private recovery checkpoints for unsaved buffers and restores named
+tabs after a normal quit; it does not autosave over Markdown files. See the
+[recovery milestone](docs/plans/0.1.7-recovery.md) for behavior and limits.
+File permissions are
 restricted to paths granted through native file dialogs or native launch/file-open
 requests, the one workspace folder chosen the same way (checked after resolving
 symbolic links, so a link inside it cannot reach outside), plus the dedicated

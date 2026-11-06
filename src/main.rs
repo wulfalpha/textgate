@@ -3,6 +3,7 @@
 mod documents;
 mod launch;
 mod markdown;
+mod recovery;
 mod spelling;
 mod themes;
 mod workspace;
@@ -59,6 +60,7 @@ fn main() {
         }))
         .manage(launch::OpenRequests::default())
         .manage(documents::Documents::default())
+        .manage(recovery::Recovery::default())
         .invoke_handler(tauri::generate_handler![
             themes::theme_state,
             markdown::render_markdown,
@@ -67,6 +69,8 @@ fn main() {
             documents::open_document,
             documents::keep_document,
             documents::save_document,
+            recovery::restore_session,
+            recovery::checkpoint_session,
             workspace::open_workspace,
             workspace::workspace,
             workspace::close_workspace,
