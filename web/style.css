@@ -175,6 +175,7 @@ main[data-mode="source"] #format-toolbar { display: none; }
 .cm-live .cm-lp-quote { border-left: 3px solid var(--tg-focus); padding-left: 18px; color: var(--tg-muted); }
 .cm-live .cm-lp-source { font-family: var(--tg-font-mono); font-size: 12px; color: var(--tg-muted); }
 .cm-live .cm-lp-bullet { color: var(--tg-muted); }
+.cm-editor .cm-line-ending { color: var(--tg-muted); font: 11px/1 var(--tg-font-mono); padding-left: .25em; user-select: none; -webkit-user-select: none; }
 .cm-live .cm-lp-task { accent-color: var(--tg-accent); cursor: pointer; margin: 0 4px 0 0; vertical-align: middle; }
 .cm-live .cm-lp-rule { display: inline-block; width: 100%; vertical-align: middle; border-top: 1px solid var(--tg-border); }
 .cm-lp-table { font-family: var(--tg-font-document); padding: 4px 6px; cursor: text; overflow-x: auto; white-space: pre-wrap; }

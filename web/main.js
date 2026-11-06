@@ -12,6 +12,7 @@ import { EditorView, keymap } from '@codemirror/view';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { vim, getCM, Vim } from '@replit/codemirror-vim';
 import { fullHeightVimCursor } from './vim-cursor.js';
+import { readVimEnabled, storeVimEnabled } from './vim-preference.js';
 import { defineVimFileCommands } from './vim-commands.js';
 import { spellcheck, readSpellcheck, storeSpellcheck } from './spellcheck.js';
 import createDOMPurify from 'dompurify';
@@ -32,6 +33,7 @@ import { createRenderer } from './markdown.js';
 import { createDocumentDetails, updateOutline, detailsDelay, largeDocument } from './document-details.js';
 import { livePreview } from './live-preview.js';
 import { relativeLineNumbers } from './line-numbers.js';
+import { lineEndingMarkers, readShowLineEndings, storeShowLineEndings } from './line-endings.js';
 import { createZoom } from './zoom.js';
 import { textDirection } from './text-direction.js';
 import * as format from './markdown-commands.js';
@@ -49,10 +51,11 @@ const tabs = createTabs();
 
 const $ = (id) => document.getElementById(id);
 const initial = '# Welcome to Textgate\n\nA quiet place to write Markdown.\n\n## Start writing\n\nOpen a document or create a new one. Your preview updates as you type.\n\n- **Bold**, *italic*, and ~~strikethrough~~\n- Keyboard-friendly editing\n- Optional Vim keybindings\n- [x] Your Markdown is never rewritten\n\n## Tables\n\n| Feature | Status |\n| --- | --- |\n| Live preview | Ready |\n| GFM tables | Ready |\n\n```rust\nfn main() {\n    println!("Hello, Textgate!");\n}\n```\n';
-let vimEnabled = false;
 let relativeNumbers = false;
 const storage = (() => { try { return window.localStorage; } catch { return null; } })();
+let vimEnabled = readVimEnabled(storage);
 let spellchecking = readSpellcheck(storage);
+let showLineEndings = readShowLineEndings(storage);
 let mode = 'live';
 let nativeMenus = null;
 let title = '';
@@ -65,6 +68,7 @@ const details = createDocumentDetails();
 const vimMode = new Compartment();
 const numbersMode = new Compartment();
 const spellcheckMode = new Compartment();
+const lineEndingsMode = new Compartment();
 const liveMode = new Compartment();
 const filters = [{ name: 'Markdown', extensions: ['md', 'markdown', 'txt'] }];
 const view = new EditorView({
@@ -211,6 +215,7 @@ function load(tab, { focus = true } = {}) {
     vimMode.reconfigure(vimEnabled ? vimExtensions() : []),
     numbersMode.reconfigure(relativeNumbers ? relativeLineNumbers() : []),
     spellcheckMode.reconfigure(spellchecking ? spellcheck() : []),
+    lineEndingsMode.reconfigure(showLineEndings ? lineEndingMarkers() : []),
     liveMode.reconfigure(mode === 'live' ? livePreview({ render }) : []),
     ...(scroll ? [scroll] : []),
   ] });
@@ -568,10 +573,11 @@ async function tabWithDocument(id) {
   for (const tab of tabs.list) if (await tab.file.id() === id) return tab;
   return null;
 }
-const vimExtensions = () => [vim(), fullHeightVimCursor];
+function vimExtensions() { return [vim(), fullHeightVimCursor]; }
 function extensions(initialFormat = defaultFormat) {
   return [vimMode.of(vimEnabled ? vimExtensions() : []), basicSetup, preserveDocumentFormat(initialFormat), numbersMode.of(relativeNumbers ? relativeLineNumbers() : []),
     spellcheckMode.of(spellchecking ? spellcheck() : []),
+    lineEndingsMode.of(showLineEndings ? lineEndingMarkers() : []),
     // classHighlighter has no class for strikethrough.
     syntaxHighlighting(classHighlighter), syntaxHighlighting(tagHighlighter([{ tag: tags.strikethrough, class: 'tok-strikethrough' }])),
     markdown({ base: markdownLanguage, codeLanguages: fencedLanguage }),
@@ -664,6 +670,14 @@ $('relative-numbers').onclick = () => {
   $('relative-numbers').setAttribute('aria-pressed', String(relativeNumbers));
   view.focus();
 };
+$('show-line-endings').setAttribute('aria-pressed', String(showLineEndings));
+$('show-line-endings').onclick = () => {
+  showLineEndings = !showLineEndings;
+  storeShowLineEndings(storage, showLineEndings);
+  view.dispatch({ effects: lineEndingsMode.reconfigure(showLineEndings ? lineEndingMarkers() : []) });
+  setPressed($('show-line-endings'), showLineEndings);
+  view.focus();
+};
 $('spellcheck').setAttribute('aria-pressed', String(spellchecking));
 $('spellcheck').onclick = () => {
   spellchecking = !spellchecking;
@@ -672,8 +686,10 @@ $('spellcheck').onclick = () => {
   $('spellcheck').setAttribute('aria-pressed', String(spellchecking));
   view.focus();
 };
+$('vim').setAttribute('aria-pressed', String(vimEnabled));
 $('vim').onclick = () => {
   vimEnabled = !vimEnabled;
+  storeVimEnabled(storage, vimEnabled);
   view.dispatch({ effects: vimMode.reconfigure(vimEnabled ? vimExtensions() : []) });
   $('vim').setAttribute('aria-pressed', String(vimEnabled));
   updateEditorStatus();

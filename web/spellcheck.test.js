@@ -3,16 +3,20 @@ import assert from 'node:assert/strict';
 import { installDom } from './test-dom.js';
 import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
-import { ensureSyntaxTree } from '@codemirror/language';
+import { forceParsing } from '@codemirror/language';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { excludedRanges, readSpellcheck, spellcheck, storeSpellcheck } from './spellcheck.js';
 
 installDom();
 
 function excluded(doc) {
-  const state = EditorState.create({ doc, extensions: [markdown({ base: markdownLanguage })] });
-  ensureSyntaxTree(state, state.doc.length, 5000);
-  return excludedRanges(state, 0, state.doc.length).map(([from, to]) => doc.slice(from, to));
+  const view = new EditorView({ parent: document.body,
+    state: EditorState.create({ doc, extensions: [markdown({ base: markdownLanguage })] }),
+  });
+  assert.ok(forceParsing(view, view.state.doc.length, 5000));
+  const ranges = excludedRanges(view.state, 0, view.state.doc.length).map(([from, to]) => doc.slice(from, to));
+  view.destroy();
+  return ranges;
 }
 
 test('prose is checked; code, URLs and HTML are not', () => {
