@@ -77,6 +77,8 @@ dialog { border: 1px solid var(--tg-border); border-radius: 10px; padding: 24px;
 dialog::backdrop { background: var(--tg-backdrop); }
 dialog h3 { margin-top: 0; } dialog label { display: block; margin-bottom: 8px; font-size: 13px; }
 dialog input { width: 100%; } dialog form > div { display: flex; justify-content: flex-end; gap: 6px; }
+#missing-note-id { width: auto; margin-right: 6px; }
+#missing-note-path { overflow-wrap: anywhere; }
 #link-error { font-size: 12px; color: var(--tg-error); }
 
 /* Shared theme hooks for the preview, live editor, and editor chrome. */

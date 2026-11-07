@@ -1,4 +1,4 @@
-import { syntaxTree } from '@codemirror/language';
+import { syntaxTree, ensureSyntaxTree } from '@codemirror/language';
 import { frontMatterEnd } from './markdown-structure.js';
 
 const wikiPattern = /^\[\[([^\[\]\n|]+)(?:\|([^\[\]\n|]+))?\]\]/;
@@ -58,4 +58,31 @@ export function splitNoteLink(href) {
     return { path: decodeURIComponent(index < 0 ? href : href.slice(0, index)),
       fragment: index < 0 ? '' : decodeURIComponent(href.slice(index + 1)) };
   } catch { throw new Error('This link contains an invalid URL escape.'); }
+}
+
+// Locate only the clicked wiki destination, never a textual search through
+// code or another link. A preview supplies its occurrence among equal hrefs.
+export function wikiLinkTarget(state, href, { position, occurrence = 0, expectedCount } = {}) {
+  const tree = ensureSyntaxTree(state, state.doc.length, 100);
+  if (!tree) return null;
+  const matches = [];
+  const requested = splitNoteLink(href);
+  const front = frontMatterEnd(state.doc.sliceString(0, Math.min(state.doc.length, 65536)));
+  tree.iterate({ enter(node) {
+    if (node.name !== 'WikiLink' || node.from < front) return;
+    const target = node.node.getChild('WikiLinkTarget');
+    const original = state.sliceDoc(target.from, target.to).trim();
+    let destination;
+    try { destination = splitNoteLink(original); } catch { return; }
+    if (!requested || !destination || destination.path !== requested.path || destination.fragment !== requested.fragment) return;
+    if (position !== undefined && (position < node.from || position > node.to)) return;
+    matches.push({ from: target.from, to: target.to, href: original, aliased: Boolean(node.node.getChild('WikiLinkLabel')) });
+  } });
+  if (expectedCount !== undefined && matches.length !== expectedCount) return null;
+  return matches[position === undefined ? occurrence : 0] ?? null;
+}
+
+export function wikiIdDestination(href, id, aliased = false) {
+  const hash = href.indexOf('#');
+  return id + (hash < 0 ? '' : href.slice(hash)) + (aliased ? '' : `|${href}`);
 }
