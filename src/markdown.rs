@@ -1,4 +1,4 @@
-use comrak::{Options, markdown_to_html};
+use comrak::{Anchorizer, Arena, Options, markdown_to_html, nodes::NodeValue, parse_document};
 
 // GitHub-flavored rendering via comrak, a port of GitHub's cmark-gfm.
 // Raw HTML is passed through here and sanitized by DOMPurify in the webview.
@@ -7,6 +7,8 @@ fn options() -> Options<'static> {
     options.extension.strikethrough = true;
     options.extension.table = true;
     options.extension.autolink = true;
+    options.extension.wikilinks_title_after_pipe = true;
+    options.extension.wikilinks_ignore_embeds = true;
     options.extension.tasklist = true;
     options.extension.footnotes = true;
     options.extension.alerts = true;
@@ -27,9 +29,48 @@ pub async fn render_markdown(source: String) -> String {
     render(&source)
 }
 
+fn heading_line(source: &str, fragment: &str) -> Option<usize> {
+    let arena = Arena::new();
+    let root = parse_document(&arena, source, &options());
+    let mut anchors = Anchorizer::new();
+    for node in root.descendants() {
+        if matches!(node.data.borrow().value, NodeValue::Heading(_))
+            && anchors.anchorize(&node.collect_text()) == fragment
+        {
+            return Some(node.data.borrow().sourcepos.start.line);
+        }
+    }
+    None
+}
+
+#[tauri::command]
+pub async fn note_heading_line(source: String, fragment: String) -> Result<Option<usize>, String> {
+    tauri::async_runtime::spawn_blocking(move || heading_line(&source, &fragment))
+        .await
+        .map_err(|error| error.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn heading_links_match_rendered_ids_including_duplicates_and_nested_headings() {
+        let source = "# Café *notes*\n\n# Café notes\n\n> ## Nested `code`\n";
+        assert_eq!(heading_line(source, "café-notes"), Some(1));
+        assert_eq!(heading_line(source, "café-notes-1"), Some(3));
+        assert_eq!(heading_line(source, "nested-code"), Some(5));
+        assert_eq!(heading_line(source, "missing"), None);
+    }
+
+    #[test]
+    fn renders_wiki_aliases_without_turning_code_or_embeds_into_links() {
+        let html = render("[[Note name|Label]] `[[Code]]` ![[Embed]] \\[[Escaped]]");
+        assert!(html.contains("data-wikilink=\"true\">Label</a>"));
+        assert!(html.contains("<code>[[Code]]</code>"));
+        assert!(!html.contains("href=\"Embed\""));
+        assert!(!html.contains("href=\"Escaped\""));
+    }
 
     #[test]
     fn renders_github_flavored_extensions() {

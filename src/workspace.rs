@@ -20,6 +20,10 @@ pub struct Root {
 }
 
 impl Root {
+    pub(crate) fn link_base(&self) -> &Path {
+        &self.given
+    }
+
     pub(crate) fn watch_path(&self) -> &Path {
         &self.real
     }

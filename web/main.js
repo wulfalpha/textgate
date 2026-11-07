@@ -29,6 +29,7 @@ import { createFileTree } from './file-tree.js';
 import { setupSidebarWidth } from './sidebar-width.js';
 import { createActionRunner } from './action-runner.js';
 import { createSessionRecovery } from './session-recovery.js';
+import { wikiLinks, noteLinkAt, splitNoteLink } from './note-links.js';
 import { createDiskMonitor, reloadDiskTab } from './disk-monitor.js';
 import { encodeDocument, decodeDocument, defaultFormat, lineEndingLabel, documentFormat, preserveDocumentFormat, sameDocumentFormat, normalizeLineEndings, snapshotDocument } from './document-format.js';
 import { createRenderer } from './markdown.js';
@@ -691,7 +692,7 @@ function extensions(initialFormat = defaultFormat) {
     lineEndingsMode.of(showLineEndings ? lineEndingMarkers() : []),
     // classHighlighter has no class for strikethrough.
     syntaxHighlighting(classHighlighter), syntaxHighlighting(tagHighlighter([{ tag: tags.strikethrough, class: 'tok-strikethrough' }])),
-    markdown({ base: markdownLanguage, codeLanguages: fencedLanguage }),
+    markdown({ base: markdownLanguage, codeLanguages: fencedLanguage, extensions: [wikiLinks] }),
     liveMode.of(mode === 'live' ? livePreview({ render }) : []),
     keymap.of([indentWithTab,
       { key: 'Mod-b', run: (target) => { format.toggleInline(target, 'bold'); return true; } },
@@ -915,6 +916,16 @@ export function handleAppKeydown(event, { native = Boolean(nativeMenus), platfor
   }
   if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
   const key = event.key.toLowerCase();
+  if (key === 'enter' && !event.shiftKey && view.dom.contains(event.target)) {
+    const link = noteLinkAt(view.state);
+    if (link) {
+      // Handle before CodeMirror's default Mod+Enter (insert blank line).
+      event.preventDefault();
+      event.stopPropagation();
+      void run(() => followNoteLink(link));
+      return;
+    }
+  }
   // Many layouts need Shift for +, which the Ctrl/Cmd+= menu shortcut misses.
   if (key === '+' && isTauri()) { event.preventDefault(); $('zoom-in').click(); return; }
   // WebView2 can deliver these keys to the page without invoking the native
@@ -936,6 +947,39 @@ export function handleAppKeydown(event, { native = Boolean(nativeMenus), platfor
   if (key === 'q') $('quit').click();
 }
 window.addEventListener('keydown', handleAppKeydown, true);
+async function followNoteLink({ href, wiki = false }) {
+  const destination = splitNoteLink(href);
+  if (!destination) { $('status').textContent = `Link: ${href}`; return; }
+  if (destination.path) {
+    if (!isTauri()) { $('status').textContent = 'Run the desktop app to open linked notes.'; return; }
+    const path = await invoke('resolve_note_link', { document: await tabs.active.file.id(),
+      link: destination.path, wiki });
+    await openFile(path);
+  }
+  if (!destination.fragment) return;
+  const doc = view.state.doc;
+  if (isTauri()) {
+    const line = await invoke('note_heading_line', { source: doc.toString(), fragment: destination.fragment });
+    if (view.state.doc !== doc) return;
+    if (!line) { $('status').textContent = `Heading not found: ${destination.fragment}`; return; }
+    const offset = doc.line(Math.min(doc.lines, Math.max(1, line))).from;
+    view.dispatch({ selection: { anchor: offset }, effects: EditorView.scrollIntoView(offset, { y: 'center' }) });
+    view.focus();
+    return;
+  }
+  const result = await details.get(doc);
+  if (!result || view.state.doc !== doc) return;
+  const counts = new Map();
+  const target = result.headings.find((heading) => {
+    const base = heading.text.toLowerCase().replace(/[^\p{L}\p{N}_\- ]/gu, '').replace(/ /g, '-');
+    const count = counts.get(base) ?? 0;
+    counts.set(base, count + 1);
+    return destination.fragment === (count ? `${base}-${count}` : base);
+  });
+  if (!target) { $('status').textContent = `Heading not found: ${destination.fragment}`; return; }
+  view.dispatch({ selection: { anchor: target.offset }, effects: EditorView.scrollIntoView(target.offset, { y: 'center' }) });
+  view.focus();
+}
 // Preview links must not navigate away from the editor; in-page anchors scroll.
 // Sanitizing prefixes document ids with user-content-, as GitHub does.
 $('preview').addEventListener('click', (event) => {
@@ -947,7 +991,22 @@ $('preview').addEventListener('click', (event) => {
   try { fragment = decodeURIComponent(fragment); } catch { /* malformed escape: use it as written */ }
   const target = href.startsWith('#') && [...$('preview').querySelectorAll('[id]')].find((element) => element.id === `user-content-${fragment}`);
   if (target) target.scrollIntoView({ block: 'start' });
-  else $('status').textContent = `Link: ${href}`;
+  else {
+    $('status').textContent = `Link: ${href}`;
+    void run(() => followNoteLink({ href, wiki: link.getAttribute('data-wikilink') === 'true' }));
+  }
+});
+view.dom.addEventListener('click', (event) => {
+  const anchor = event.target.closest('a');
+  if (anchor) {
+    event.preventDefault();
+    void run(() => followNoteLink({ href: anchor.getAttribute('href') ?? '', wiki: anchor.getAttribute('data-wikilink') === 'true' }));
+    return;
+  }
+  if (!(event.metaKey || event.ctrlKey)) return;
+  const position = view.posAtCoords({ x: event.clientX, y: event.clientY });
+  const link = position === null ? null : noteLinkAt(view.state, position);
+  if (link) { event.preventDefault(); void run(() => followNoteLink(link)); }
 });
 window.addEventListener('beforeunload', (event) => { if (tabs.list.some((tab) => dirty(tab))) { event.preventDefault(); event.returnValue = ''; } });
 if (isTauri()) {

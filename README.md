@@ -160,6 +160,17 @@ not rendered when enclosed by `---` lines at the start of the document.
 Output is sanitized with DOMPurify. Browser-only `npm run dev` has no
 Rust backend and falls back to `marked`, which can differ in edge cases.
 
+The 0.1.7 note-links development branch opens relative Markdown links such as
+`[Next](notes/next.md#heading)` and wiki links such as `[[Next note]]` or
+`[[notes/Next note|Label]]` in tabs. Click a link in Preview, or use
+Ctrl/Cmd+click or Ctrl/Cmd+Enter on an inline/wiki link in the editor. Existing
+tabs are reused. Reference-style Markdown links can be followed in Preview.
+Wiki links without an extension use `.md`, checking the current note's folder
+first and then the workspace root. There is no recursive basename search.
+Linked notes must be in the chosen workspace or already opened through a native
+file grant. Missing links report an error and do not create files. See the
+[note-links milestone](docs/plans/0.1.7-note-links.md).
+
 ## Spell checking
 
 **View → Check spelling** underlines misspelled words using the operating
@@ -439,7 +450,9 @@ Next milestones:
 
 - Table row/column commands for Live mode.
 - 0.1.7: links between notes (`[[wiki links]]` and Markdown links), file
-  watching, autosave and crash recovery; groundwork for Zettelkasten notes in 0.2.0.
+  watching and crash recovery, with explicit Save; groundwork for Zettelkasten
+  notes in 0.2.0.
+- 0.2.0: optional source-file autosave, with conflict handling and recovery.
 - Local image resolution and external link opening (preview links currently show
   their destination in the status bar; remote images are blocked in the desktop app).
 - Continued package validation across supported platforms.
