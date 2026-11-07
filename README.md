@@ -11,6 +11,11 @@ See the [0.1.6 release notes](docs/releases/0.1.6.md),
 [package testing guide](docs/testing-0.1.4.md) and
 [contributor guide](CONTRIBUTING.md).
 
+**0.1.7 preparation:** recovery/restored tabs, outside-change detection, note
+links and local images are merged into `main`. See the
+[draft 0.1.7 notes](docs/releases/0.1.7.md). Candidate packages are being built
+and verified; 0.1.6 remains the latest published download.
+
 ![Textgate in Live mode: headings, task list, link, and table rendered in place](docs/screenshots/live.png)
 
 The [Textgate logo](docs/branding/README.md) combines a segmented omega
@@ -160,7 +165,7 @@ not rendered when enclosed by `---` lines at the start of the document.
 Output is sanitized with DOMPurify. Browser-only `npm run dev` has no
 Rust backend and falls back to `marked`, which can differ in edge cases.
 
-The 0.1.7 note-links development branch opens relative Markdown links such as
+The 0.1.7 development build opens relative Markdown links such as
 `[Next](notes/next.md#heading)` and wiki links such as `[[Next note]]` or
 `[[notes/Next note|Label]]` in tabs. Click a link in Preview, or use
 Ctrl/Cmd+click or Ctrl/Cmd+Enter on an inline/wiki link in the editor. Existing
@@ -171,7 +176,7 @@ Linked notes must be in the chosen workspace or already opened through a native
 file grant. Missing links report an error and do not create files. See the
 [note-links milestone](docs/plans/0.1.7-note-links.md).
 
-The 0.1.7 local-images branch displays PNG, JPEG, GIF and WebP images:
+The 0.1.7 development build displays PNG, JPEG, GIF and WebP images:
 
 ```md
 ![Description](images/photo.png)
@@ -472,9 +477,8 @@ out of the editor, press Escape followed by Tab.
 Next milestones:
 
 - Table row/column commands for Live mode.
-- 0.1.7: links between notes (`[[wiki links]]` and Markdown links), file
-  watching and crash recovery, with explicit Save; groundwork for Zettelkasten
-  notes in 0.2.0.
+- 0.1.7: validate the combined packages and publish the recovery, file-watching,
+  note-link and local-image milestone after final verification.
 - 0.2.0: optional source-file autosave, with conflict handling and recovery.
 - Finish local image validation for 0.1.7. External link opening remains a
   follow-up (preview web links show their destination in the status bar).
