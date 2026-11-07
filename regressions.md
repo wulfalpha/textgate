@@ -20,7 +20,17 @@
   CRLF and CR symbols in the editor without changing document bytes or Preview.
 - Remember View → Vim bindings across sessions, off by default until enabled.
 
-## Validation on the fix branch
+## 0.1.7 follow-up: macOS smart dashes break table separators
+
+- User identified typed `---` being replaced with typographic punctuation,
+  preventing a Markdown table separator from parsing.
+- Disable WebKit automatic dash substitution before creating a webview, using
+  a process-local user-default override. Preserve other launch defaults,
+  spelling support, existing document punctuation and system settings.
+- The native check, Clippy and isolated Textgate Dashes Test app build pass.
+  User confirmed the fix before authorizing the final review and commit.
+
+## Validation on the earlier fix branch
 
 - User-verified on M4: line-ending markers work correctly and are unobtrusive.
 - 125 JavaScript tests and the frontend build pass.
