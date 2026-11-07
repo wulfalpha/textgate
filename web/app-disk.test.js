@@ -2,12 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { EditorView } from '@codemirror/view';
-import { installDom } from './test-dom.js';
+import { installDom, closeDom } from './test-dom.js';
 import { documentFormat, encodeDocument } from './document-format.js';
 
 test('desktop change handling reloads clean tabs, protects dirty tabs and keeps missing-file text', async (t) => {
   const dom = installDom(readFileSync(new URL('../index.html', import.meta.url), 'utf8'));
-  t.after(() => dom.window.close());
+  t.after(() => closeDom(dom));
   const { addTab, updateDiskChanges, flushDetails } = await import('./main.js');
   const view = EditorView.findFromDOM(document.querySelector('.cm-editor'));
   const $ = (id) => document.getElementById(id);

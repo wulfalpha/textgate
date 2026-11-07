@@ -5,12 +5,12 @@ import { EditorView } from '@codemirror/view';
 import { ensureSyntaxTree, forceParsing } from '@codemirror/language';
 import { closeSearchPanel } from '@codemirror/search';
 import { fencedLanguage } from './source-language.js';
-import { installDom } from './test-dom.js';
+import { installDom, closeDom } from './test-dom.js';
 
 // Exercise the actual app wiring in a DOM. Native file dialogs remain a desktop check.
 test('app switches modes without rewriting Markdown and keeps one undo history', async (t) => {
   const dom = installDom(readFileSync(new URL('../index.html', import.meta.url), 'utf8'));
-  t.after(() => dom.window.close());
+  t.after(() => closeDom(dom));
   const $ = (id) => document.getElementById(id);
   const { flushDetails, handleAppKeydown, approveQuit } = await import('./main.js');
   const view = EditorView.findFromDOM(document.querySelector('.cm-editor'));

@@ -3,11 +3,11 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { EditorView } from '@codemirror/view';
 import { getCM } from '@replit/codemirror-vim';
-import { installDom } from './test-dom.js';
+import { installDom, closeDom } from './test-dom.js';
 
 test('saved Vim and line-ending choices are applied when the app starts and persist when turned off', async (t) => {
   const dom = installDom(readFileSync(new URL('../index.html', import.meta.url), 'utf8'));
-  t.after(() => dom.window.close());
+  t.after(() => closeDom(dom));
   const storage = window.localStorage;
   storage.setItem('textgate.vim', 'on');
   storage.setItem('textgate.show-line-endings', 'on');
