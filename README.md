@@ -160,6 +160,20 @@ not rendered when enclosed by `---` lines at the start of the document.
 Output is sanitized with DOMPurify. Browser-only `npm run dev` has no
 Rust backend and falls back to `marked`, which can differ in edge cases.
 
+**New notes with IDs (0.2.0 development).** **File → New Note…**
+(Ctrl/Cmd+Alt+N) or **New Note** in the file browser asks for a title and
+creates `202611071530 Title.md` in the open folder: a 12-digit local
+timestamp ID, a space and the title, starting with a `# Title` heading. Leave
+the title blank for an ID-only name. If a note already uses that minute's ID,
+the next free minute is used. Without an open folder, Textgate offers to open
+one first. Wiki links naming an ID, such as `[[202611071530]]` or
+`[[202611071530 Old title]]`, find that note anywhere in the open folder, so
+changing a title does not break them. Two notes sharing an ID are reported
+rather than guessed between, even if a matching filename is next to the source.
+ID links require an open folder. Use an explicit note extension, such as
+`[[202611071530 Title.md]]`, or path, such as `[[./202611071530 Title]]`, to
+request filename lookup instead. Symlink aliases of one note count once.
+
 Textgate opens relative Markdown links such as
 `[Next](notes/next.md#heading)` and wiki links such as `[[Next note]]` or
 `[[notes/Next note|Label]]` in tabs. Click a link in Preview, or use
@@ -168,8 +182,14 @@ tabs are reused. Reference-style Markdown links can be followed in Preview.
 Wiki links without an extension use `.md`, checking the current note's folder
 first and then the workspace root. There is no recursive basename search.
 Linked notes must be in the chosen workspace or already opened through a native
-file grant. Missing links report an error and do not create files. See the
-[note-links milestone](docs/plans/0.1.7-note-links.md).
+file grant. Missing links offer to create a note inside the open workspace;
+nothing is created until you confirm. Simple wiki links default to an ID-named
+note and an undoable, unsaved update of that clicked link, preserving its label
+and fragment. You can instead keep the link's filename. Explicit filenames
+and Markdown links keep their requested path; the parent folder must already
+exist. Duplicate IDs, inaccessible paths and existing files do not authorize
+creation. See the [missing-note behavior](docs/plans/0.2.0-missing-notes.md)
+and the original [note-links milestone](docs/plans/0.1.7-note-links.md).
 
 Textgate displays PNG, JPEG, GIF and WebP images:
 
@@ -430,6 +450,7 @@ spell checking, and themes.
 | Action | Shortcut |
 | --- | --- |
 | New | Ctrl/Cmd+N |
+| New note (ID name) | Ctrl/Cmd+Alt+N |
 | Open | Ctrl/Cmd+O |
 | Save | Ctrl/Cmd+S |
 | Save as | Ctrl/Cmd+Shift+S |

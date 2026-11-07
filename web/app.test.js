@@ -323,6 +323,18 @@ test('app switches modes without rewriting Markdown and keeps one undo history',
   assert.equal(nativeKey('s').defaultPrevented, true);
   await tick();
   assert.match($('status').textContent, /desktop|tauri dev/, 'Ctrl+S reaches the save action');
+  // Ctrl/Cmd+Alt+N matches the physical N key, since Alt changes the character.
+  const noteKey = (platform, options = {}) => {
+    const event = new window.KeyboardEvent('keydown', { key: '˜', code: 'KeyN', ctrlKey: true, altKey: true, cancelable: true, ...options });
+    handleAppKeydown(event, { native: true, platform });
+    return event;
+  };
+  assert.equal(noteKey('MacIntel').defaultPrevented, false, 'the native accelerator handles it');
+  assert.equal(noteKey('Win32', { shiftKey: true }).defaultPrevented, false);
+  assert.equal(noteKey('Win32', { code: 'KeyM' }).defaultPrevented, false);
+  assert.equal(noteKey('Win32').defaultPrevented, true);
+  await tick();
+  assert.match($('status').textContent, /create notes in a folder/, 'Ctrl+Alt+N reaches New Note');
   window.confirm = () => false;
   assert.equal(nativeKey('w').defaultPrevented, true);
   await tick();

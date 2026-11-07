@@ -3,7 +3,7 @@ import { setupMenus, appDialogOpen } from './menus.js';
 import packageInfo from '../package.json' with { type: 'json' };
 import { syntaxHighlighting } from '@codemirror/language';
 import { fencedLanguage } from './source-language.js';
-import { indentWithTab, undo, redo, undoDepth, redoDepth } from '@codemirror/commands';
+import { indentWithTab, isolateHistory, undo, redo, undoDepth, redoDepth } from '@codemirror/commands';
 import { openSearchPanel } from '@codemirror/search';
 import { classHighlighter, tagHighlighter, tags } from '@lezer/highlight';
 import { basicSetup } from 'codemirror';
@@ -29,7 +29,9 @@ import { createFileTree } from './file-tree.js';
 import { setupSidebarWidth } from './sidebar-width.js';
 import { createActionRunner } from './action-runner.js';
 import { createSessionRecovery } from './session-recovery.js';
-import { wikiLinks, noteLinkAt, splitNoteLink } from './note-links.js';
+import { wikiLinks, noteLinkAt, splitNoteLink, wikiLinkTarget, wikiIdDestination } from './note-links.js';
+import { noteIdCandidates } from './note-ids.js';
+import { askMissingNote } from './missing-notes.js';
 import { createDiskMonitor, reloadDiskTab } from './disk-monitor.js';
 import { encodeDocument, decodeDocument, defaultFormat, lineEndingLabel, documentFormat, preserveDocumentFormat, sameDocumentFormat, normalizeLineEndings, snapshotDocument } from './document-format.js';
 import { createRenderer } from './markdown.js';
@@ -465,6 +467,28 @@ async function newEntry(kind, folder = fileTree.folderForNew()) {
   else fileTree.select(path, { focus: true });
   $('status').textContent = `Created ${fileName(path)}`;
 }
+// A Zettelkasten note named `ID Title.md` in the open folder, opened with the
+// cursor below its heading. Without a folder, offer to choose one first.
+async function newNote() {
+  if (!isTauri()) { $('status').textContent = 'Run npm run tauri dev to create notes in a folder.'; return; }
+  if (!fileTree.root) {
+    if (!await confirm('New notes are created in the open folder. Choose a folder now?', { title: 'New Note', okLabel: 'Open Folder…', cancelLabel: 'Cancel' })) return;
+    await openFolder();
+    if (!fileTree.root) return;
+  }
+  const path = await askName({
+    title: `New note in ${fileTree.root.name}`,
+    label: 'Title',
+    hint: 'Named with a timestamp ID, such as 202611071530 Title.md. Leave blank for an ID-only name.',
+    submit: (title) => invoke('create_note', { title, ids: noteIdCandidates() }),
+  });
+  if (!path) return;
+  await fileTree.refresh();
+  await openFile(path);
+  view.dispatch({ selection: { anchor: view.state.doc.length } });
+  view.focus();
+  $('status').textContent = `Created ${fileName(path)}`;
+}
 const separatorOf = (path) => (path.includes('\\') && !path.includes('/') ? '\\' : '/');
 // Tabs follow a renamed file or folder; Rust names the documents it moved
 // (including tabs that reached a file through a linked folder).
@@ -608,6 +632,8 @@ $('close-folder').onclick = () => run(async () => {
   $('status').textContent = 'Folder closed. Open tabs stay open.';
 });
 $('refresh-files').onclick = () => fileTree.refresh().catch(report);
+$('new-note').onclick = () => run(newNote);
+$('new-note-here').onclick = () => run(newNote);
 $('new-file-here').onclick = () => run(() => newEntry('file'));
 $('new-folder-here').onclick = () => run(() => newEntry('folder'));
 $('view-files').onclick = () => showSidebar('files', { focus: true });
@@ -924,7 +950,15 @@ export function handleAppKeydown(event, { native = Boolean(nativeMenus), platfor
     showTab(switchTo, { focus: !$('tabbar').contains(document.activeElement) });
     return;
   }
-  if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
+  if (!(event.ctrlKey || event.metaKey)) return;
+  // Ctrl/Cmd+Alt+N: match the physical key, since Alt changes the character.
+  if (event.altKey) {
+    if (event.code !== 'KeyN' || event.shiftKey || (native && !/Win/.test(platform))) return;
+    event.preventDefault();
+    event.stopPropagation();
+    $('new-note').click();
+    return;
+  }
   const key = event.key.toLowerCase();
   if (key === 'enter' && !event.shiftKey && view.dom.contains(event.target)) {
     const link = noteLinkAt(view.state);
@@ -932,7 +966,7 @@ export function handleAppKeydown(event, { native = Boolean(nativeMenus), platfor
       // Handle before CodeMirror's default Mod+Enter (insert blank line).
       event.preventDefault();
       event.stopPropagation();
-      void run(() => followNoteLink(link));
+      void run(() => followNoteLink({ ...link, position: view.state.selection.main.head }));
       return;
     }
   }
@@ -957,13 +991,50 @@ export function handleAppKeydown(event, { native = Boolean(nativeMenus), platfor
   if (key === 'q') $('quit').click();
 }
 window.addEventListener('keydown', handleAppKeydown, true);
-async function followNoteLink({ href, wiki = false }) {
+
+async function followNoteLink({ href, wiki = false, position, occurrence = 0, expectedCount }) {
   const destination = splitNoteLink(href);
   if (!destination) { $('status').textContent = `Link: ${href}`; return; }
   if (destination.path) {
     if (!isTauri()) { $('status').textContent = 'Run the desktop app to open linked notes.'; return; }
-    const path = await invoke('resolve_note_link', { document: await tabs.active.file.id(),
-      link: destination.path, wiki });
+    const source = tabs.active;
+    const before = stateOf(source).doc;
+    const sourceId = await source.file.id();
+    let path;
+    try { path = await invoke('resolve_note_link', { document: sourceId, link: destination.path, wiki }); }
+    catch {
+      const proposal = await invoke('prepare_missing_note', { document: sourceId, link: destination.path, wiki });
+      const target = wiki ? wikiLinkTarget(stateOf(source), href, { position, occurrence, expectedCount }) : null;
+      // Never guess an edit in a stale preview or an incompletely parsed buffer.
+      if (proposal.canId && (!target || stateOf(source).doc !== before)) {
+        throw new Error('The source changed or the clicked link could not be located. Follow it again from the editor.');
+      }
+      const created = await askMissingNote(document, proposal, async (withId) => {
+        if (!tabs.list.includes(source) || stateOf(source).doc !== before) throw new Error('The source changed. Cancel and follow the link again.');
+        const path = await invoke('create_missing_note', { request: { document: sourceId, link: destination.path, wiki,
+          expectedRoot: proposal.root, expectedPath: proposal.path, withId, ids: withId ? noteIdCandidates() : [] } });
+        let linked = !withId;
+        if (withId && tabs.list.includes(source) && stateOf(source).doc === before) {
+          const id = fileName(path).match(/^\d{12}/)?.[0];
+          if (id) {
+            const transaction = stateOf(source).update({ changes: { from: target.from, to: target.to,
+              insert: wikiIdDestination(target.href, id, target.aliased) }, userEvent: 'input.complete', annotations: isolateHistory.of('full') });
+            if (source === tabs.active) view.dispatch(transaction);
+            else { source.state = transaction.state; refresh(); }
+            linked = true;
+          }
+        }
+        return { path, linked };
+      });
+      if (!created) return;
+      path = created.path;
+      await fileTree.refresh();
+      if (!created.linked) {
+        await openFile(path);
+        $('status').textContent = `Created ${fileName(path)}, but the source changed. Its link was not updated; link to ${fileName(path).slice(0, 12)}.`;
+        return;
+      }
+    }
     await openFile(path);
   }
   if (!destination.fragment) return;
@@ -1003,20 +1074,24 @@ $('preview').addEventListener('click', (event) => {
   if (target) target.scrollIntoView({ block: 'start' });
   else {
     $('status').textContent = `Link: ${href}`;
-    void run(() => followNoteLink({ href, wiki: link.getAttribute('data-wikilink') === 'true' }));
+    const wiki = link.getAttribute('data-wikilink') === 'true';
+    if (wiki && previewRenderedDoc !== view.state.doc) { $('status').textContent = 'Preview is updating. Follow the link again when it finishes.'; return; }
+    const peers = [...$('preview').querySelectorAll('a[data-wikilink="true"]')].filter((anchor) => anchor.getAttribute('href') === href);
+    void run(() => followNoteLink({ href, wiki, occurrence: peers.indexOf(link), expectedCount: peers.length }));
   }
 });
 view.dom.addEventListener('click', (event) => {
   const anchor = event.target.closest('a');
   if (anchor) {
     event.preventDefault();
-    void run(() => followNoteLink({ href: anchor.getAttribute('href') ?? '', wiki: anchor.getAttribute('data-wikilink') === 'true' }));
+    const position = view.posAtDOM(anchor);
+    void run(() => followNoteLink({ href: anchor.getAttribute('href') ?? '', wiki: anchor.getAttribute('data-wikilink') === 'true', position }));
     return;
   }
   if (!(event.metaKey || event.ctrlKey)) return;
   const position = view.posAtCoords({ x: event.clientX, y: event.clientY });
   const link = position === null ? null : noteLinkAt(view.state, position);
-  if (link) { event.preventDefault(); void run(() => followNoteLink(link)); }
+  if (link) { event.preventDefault(); void run(() => followNoteLink({ ...link, position })); }
 });
 window.addEventListener('beforeunload', (event) => { if (tabs.list.some((tab) => dirty(tab))) { event.preventDefault(); event.returnValue = ''; } });
 if (isTauri()) {
