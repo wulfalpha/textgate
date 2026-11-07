@@ -19,6 +19,20 @@ fn is_id(text: &str, lengths: &std::ops::RangeInclusive<usize>) -> bool {
 /// The ID a wiki link names, as `[[202611071530]]` or `[[202611071530 Any title]]`.
 pub(crate) fn link_id(link: &str) -> Option<&str> {
     let link = link.trim();
+    // Explicit note filenames and paths are an escape hatch from ID lookup.
+    // Other dots can belong to a stale title (for example "Old title v1.2").
+    if link.contains('/')
+        || std::path::Path::new(link)
+            .extension()
+            .and_then(|extension| extension.to_str())
+            .is_some_and(|extension| {
+                EXTENSIONS
+                    .iter()
+                    .any(|allowed| extension.eq_ignore_ascii_case(allowed))
+            })
+    {
+        return None;
+    }
     let id = link.split_once(' ').map_or(link, |(id, _)| id);
     is_id(id, &LINK_ID_LENGTHS).then_some(id)
 }
@@ -71,6 +85,7 @@ pub(crate) fn find_id(root: &Root, id: &str) -> io::Result<Vec<PathBuf>> {
         }
     }
     found.sort();
+    found.dedup();
     Ok(found)
 }
 
@@ -99,7 +114,12 @@ pub(crate) fn resolve_id(root: &Root, id: &str) -> Result<PathBuf, String> {
 
 // Creates `ID Title.md` (or `ID.md`) in the workspace folder, using the first
 // candidate ID no note already carries. Never replaces a file.
-fn create(root: &Root, title: &str, ids: &[String]) -> Result<PathBuf, String> {
+pub(crate) fn create(root: &Root, title: &str, ids: &[String]) -> Result<PathBuf, String> {
+    if !root.contains(root.link_base()) {
+        return Err(
+            "The open folder moved or its link target changed. Choose Open Folder again.".into(),
+        );
+    }
     let title = title.trim();
     if !title.is_empty() {
         checked_name(title)?;
@@ -181,6 +201,11 @@ mod tests {
             "202611071530x",
             "Title 202611071530",
             "202611071530123",
+            "202611071530.md",
+            "202611071530 Title.MARKDOWN",
+            "202611071530 Title.txt",
+            "./202611071530",
+            "202611071530 Folder/note",
             "",
         ] {
             assert_eq!(link_id(link), None, "{link}");
@@ -254,6 +279,19 @@ mod tests {
         fs::write(dir.path().join("202611071530.md"), "").unwrap();
         let error = resolve_id(&root, "202611071530").unwrap_err();
         assert!(error.contains("2 notes share"), "{error}");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn id_search_counts_symlink_aliases_of_one_note_once() {
+        let dir = tempfile::tempdir().unwrap();
+        let note = dir.path().join("202611071530 Original.md");
+        fs::write(&note, "").unwrap();
+        std::os::unix::fs::symlink(&note, dir.path().join("202611071530 Alias.md")).unwrap();
+        assert_eq!(
+            resolve_id(&root_for(dir.path()), "202611071530").unwrap(),
+            fs::canonicalize(note).unwrap()
+        );
     }
 
     #[cfg(unix)]

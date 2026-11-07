@@ -4,6 +4,7 @@ mod documents;
 mod images;
 mod launch;
 mod markdown;
+mod missing_notes;
 mod note_links;
 mod notes;
 mod recovery;
@@ -72,6 +73,8 @@ fn main() {
             markdown::note_heading_line,
             note_links::resolve_note_link,
             notes::create_note,
+            missing_notes::prepare_missing_note,
+            missing_notes::create_missing_note,
             images::load_note_image,
             documents::new_document,
             documents::close_document,

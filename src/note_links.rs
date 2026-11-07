@@ -3,7 +3,7 @@ use crate::documents::{DocumentId, Documents};
 use std::path::{Path, PathBuf};
 use tauri::Manager;
 
-fn resolve(
+pub(crate) fn resolve(
     documents: &Documents,
     document: Option<DocumentId>,
     link: &str,
@@ -33,6 +33,14 @@ pub(crate) fn resolve_scoped_file(
             .map_err(|_| "The source tab is no longer open.")?,
         None => None,
     };
+    // ID links always require workspace-wide uniqueness, even if a filename
+    // beside the source happens to match. Explicit paths/extensions opt out.
+    if wiki && let Some(id) = crate::notes::link_id(link) {
+        let root = root
+            .as_ref()
+            .ok_or("Open a folder before following note ID links.")?;
+        return crate::notes::resolve_id(root, id);
+    }
     let base = original
         .as_ref()
         .and_then(|path| path.parent())
@@ -82,14 +90,6 @@ pub(crate) fn resolve_scoped_file(
             continue;
         }
         return Ok(granted.unwrap_or(real));
-    }
-    // `[[202611071530]]` or `[[202611071530 Old title]]` finds the note with
-    // that ID anywhere in the workspace, so a changed title does not break it.
-    if wiki
-        && let Some(root) = &root
-        && let Some(id) = crate::notes::link_id(link)
-    {
-        return crate::notes::resolve_id(root, id);
     }
     Err(if denied {
         "This file is outside the open folder. Choose its folder with Open Folder first."
@@ -154,6 +154,71 @@ mod tests {
     }
 
     #[test]
+    fn id_links_reject_duplicates_even_when_a_local_filename_matches() {
+        let dir = tempfile::tempdir().unwrap();
+        let local = dir.path().join("local");
+        let archive = dir.path().join("archive");
+        fs::create_dir(&local).unwrap();
+        fs::create_dir(&archive).unwrap();
+        fs::write(local.join("source.md"), "").unwrap();
+        fs::write(local.join("202611071530.md"), "").unwrap();
+        fs::write(local.join("202611071531 Local title.md"), "").unwrap();
+        fs::write(archive.join("202611071530 Other title.md"), "").unwrap();
+        fs::write(archive.join("202611071531 Other title.md"), "").unwrap();
+        let documents = Documents::default();
+        documents.set_root(Some(Root::new(dir.path()).unwrap()));
+        let source = documents
+            .restore_recovery(Some((local.join("source.md"), None)), "", false)
+            .unwrap()
+            .0;
+        for link in ["202611071530", "202611071531 Local title"] {
+            let error = resolve(&documents, Some(source), link, true).unwrap_err();
+            assert!(error.contains("2 notes share"), "{error}");
+        }
+        // Explicit filenames and paths address a file, not a workspace ID.
+        for link in [
+            "202611071530.md",
+            "202611071531 Local title.md",
+            "./202611071531 Local title",
+        ] {
+            assert!(
+                resolve(&documents, Some(source), link, true).is_ok(),
+                "{link}"
+            );
+        }
+        assert!(resolve(&documents, Some(source), "202611071530.md", false).is_ok());
+    }
+
+    #[test]
+    fn id_links_need_a_workspace_and_do_not_treat_title_punctuation_as_an_extension() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("source.md"), "").unwrap();
+        let note = dir.path().join("202611071530 New title.md");
+        fs::write(&note, "").unwrap();
+        let documents = Documents::default();
+        let source = documents
+            .restore_recovery(Some((dir.path().join("source.md"), None)), "", false)
+            .unwrap()
+            .0;
+        assert!(
+            resolve(&documents, Some(source), "202611071530", true)
+                .unwrap_err()
+                .contains("Open a folder")
+        );
+        documents.set_root(Some(Root::new(dir.path()).unwrap()));
+        assert_eq!(
+            resolve(
+                &documents,
+                Some(source),
+                "202611071530 Old title v1.2",
+                true
+            )
+            .unwrap(),
+            fs::canonicalize(note).unwrap()
+        );
+    }
+
+    #[test]
     fn wiki_links_with_an_id_find_the_note_anywhere_after_a_title_change() {
         let dir = tempfile::tempdir().unwrap();
         fs::create_dir(dir.path().join("archive")).unwrap();
@@ -171,7 +236,10 @@ mod tests {
             resolve(&documents, None, "202611071530 Old title", true).unwrap(),
             real
         );
-        // An exact name next to the source still wins.
+        // An explicit filename must not silently turn into an ID query when
+        // that filename is missing, even though the ID itself exists.
+        assert!(resolve(&documents, None, "202611071530 Old title.md", true).is_err());
+        // An ID-only filename still resolves when its ID is unique.
         assert_eq!(
             resolve(&documents, None, "202611071531", true).unwrap(),
             fs::canonicalize(dir.path().join("202611071531.md")).unwrap()
