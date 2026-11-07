@@ -20,6 +20,10 @@ pub struct Root {
 }
 
 impl Root {
+    pub(crate) fn watch_path(&self) -> &Path {
+        &self.real
+    }
+
     pub fn new(given: &Path) -> io::Result<Self> {
         if !fs::metadata(given)?.is_dir() {
             return Err(io::Error::other("Choose a folder."));

@@ -176,6 +176,7 @@ export function createFileTree({ container, list, open, report, menu = () => {},
 
   return {
     get root() { return root; },
+    get watchedFolders() { return [...expanded]; },
     // Shows a workspace (`{ path, name }`), or nothing, reopening the folders
     // given in `open` that still exist (parents before children).
     async setRoot(workspace, { open = [] } = {}) {

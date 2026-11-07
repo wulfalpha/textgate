@@ -50,8 +50,11 @@ pub fn enable(webview: &tauri::WebviewWindow) -> tauri::Result<()> {
 /// not written to disk, so a value saved by the user still takes precedence.
 #[cfg(target_os = "macos")]
 pub fn enable() {
-    use objc2::runtime::AnyObject;
-    use objc2_foundation::{NSDictionary, NSNumber, NSString, NSUserDefaults, ns_string};
+    use objc2::runtime::{AnyObject, ProtocolObject};
+    use objc2_foundation::{
+        NSArgumentDomain, NSDictionary, NSMutableDictionary, NSNumber, NSString, NSUserDefaults,
+        ns_string,
+    };
     let on = NSNumber::new_bool(true);
     let defaults: objc2::rc::Retained<NSDictionary<NSString, AnyObject>> =
         NSDictionary::from_slices(
@@ -60,7 +63,26 @@ pub fn enable() {
         );
     // SAFETY: the dictionary maps NSString keys to NSNumber objects, as
     // registerDefaults: requires.
-    unsafe { NSUserDefaults::standardUserDefaults().registerDefaults(&defaults) };
+    let user_defaults = NSUserDefaults::standardUserDefaults();
+    unsafe { user_defaults.registerDefaults(&defaults) };
+
+    // WebKit otherwise inherits macOS smart dashes, turning Markdown table
+    // separators (---) into punctuation. Override even a previously enabled
+    // app preference, without changing persisted or system-wide settings.
+    // Preserve every other launch-time default in the argument domain.
+    // SAFETY: NSArgumentDomain is a Foundation NSString constant. The mutable
+    // dictionary preserves NSString keys and stores an NSNumber plist value.
+    unsafe {
+        let domain = NSMutableDictionary::<NSString, AnyObject>::dictionaryWithDictionary(
+            &user_defaults.volatileDomainForName(NSArgumentDomain),
+        );
+        let off = NSNumber::new_bool(false);
+        domain.setObject_forKey(
+            &off,
+            ProtocolObject::from_ref(ns_string!("WebAutomaticDashSubstitutionEnabled")),
+        );
+        user_defaults.setVolatileDomain_forName(&domain, NSArgumentDomain);
+    }
 }
 
 #[cfg(test)]
