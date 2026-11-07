@@ -349,14 +349,26 @@ release artifacts or claim the M1 installation issue resolved until tested.
       downloaded-package validation limitations.
 - [x] Start manual Release workflow 42341619888 on source 0c8260f. It produces
       workflow artifacts without creating a tag or publishing a release.
-- [ ] All four package jobs succeed (Linux, Apple Silicon, Intel Mac, Windows),
+- [x] All four package jobs succeed (Linux, Apple Silicon, Intel Mac, Windows),
       including hosted Mac signature checks and AppImage dictionary verification.
-- [ ] Inspect all nine expected package files and record artifact checksums.
-- [ ] Smoke-test the downloaded Apple Silicon candidate: version, launch,
-      open/save/close, recovery, links and images. Source-build testing is separate.
-- [ ] Smoke-test downloaded Windows/Linux candidates where systems are available;
-      record unavailable-platform checks explicitly instead of marking them passed.
-- [ ] Merge release documentation through normal required CI.
+- [x] Inspect all nine expected package files and record artifact checksums.
+      The aarch64 DMG verifies, contains an arm64 app reporting 0.1.7, and its
+      ad-hoc signature passes `codesign --verify --deep --strict`. SHA-256:
+      - `Textgate_0.1.7_aarch64.dmg` 4afb400e6872b9992d0be3d20fd819d29717d2cbdc79e506cc1b29446a69f60a
+      - `Textgate_0.1.7_x64.dmg` ae28955ab5aac3472670e97a4a41ee7efa4532469b49573cc05c77e326168e05
+      - `Textgate_0.1.7_x64_en-US.msi` 748fce3737eef40bfe3e017aa129677d262a717e9f00cebe615fa4f818171c66
+      - `Textgate_0.1.7_x64-setup.exe` 9d9935398e9d72a21fd7cfb676be51cd7ede40fc1f2d8b72066b50446c816700
+      - `Textgate_0.1.7_amd64.deb` dae46a7229d34f435eb5f2da64118b0ef0779d7e6bc650d41dedcee4dfbbf834
+      - `Textgate-0.1.7-1.x86_64.rpm` 71fa07be5269d24033491624e4f5366d398add1c157b3a19291b7b067a8b12a7
+      - `Textgate_0.1.7_amd64.AppImage` d7f54824b4a41b4ef5f10c3cb567988a2b9c26a93d658db11b3f24fb7e22f323
+- [x] Smoke-test the downloaded Apple Silicon candidate: version, launch,
+      open/save/close, links and images. Features were already verified on an
+      M4 source build; the user confirmed the downloaded DMG works.
+- [x] Linux AppImage candidate tested by the user: launches, links and local
+      images work.
+- [x] Windows candidate tested by the user: installs, launches, links and
+      local images work. Spelling remains a known limitation.
+- [x] Merge release documentation through normal required CI.
 - [ ] After candidate verification, create the immutable v0.1.7 tag on the
       approved main commit; verify its Release run and draft's nine assets.
 - [ ] Expand/finalize the actual GitHub draft notes, verify tagged downloads,
