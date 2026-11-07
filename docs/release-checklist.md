@@ -19,8 +19,8 @@
 - [ ] Expand the release notes with changes and platform download guidance before publishing.
 
 Bundling is enabled. Current-source Mac bundles use ad-hoc signatures; Windows
-installers are unsigned. Developer ID signing/notarization, crash recovery, and
-automatic updates are not configured.
+installers are unsigned. Developer ID signing/notarization and automatic
+updates are not configured. Private crash recovery is implemented in 0.1.7.
 
 To release: set the version in `tauri.conf.json`, `Cargo.toml` and `package.json`,
 push a matching tag such as `v0.2.0`, check the draft release's packages, then publish it.
@@ -331,3 +331,37 @@ release artifacts or claim the M1 installation issue resolved until tested.
       all nine package assets. Tag Checks run 41966129910 and Release run
       41966129973 passed, including both Mac signatures and AppImage spelling.
       Release: https://github.com/wulfalpha/textgate/releases/tag/v0.1.6.
+
+## v0.1.7 release preparation
+
+- [x] All six version fields agree on 0.1.7; no v0.1.7 tag exists yet.
+- [x] Merge PR #3 (list fixes, line-ending markers and remembered Vim state),
+      PR #4 (recovery), PR #5 (file watching/macOS dashes), PR #6 (note links)
+      and PR #7 (local images), preserving protected-branch checks.
+- [x] Integrated source 0c8260f passed hosted Checks (run 42340899384).
+- [x] Combined local validation: 150 frontend tests, 60 Rust unit tests,
+      2 CLI tests, build, formatting, Clippy and version consistency.
+- [x] M4 manual checks: recovery after interrupted sessions and discarded drafts
+      staying discarded, outside-change handling, links and local images.
+      User-built combined app succeeded and displayed images.
+- [x] Record image filename guidance and tests for spaces/macOS screenshot spacing.
+- [x] Prepare docs/releases/0.1.7.md and preserve known Windows spelling and
+      downloaded-package validation limitations.
+- [x] Start manual Release workflow 42341619888 on source 0c8260f. It produces
+      workflow artifacts without creating a tag or publishing a release.
+- [ ] All four package jobs succeed (Linux, Apple Silicon, Intel Mac, Windows),
+      including hosted Mac signature checks and AppImage dictionary verification.
+- [ ] Inspect all nine expected package files and record artifact checksums.
+- [ ] Smoke-test the downloaded Apple Silicon candidate: version, launch,
+      open/save/close, recovery, links and images. Source-build testing is separate.
+- [ ] Smoke-test downloaded Windows/Linux candidates where systems are available;
+      record unavailable-platform checks explicitly instead of marking them passed.
+- [ ] Merge release documentation through normal required CI.
+- [ ] After candidate verification, create the immutable v0.1.7 tag on the
+      approved main commit; verify its Release run and draft's nine assets.
+- [ ] Expand/finalize the actual GitHub draft notes, verify tagged downloads,
+      and publish only after explicit publication approval. Keep v0.1.6 Latest
+      until publication, then update README download links/status.
+
+0.2.0 scope remains a separate draft in docs/plans/0.2.0.md. Source-file autosave
+and per-image remote loading are deferred; neither is enabled in 0.1.7.
