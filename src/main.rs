@@ -8,6 +8,7 @@ mod note_links;
 mod recovery;
 mod spelling;
 mod themes;
+mod watching;
 mod workspace;
 
 use tauri::Manager;
@@ -63,6 +64,7 @@ fn main() {
         .manage(launch::OpenRequests::default())
         .manage(documents::Documents::default())
         .manage(recovery::Recovery::default())
+        .manage(watching::Watching::default())
         .invoke_handler(tauri::generate_handler![
             themes::theme_state,
             markdown::render_markdown,
@@ -76,6 +78,7 @@ fn main() {
             documents::save_document,
             recovery::restore_session,
             recovery::checkpoint_session,
+            watching::poll_disk_changes,
             workspace::open_workspace,
             workspace::workspace,
             workspace::close_workspace,

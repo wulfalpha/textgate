@@ -195,6 +195,15 @@ pub enum SaveMode {
 pub type DocumentId = u32;
 pub(crate) type Version = (PathBuf, Option<Vec<u8>>);
 
+#[derive(Debug, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct DiskChange {
+    document: DocumentId,
+    changed: bool,
+    missing: bool,
+    error: Option<String>,
+}
+
 // What Rust knows about one open document (one tab).
 #[derive(Default)]
 struct Slots {
@@ -362,6 +371,46 @@ impl Documents {
             .get(&document)
             .map(|slots| slots.baseline.as_ref().map(|(path, _)| path.clone()))
             .ok_or_else(gone)
+    }
+
+    // Derived exclusively from native document baselines, never arbitrary paths
+    // supplied by JavaScript. Parent watches survive atomic file replacement.
+    pub(crate) fn watch_parents(&self) -> HashSet<PathBuf> {
+        self.open
+            .lock()
+            .unwrap()
+            .values()
+            .filter_map(|slots| slots.baseline.as_ref()?.0.parent().map(Path::to_path_buf))
+            .collect()
+    }
+
+    pub(crate) fn disk_changes(&self) -> Vec<DiskChange> {
+        let originals: Vec<_> = self
+            .open
+            .lock()
+            .unwrap()
+            .iter()
+            .filter_map(|(&document, slots)| {
+                slots.baseline.clone().map(|version| (document, version))
+            })
+            .collect();
+        originals
+            .into_iter()
+            .map(|(document, (path, baseline))| match snapshot(&path) {
+                Ok(current) => DiskChange {
+                    document,
+                    changed: current != baseline,
+                    missing: current.is_none(),
+                    error: None,
+                },
+                Err(error) => DiskChange {
+                    document,
+                    changed: false,
+                    missing: false,
+                    error: Some(error.to_string()),
+                },
+            })
+            .collect()
     }
 
     /// Only document handles already owned by this process may be checkpointed.
@@ -737,6 +786,42 @@ pub async fn save_document(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn disk_checks_report_exact_changes_without_advancing_the_save_baseline() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("notes.md");
+        fs::write(&path, b"\xef\xbb\xbfhello\r\n").unwrap();
+        let documents = Documents::default();
+        let id = documents
+            .restore_recovery(Some((path.clone(), None)), "", false)
+            .unwrap()
+            .0;
+        assert!(!documents.disk_changes()[0].changed);
+        fs::write(&path, b"\xef\xbb\xbfother\r\n").unwrap();
+        assert_eq!(
+            documents.disk_changes(),
+            vec![DiskChange {
+                document: id,
+                changed: true,
+                missing: false,
+                error: None,
+            }]
+        );
+        assert!(matches!(
+            documents.save(id, &path, b"unsaved", SaveMode::Save),
+            Err(SaveError::Conflict { missing: false })
+        ));
+        fs::remove_file(&path).unwrap();
+        assert!(documents.disk_changes()[0].missing);
+        assert!(matches!(
+            documents.save(id, &path, b"unsaved", SaveMode::Save),
+            Err(SaveError::Conflict { missing: true })
+        ));
+        documents.close(id);
+        assert!(documents.disk_changes().is_empty());
+        assert!(documents.watch_parents().is_empty());
+    }
 
     #[test]
     fn recovered_dirty_buffers_keep_the_old_baseline_and_detect_outside_changes() {

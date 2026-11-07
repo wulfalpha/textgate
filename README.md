@@ -99,7 +99,14 @@ Names must be valid on every platform (no `/ \ : * ? " < > |`, no leading or
 trailing dot). Choose **Files** or **Outline** at the top of the sidebar or in
 the View menu; **View → Sidebar** shows or hides it. Drag the sidebar's edge to
 resize it (or focus the edge and use the arrow keys; double-click resets it).
-The file browser does not watch for outside changes yet (0.1.7).
+Published 0.1.6 refreshes the file browser on focus or manually. The 0.1.7
+development branch watches visible folders and open files: clean tabs reload
+outside edits, while unsaved tabs keep their text and show a warning. Deleted
+files keep their tab contents; Save asks before recreating them. **Reload from
+disk…** asks before discarding editor changes. Reload starts a fresh undo
+history, preserves line-ending metadata and keeps the primary cursor/selection.
+Focus and periodic checks cover missed notifications. See the
+[file-watching milestone](docs/plans/0.1.7-file-watching.md) for limits.
 
 ## Saving documents
 
