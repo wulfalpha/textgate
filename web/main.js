@@ -30,6 +30,7 @@ import { setupSidebarWidth } from './sidebar-width.js';
 import { createActionRunner } from './action-runner.js';
 import { createSessionRecovery } from './session-recovery.js';
 import { wikiLinks, noteLinkAt, splitNoteLink } from './note-links.js';
+import { createDiskMonitor, reloadDiskTab } from './disk-monitor.js';
 import { encodeDocument, decodeDocument, defaultFormat, lineEndingLabel, documentFormat, preserveDocumentFormat, sameDocumentFormat, normalizeLineEndings, snapshotDocument } from './document-format.js';
 import { createRenderer } from './markdown.js';
 import { createDocumentDetails, updateOutline, detailsDelay, largeDocument } from './document-details.js';
@@ -67,6 +68,8 @@ let previewRenderedDoc = null;
 let previewBusy = false;
 let previewPromise = null;
 let sessionRecovery = null;
+let diskMonitor = null;
+let watchWarning = '';
 const details = createDocumentDetails();
 const vimMode = new Compartment();
 const numbersMode = new Compartment();
@@ -86,7 +89,7 @@ const stateOf = (tab) => (tab === tabs.active ? view.state : tab.state);
 // Cached per tab, so typing does not compare every open document each keystroke.
 function dirty(tab = tabs.active) {
   // A file moved to the trash: its tab keeps the text until saved again.
-  if (tab.deleted || tab.recovered) return true;
+  if (tab.deleted || tab.recovered || tab.missing) return true;
   const state = stateOf(tab);
   const memo = tab.dirtyMemo;
   if (memo?.state === state && memo.savedDoc === tab.savedDoc && memo.savedFormat === tab.savedFormat) return memo.value;
@@ -100,6 +103,7 @@ const name = () => fileName(tabs.active.path);
 const previewVisible = () => mode === 'source' && $('toggle-preview').getAttribute('aria-pressed') === 'true';
 
 function refresh() {
+  refreshDiskWarning();
   updateEditorStatus();
   renderTabs();
   const changed = dirty();
@@ -263,7 +267,7 @@ function showTab(tab, options) {
   load(tab, options);
 }
 // Each document has its own state, so undo history stays with its tab.
-function addTab({ text = '', path = null, format = defaultFormat, file = documents.create() } = {}, options) {
+export function addTab({ text = '', path = null, format = defaultFormat, file = documents.create() } = {}, options) {
   const state = EditorState.create({ doc: text, extensions: extensions(format) });
   const tab = tabs.add({ path, file, state, savedDoc: state.doc, savedFormat: state.field(documentFormat) }, { activate: false });
   showTab(tab, options);
@@ -607,8 +611,76 @@ document.querySelector('.sidebar-switch').addEventListener('keydown', (event) =>
   showSidebar(sidebarView() === 'files' ? 'outline' : 'files');
   $(sidebarView() === 'files' ? 'sidebar-files' : 'sidebar-outline').focus();
 });
-// Without file watching (0.1.7), catch outside changes when returning to the window.
-window.addEventListener('focus', () => { fileTree.refresh().catch(report); });
+// A focus scan also covers locations where filesystem notifications are absent.
+window.addEventListener('focus', () => { void diskMonitor?.scan(true); });
+
+function refreshDiskWarning() {
+  const change = tabs.active.diskChange;
+  const message = change?.error
+    ? `Could not read ${name()} from disk: ${change.error}. Your editor text is kept.`
+    : change?.missing ? `${name()} was deleted or moved outside Textgate. Your editor text is kept; Save asks before recreating it.`
+    : change?.changed ? `${name()} changed outside Textgate. Your editor text is kept; Save asks before overwriting the disk version.` : '';
+  const text = [message, watchWarning].filter(Boolean).join('\n');
+  $('disk-warning-text').textContent = text;
+  $('disk-warning').hidden = !text;
+  $('reload-disk').hidden = !change?.changed || change.missing || Boolean(change.error);
+}
+function applyDiskText(tab, { text, format }) {
+  const previous = stateOf(tab);
+  const clamp = (position) => Math.min(text.length, position);
+  const state = EditorState.create({ doc: text, extensions: extensions(format), selection: {
+    anchor: clamp(previous.selection.main.anchor), head: clamp(previous.selection.main.head),
+  } });
+  tab.savedDoc = state.doc;
+  tab.savedFormat = state.field(documentFormat);
+  tab.recovered = tab.deleted = tab.missing = false;
+  tab.diskChange = null;
+  if (tab === tabs.active) {
+    const top = view.scrollDOM.scrollTop;
+    view.setState(state);
+    view.scrollDOM.scrollTop = top;
+    documentChanged();
+    updateToolbar();
+  } else { tab.state = state; tab.scroll = null; }
+  refresh();
+}
+async function reloadTabFromDisk(tab, { automatic = false } = {}) {
+  try { return await reloadDiskTab({ tab,
+    snapshot: (item) => snapshotDocument(stateOf(item)),
+    unchanged: (item, before) => tabs.list.includes(item) && snapshotDocument(stateOf(item)).eq(before)
+      && (!automatic || !dirty(item)),
+    decode: decodeDocument, apply: applyDiskText,
+  }); } finally { refresh(); }
+}
+export async function updateDiskChanges(changes) {
+  for (const change of changes) {
+    const tab = await tabWithDocument(change.document);
+    if (!tab) continue;
+    tab.diskChange = change.changed || change.error ? change : null;
+    if (change.changed && change.missing) tab.missing = true;
+    if (!change.changed && !change.error) tab.missing = false;
+    if (change.changed && !change.missing && !change.error && !dirty(tab)) {
+      try {
+        if (await reloadTabFromDisk(tab, { automatic: true })) $('status').textContent = `Reloaded ${fileName(tab.path)} from disk`;
+      } catch (error) {
+        tab.diskChange = { ...change, error: error?.message ?? String(error) };
+      }
+    }
+  }
+  refresh();
+}
+$('reload-disk').onclick = () => run(async () => {
+  const tab = tabs.active;
+  while (tabs.list.includes(tab)) {
+    const before = snapshotDocument(stateOf(tab));
+    if (dirty(tab) && !await askDiscard(`Discard your editor changes to ${fileName(tab.path)} and reload the disk version?`, 'Reload from Disk')) return;
+    if (!snapshotDocument(stateOf(tab)).eq(before)) continue;
+    if (await reloadTabFromDisk(tab)) {
+      $('status').textContent = `Reloaded ${fileName(tab.path)} from disk`;
+      return;
+    }
+  }
+});
 async function tabWithDocument(id) {
   for (const tab of tabs.list) if (await tab.file.id() === id) return tab;
   return null;
@@ -673,6 +745,8 @@ async function saveDocument(saveAs = false, tab = tabs.active) {
   tab.path = destination;
   tab.deleted = false;
   tab.recovered = false;
+  tab.missing = false;
+  tab.diskChange = null;
   tab.savedDoc = snapshot;
   tab.savedFormat = snapshotFormat;
   refresh();
@@ -1072,7 +1146,16 @@ async function restoreSession() {
 // Native requests stay in Rust's queue while recovery is being restored.
 restoreSession().then(() => setupExternalOpen({ desktop: isTauri(), listen, invoke, run, report,
   openPath: openFile, openFolder: showLaunchedFolder,
-})).catch(report);
+})).then(() => {
+  if (!isTauri()) return;
+  diskMonitor = createDiskMonitor({ invoke,
+    folders: () => fileTree.watchedFolders,
+    enqueue: (action) => run.enqueue(action, { silent: true }),
+    update: updateDiskChanges, refreshTree: () => fileTree.refresh(),
+    report: (message) => { watchWarning = message; refreshDiskWarning(); },
+  });
+  diskMonitor.start();
+}).catch(report);
 // The folder from the last session, and the sidebar view last chosen.
 const storedSidebar = (() => { try { return storage?.getItem('textgate.sidebar'); } catch { return null; } })();
 if (isTauri()) {
