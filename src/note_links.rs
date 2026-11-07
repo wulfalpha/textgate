@@ -83,6 +83,14 @@ pub(crate) fn resolve_scoped_file(
         }
         return Ok(granted.unwrap_or(real));
     }
+    // `[[202611071530]]` or `[[202611071530 Old title]]` finds the note with
+    // that ID anywhere in the workspace, so a changed title does not break it.
+    if wiki
+        && let Some(root) = &root
+        && let Some(id) = crate::notes::link_id(link)
+    {
+        return crate::notes::resolve_id(root, id);
+    }
     Err(if denied {
         "This file is outside the open folder. Choose its folder with Open Folder first."
     } else {
@@ -143,6 +151,37 @@ mod tests {
         );
         assert!(!dir.path().join("missing.md").exists());
         assert!(resolve(&documents, Some(999), "Target", true).is_err());
+    }
+
+    #[test]
+    fn wiki_links_with_an_id_find_the_note_anywhere_after_a_title_change() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::create_dir(dir.path().join("archive")).unwrap();
+        let note = dir.path().join("archive/202611071530 New title.md");
+        fs::write(&note, "").unwrap();
+        fs::write(dir.path().join("202611071531.md"), "").unwrap();
+        let documents = Documents::default();
+        documents.set_root(Some(Root::new(dir.path()).unwrap()));
+        let real = fs::canonicalize(&note).unwrap();
+        assert_eq!(
+            resolve(&documents, None, "202611071530", true).unwrap(),
+            real
+        );
+        assert_eq!(
+            resolve(&documents, None, "202611071530 Old title", true).unwrap(),
+            real
+        );
+        // An exact name next to the source still wins.
+        assert_eq!(
+            resolve(&documents, None, "202611071531", true).unwrap(),
+            fs::canonicalize(dir.path().join("202611071531.md")).unwrap()
+        );
+        assert!(resolve(&documents, None, "202611071530", false).is_err());
+        assert!(
+            resolve(&documents, None, "202611079999", true)
+                .unwrap_err()
+                .contains("No note with ID")
+        );
     }
 
     #[test]

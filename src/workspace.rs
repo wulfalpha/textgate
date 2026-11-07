@@ -102,7 +102,7 @@ pub struct Listing {
 }
 
 const LIMIT: usize = 1000;
-const EXTENSIONS: [&str; 3] = ["md", "markdown", "txt"];
+pub(crate) const EXTENSIONS: [&str; 3] = ["md", "markdown", "txt"];
 
 fn shown(name: &str) -> bool {
     !name.starts_with('.') && name != "node_modules"
@@ -191,7 +191,7 @@ pub enum Kind {
 
 // Names for new files and folders: one path component, visible in the browser,
 // and valid on every platform, so notes stay portable.
-fn checked_name(name: &str) -> Result<&str, String> {
+pub(crate) fn checked_name(name: &str) -> Result<&str, String> {
     let name = name.trim();
     if name.is_empty() {
         return Err("Enter a name.".into());
@@ -222,7 +222,7 @@ fn known_extension(name: &str) -> bool {
 }
 
 // New files are Markdown unless named as Markdown or text already.
-fn file_name(name: &str) -> String {
+pub(crate) fn file_name(name: &str) -> String {
     if known_extension(name) {
         name.to_owned()
     } else {

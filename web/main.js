@@ -30,6 +30,7 @@ import { setupSidebarWidth } from './sidebar-width.js';
 import { createActionRunner } from './action-runner.js';
 import { createSessionRecovery } from './session-recovery.js';
 import { wikiLinks, noteLinkAt, splitNoteLink } from './note-links.js';
+import { noteIdCandidates } from './note-ids.js';
 import { createDiskMonitor, reloadDiskTab } from './disk-monitor.js';
 import { encodeDocument, decodeDocument, defaultFormat, lineEndingLabel, documentFormat, preserveDocumentFormat, sameDocumentFormat, normalizeLineEndings, snapshotDocument } from './document-format.js';
 import { createRenderer } from './markdown.js';
@@ -465,6 +466,28 @@ async function newEntry(kind, folder = fileTree.folderForNew()) {
   else fileTree.select(path, { focus: true });
   $('status').textContent = `Created ${fileName(path)}`;
 }
+// A Zettelkasten note named `ID Title.md` in the open folder, opened with the
+// cursor below its heading. Without a folder, offer to choose one first.
+async function newNote() {
+  if (!isTauri()) { $('status').textContent = 'Run npm run tauri dev to create notes in a folder.'; return; }
+  if (!fileTree.root) {
+    if (!await confirm('New notes are created in the open folder. Choose a folder now?', { title: 'New Note', okLabel: 'Open Folder…', cancelLabel: 'Cancel' })) return;
+    await openFolder();
+    if (!fileTree.root) return;
+  }
+  const path = await askName({
+    title: `New note in ${fileTree.root.name}`,
+    label: 'Title',
+    hint: 'Named with a timestamp ID, such as 202611071530 Title.md. Leave blank for an ID-only name.',
+    submit: (title) => invoke('create_note', { title, ids: noteIdCandidates() }),
+  });
+  if (!path) return;
+  await fileTree.refresh();
+  await openFile(path);
+  view.dispatch({ selection: { anchor: view.state.doc.length } });
+  view.focus();
+  $('status').textContent = `Created ${fileName(path)}`;
+}
 const separatorOf = (path) => (path.includes('\\') && !path.includes('/') ? '\\' : '/');
 // Tabs follow a renamed file or folder; Rust names the documents it moved
 // (including tabs that reached a file through a linked folder).
@@ -608,6 +631,8 @@ $('close-folder').onclick = () => run(async () => {
   $('status').textContent = 'Folder closed. Open tabs stay open.';
 });
 $('refresh-files').onclick = () => fileTree.refresh().catch(report);
+$('new-note').onclick = () => run(newNote);
+$('new-note-here').onclick = () => run(newNote);
 $('new-file-here').onclick = () => run(() => newEntry('file'));
 $('new-folder-here').onclick = () => run(() => newEntry('folder'));
 $('view-files').onclick = () => showSidebar('files', { focus: true });
@@ -924,7 +949,15 @@ export function handleAppKeydown(event, { native = Boolean(nativeMenus), platfor
     showTab(switchTo, { focus: !$('tabbar').contains(document.activeElement) });
     return;
   }
-  if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
+  if (!(event.ctrlKey || event.metaKey)) return;
+  // Ctrl/Cmd+Alt+N: match the physical key, since Alt changes the character.
+  if (event.altKey) {
+    if (event.code !== 'KeyN' || event.shiftKey || (native && !/Win/.test(platform))) return;
+    event.preventDefault();
+    event.stopPropagation();
+    $('new-note').click();
+    return;
+  }
   const key = event.key.toLowerCase();
   if (key === 'enter' && !event.shiftKey && view.dom.contains(event.target)) {
     const link = noteLinkAt(view.state);
