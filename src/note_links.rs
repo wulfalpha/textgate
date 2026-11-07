@@ -9,25 +9,33 @@ fn resolve(
     link: &str,
     wiki: bool,
 ) -> Result<PathBuf, String> {
+    resolve_scoped_file(documents, document, link, wiki, &["md", "markdown", "txt"])
+}
+
+pub(crate) fn resolve_scoped_file(
+    documents: &Documents,
+    document: Option<DocumentId>,
+    link: &str,
+    wiki: bool,
+    extensions: &[&str],
+) -> Result<PathBuf, String> {
     if link.is_empty()
         || link.len() > 4096
         || link.contains(['\\', ':', '\0'])
         || Path::new(link).is_absolute()
     {
-        return Err("Use a relative link to a Markdown or text note.".into());
+        return Err("Use a relative file path.".into());
     }
     let root = documents.root();
     let original = match document {
         Some(id) => documents
-            .recovery_baselines(&[id])
-            .map_err(|_| "The source tab is no longer open.")?
-            .pop()
-            .flatten(),
+            .document_path(id)
+            .map_err(|_| "The source tab is no longer open.")?,
         None => None,
     };
     let base = original
         .as_ref()
-        .and_then(|(path, _)| path.parent())
+        .and_then(|path| path.parent())
         .or_else(|| root.as_ref().map(|root| root.link_base()));
     let Some(base) = base else {
         return Err("Save this note or use Open Folder before following relative links.".into());
@@ -40,12 +48,15 @@ fn resolve(
         .extension()
         .and_then(|extension| extension.to_str())
         .is_some_and(|extension| {
-            ["md", "markdown", "txt"]
+            extensions
                 .iter()
                 .any(|allowed| extension.eq_ignore_ascii_case(allowed))
         })
     {
-        return Err("Only Markdown and text notes can open through a note link.".into());
+        return Err(format!(
+            "Supported file extensions: {}.",
+            extensions.join(", ")
+        ));
     }
     let mut candidates = vec![base.join(&relative)];
     if wiki && let Some(root) = &root {
@@ -58,19 +69,26 @@ fn resolve(
         };
         let real_allowed =
             root.as_ref().is_some_and(|root| root.contains(&real)) || documents.chosen(&real);
-        let given_allowed = documents.chosen(&candidate);
-        if !real_allowed && !given_allowed {
+        let granted = if real_allowed {
+            None
+        } else {
+            documents.granted_path_for(&real)
+        };
+        if !real_allowed && granted.is_none() {
             denied = true;
             continue;
         }
         if !real.is_file() {
             continue;
         }
-        return Ok(if real_allowed { real } else { candidate });
+        return Ok(granted.unwrap_or(real));
     }
     Err(if denied {
-        "This link is outside the open folder. Choose its folder with Open Folder, or open the note through Open first."
-    } else { "Linked note not found. No file was created." }.into())
+        "This file is outside the open folder. Choose its folder with Open Folder first."
+    } else {
+        "Linked file not found. No file was created."
+    }
+    .into())
 }
 
 #[tauri::command]

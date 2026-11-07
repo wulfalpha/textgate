@@ -3907,6 +3907,7 @@ dependencies = [
 name = "textgate"
 version = "0.1.7"
 dependencies = [
+ "base64 0.23.1",
  "comrak",
  "libc",
  "notify",

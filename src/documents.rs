@@ -355,6 +355,24 @@ fn gone() -> SaveError {
 }
 
 impl Documents {
+    // Keep the original spelling of a native grant when a link reaches the
+    // same file through another folder alias (or a normalized ../ path).
+    pub(crate) fn granted_path_for(&self, real: &Path) -> Option<PathBuf> {
+        let granted = self.granted.lock().unwrap().clone();
+        granted
+            .into_iter()
+            .find(|path| fs::canonicalize(path).is_ok_and(|path| path == real))
+    }
+
+    pub(crate) fn document_path(&self, document: DocumentId) -> Result<Option<PathBuf>, SaveError> {
+        self.open
+            .lock()
+            .unwrap()
+            .get(&document)
+            .map(|slots| slots.baseline.as_ref().map(|(path, _)| path.clone()))
+            .ok_or_else(gone)
+    }
+
     // Derived exclusively from native document baselines, never arbitrary paths
     // supplied by JavaScript. Parent watches survive atomic file replacement.
     pub(crate) fn watch_parents(&self) -> HashSet<PathBuf> {

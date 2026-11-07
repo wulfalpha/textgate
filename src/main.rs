@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod documents;
+mod images;
 mod launch;
 mod markdown;
 mod note_links;
@@ -69,6 +70,7 @@ fn main() {
             markdown::render_markdown,
             markdown::note_heading_line,
             note_links::resolve_note_link,
+            images::load_note_image,
             documents::new_document,
             documents::close_document,
             documents::open_document,

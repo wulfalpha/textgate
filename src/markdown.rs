@@ -55,6 +55,18 @@ mod tests {
     use super::*;
 
     #[test]
+    fn image_destinations_with_spaces_render_with_standard_markdown_syntax() {
+        for source in [
+            "![Screenshot](<images/My screenshot.png>)",
+            "![Screenshot](images/My%20screenshot.png)",
+        ] {
+            let html = render(source);
+            assert!(html.contains("<img "), "{html}");
+            assert!(html.contains("images/My%20screenshot.png"), "{html}");
+        }
+    }
+
+    #[test]
     fn heading_links_match_rendered_ids_including_duplicates_and_nested_headings() {
         let source = "# Café *notes*\n\n# Café notes\n\n> ## Nested `code`\n";
         assert_eq!(heading_line(source, "café-notes"), Some(1));

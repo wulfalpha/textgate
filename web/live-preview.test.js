@@ -27,6 +27,31 @@ function make(doc, anchor = doc.length) {
 }
 const shown = (view) => view.contentDOM.textContent;
 
+test('live images display away from the cursor and expose unchanged Markdown for editing', async () => {
+  const source = '![Map](images/map.png)\n\nAfter';
+  const renderImage = async () => {
+    const fragment = document.createDocumentFragment();
+    const image = document.createElement('img');
+    image.alt = 'Map'; image.src = 'data:image/png;base64,YQ==';
+    fragment.append(image);
+    return fragment;
+  };
+  const view = new EditorView({ parent: document.body, state: EditorState.create({ doc: source,
+    selection: { anchor: source.length }, extensions: [markdown({ base: markdownLanguage }), livePreview({ render: renderImage })] }) });
+  assert.ok(forceParsing(view, source.length, 1000));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(view.contentDOM.querySelector('.cm-lp-image img').alt, 'Map');
+  assert.equal(view.state.doc.toString(), source);
+  const event = new window.MouseEvent('mousedown', { bubbles: true, cancelable: true });
+  view.contentDOM.querySelector('.cm-lp-image img').dispatchEvent(event);
+  assert.equal(event.defaultPrevented, true);
+  assert.equal(view.state.selection.main.head, 0);
+  assert.equal(view.contentDOM.querySelector('.cm-lp-image'), null);
+  assert.match(shown(view), /!\[Map\]\(images\/map.png\)/);
+  assert.equal(view.state.doc.toString(), source);
+  view.destroy();
+});
+
 const sample = '# Title\n\n**bold** and [link](https://example.com)\n\n- item\n- [ ] task\n\n> quote\n\n| a | b |\n| - | - |\n| 1 | 2 |\n\nend';
 
 test('markup is hidden away from the cursor and the document is untouched', async () => {
