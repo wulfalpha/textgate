@@ -375,5 +375,5 @@ release artifacts or claim the M1 installation issue resolved until tested.
       and publish only after explicit publication approval. Keep v0.1.6 Latest
       until publication, then update README download links/status.
 
-0.2.0 scope remains a separate draft in docs/plans/0.2.0.md. Source-file autosave
-and per-image remote loading are deferred; neither is enabled in 0.1.7.
+0.2.0 scope is drafted in docs/plans/0.2.0.md. Source-file autosave and
+per-image remote loading are deferred to 0.2.1; neither is enabled in 0.1.7.

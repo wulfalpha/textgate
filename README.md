@@ -477,11 +477,13 @@ out of the editor, press Escape followed by Tab.
 Next milestones:
 
 - Table row/column commands for Live mode.
-- 0.1.7: validate the combined packages and publish the recovery, file-watching,
-  note-link and local-image milestone after final verification.
-- 0.2.0: optional source-file autosave, with conflict handling and recovery.
-- Finish local image validation for 0.1.7. External link opening remains a
-  follow-up (preview web links show their destination in the status bar).
+- 0.2.0 (Zettelkasten): new notes with ID names, creating notes from missing
+  links, backlinks, renames that update links, and quick note search. See the
+  [0.2.0 plan](docs/plans/0.2.0.md).
+- 0.2.1: tags, graph view, full-text search, optional source-file autosave,
+  per-image remote loading, and image paste/drop and editing.
+- External link opening remains a follow-up (preview web links show their
+  destination in the status bar).
 - Continued package validation across supported platforms.
 
 Textgate has one window, with a tab for each open document. Closing a tab or
