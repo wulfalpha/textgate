@@ -170,6 +170,9 @@ main[data-mode="source"] #format-toolbar { display: none; }
 .cm-live .cm-lp-h3 { font-size: 17px; padding-top: .4em; }
 .cm-live :is(.cm-lp-h4, .cm-lp-h5, .cm-lp-h6) { font-size: 15px; }
 .cm-live .cm-lp-link, .cm-live .cm-lp-link .tok-link { color: var(--tg-accent); text-decoration: underline; text-underline-offset: 2px; }
+.cm-lp-image { display: inline-block; max-width: 100%; vertical-align: middle; }
+:is(#preview, .cm-lp-table, .cm-lp-image) img { max-width: 100%; height: auto; max-height: 70vh; object-fit: contain; }
+.image-placeholder { display: inline-block; border: 1px solid var(--tg-border); border-radius: 4px; padding: 6px 10px; color: var(--tg-muted); font-size: 12px; overflow-wrap: anywhere; }
 .cm-live .cm-lp-code { font-family: var(--tg-font-mono); font-size: 12px; background: var(--tg-code-background); border-radius: 3px; }
 .cm-live .cm-lp-codeblock { font-family: var(--tg-font-mono); font-size: 12px; background: var(--tg-code-background); padding-left: 16px; }
 .cm-live .cm-lp-fence { color: var(--tg-muted); }

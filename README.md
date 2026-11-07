@@ -164,6 +164,20 @@ Linked notes must be in the chosen workspace or already opened through a native
 file grant. Missing links report an error and do not create files. See the
 [note-links milestone](docs/plans/0.1.7-note-links.md).
 
+The 0.1.7 local-images branch displays PNG, JPEG, GIF and WebP images:
+
+```md
+![Description](images/photo.png)
+```
+
+Paths are relative to the saved note, or the open workspace for an Untitled
+note. Use Open Folder to grant access to local images in that workspace.
+Source Preview displays images; Live mode shows inline images away from the
+cursor and exposes their original Markdown when edited. Images are limited to
+8 MiB each; unsupported, missing or blocked images show placeholders. Remote
+images and SVG are not loaded. Preview → Refresh rereads changed image files.
+See [image behavior and limits](docs/plans/0.1.7-local-images.md).
+
 ## Spell checking
 
 **View → Check spelling** underlines misspelled words using the operating
@@ -446,8 +460,8 @@ Next milestones:
   watching and crash recovery, with explicit Save; groundwork for Zettelkasten
   notes in 0.2.0.
 - 0.2.0: optional source-file autosave, with conflict handling and recovery.
-- Local image resolution and external link opening (preview links currently show
-  their destination in the status bar; remote images are blocked in the desktop app).
+- Finish local image validation for 0.1.7. External link opening remains a
+  follow-up (preview web links show their destination in the status bar).
 - Continued package validation across supported platforms.
 
 Textgate has one window, with a tab for each open document. Closing a tab or

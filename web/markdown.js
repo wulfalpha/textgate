@@ -1,6 +1,7 @@
 import { syntaxTree } from '@codemirror/language';
 import { frontMatterEnd, headingsFromTree } from './markdown-structure.js';
 import { markedWikiLinks } from './note-links.js';
+import { loadImages } from './images.js';
 export { frontMatterEnd } from './markdown-structure.js';
 
 // Read the available tree without forcing synchronous full-document parsing.
@@ -12,7 +13,7 @@ export function headings(state) {
 
 // The desktop app renders with comrak (a port of GitHub's cmark-gfm) in Rust.
 // The browser-only dev server has no Rust backend and falls back to marked.
-export function createRenderer({ desktop, invoke, purifier }) {
+export function createRenderer({ desktop, invoke, purifier, imageDocument = () => null }) {
   let browserParser;
   const html = desktop
     ? (source) => invoke('render_markdown', { source })
@@ -20,7 +21,13 @@ export function createRenderer({ desktop, invoke, purifier }) {
       browserParser ??= new (await import('marked')).Marked({ gfm: true, extensions: [markedWikiLinks] });
       return browserParser.parse(source.slice(frontMatterEnd(source)));
     };
-  return async (source) => sanitize(await html(source), purifier);
+  return async (source) => {
+    // Freeze the source tab's handle before waiting for rendering. Switching
+    // tabs while IPC is pending must not resolve paths against the new tab.
+    const context = desktop ? imageDocument() : null;
+    const fragment = sanitize(await html(source), purifier);
+    return desktop ? loadImages(fragment, { invoke, document: await context }) : fragment;
+  };
 }
 
 // Only what GitHub-flavored Markdown produces. Form controls, dialogs and media

@@ -40,7 +40,8 @@ import { createZoom } from './zoom.js';
 import { textDirection } from './text-direction.js';
 import * as format from './markdown-commands.js';
 const DOMPurify = createDOMPurify(window);
-const render = createRenderer({ desktop: isTauri(), invoke, purifier: DOMPurify });
+const render = createRenderer({ desktop: isTauri(), invoke, purifier: DOMPurify,
+  imageDocument: () => tabs.active?.file.id() ?? null });
 const documents = createDocumentStore({ invoke, confirmOverwrite: (destination, missing) => confirm(
   missing
     ? `The file was deleted or moved outside Textgate:\n${destination}\n\nRecreate it with your editor contents?`
@@ -138,10 +139,16 @@ function previewNote(message) {
   $('preview-note').textContent = message;
   $('preview-note').hidden = !message;
 }
+function invalidateImageContext() {
+  previewVersion++;
+  previewRenderedDoc = null;
+  if (mode === 'live') view.dispatch({ effects: liveMode.reconfigure(livePreview({ render: (source) => render(source) })) });
+  refresh();
+}
 async function refreshPreview(force = false) {
   if (!previewVisible()) return;
   const doc = view.state.doc;
-  if (previewRenderedDoc === doc) { previewNote(''); return; }
+  if (!force && previewRenderedDoc === doc) { previewNote(''); return; }
   if (doc.length >= largeDocument && !force) {
     previewNote('Large document: preview updates on request. Choose Refresh to show your latest edits.');
     return;
@@ -244,7 +251,7 @@ function load(tab, { focus = true } = {}) {
     numbersMode.reconfigure(relativeNumbers ? relativeLineNumbers() : []),
     spellcheckMode.reconfigure(spellchecking ? spellcheck() : []),
     lineEndingsMode.reconfigure(showLineEndings ? lineEndingMarkers() : []),
-    liveMode.reconfigure(mode === 'live' ? livePreview({ render }) : []),
+    liveMode.reconfigure(mode === 'live' ? livePreview({ render: (source) => render(source) }) : []),
     ...(scroll ? [scroll] : []),
   ] });
   previewRenderedDoc = null;
@@ -483,6 +490,7 @@ async function renameEntry(target) {
   }
   fileTree.moved(from, result.path);
   revealed = tabs.active.path;
+  invalidateImageContext();
   refresh();
   await fileTree.refresh();
   fileTree.select(result.path, { focus: true });
@@ -550,6 +558,7 @@ async function setWorkspace(workspace) {
   revealed = null;
   await fileTree.setRoot(workspace, { open: openFolders(workspace) });
   markFiles();
+  invalidateImageContext();
 }
 // A folder from the command line, the file manager or a second launch.
 let folderLaunched = false;
@@ -675,6 +684,7 @@ async function saveDocument(saveAs = false, tab = tabs.active) {
   tab.recovered = false;
   tab.savedDoc = snapshot;
   tab.savedFormat = snapshotFormat;
+  if (chosen) invalidateImageContext();
   refresh();
   // Save As can create a file inside the open folder.
   if (chosen) fileTree.refresh().catch(report);

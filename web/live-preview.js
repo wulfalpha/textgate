@@ -49,7 +49,7 @@ class CheckboxWidget extends WidgetType {
 // Tables are rendered by the same renderer as the preview pane, so they match it.
 class TableWidget extends WidgetType {
   constructor(source, render) { super(); this.source = source; this.render = render; }
-  eq(other) { return other.source === this.source; }
+  eq(other) { return other.source === this.source && other.render === this.render; }
   toDOM(view) {
     const table = document.createElement('div');
     table.className = 'cm-lp-table';
@@ -65,6 +65,29 @@ class TableWidget extends WidgetType {
   ignoreEvent() { return true; }
 }
 
+class ImageWidget extends WidgetType {
+  constructor(source, render) { super(); this.source = source; this.render = render; }
+  eq(other) { return other.source === this.source && other.render === this.render; }
+  toDOM(view) {
+    const element = document.createElement('span');
+    element.className = 'cm-lp-image';
+    element.textContent = 'Loading image…';
+    this.render(this.source).then((fragment) => {
+      const image = fragment.querySelector('img, .image-placeholder');
+      element.replaceChildren(image ?? document.createTextNode('Image unavailable'));
+      image?.addEventListener('load', () => view.requestMeasure(), { once: true });
+      view.requestMeasure();
+    }, () => { element.textContent = 'Image unavailable'; view.requestMeasure(); });
+    element.addEventListener('mousedown', (event) => {
+      event.preventDefault();
+      view.dispatch({ selection: { anchor: view.posAtDOM(element) } });
+      view.focus();
+    });
+    return element;
+  }
+  ignoreEvent() { return true; }
+}
+
 const inlineMarks = { Emphasis: 'EmphasisMark', StrongEmphasis: 'EmphasisMark', Strikethrough: 'StrikethroughMark', InlineCode: 'CodeMark' };
 const hidden = Decoration.replace({});
 const bullet = Decoration.replace({ widget: new BulletWidget() });
@@ -72,6 +95,7 @@ const rule = Decoration.replace({ widget: new RuleWidget() });
 
 export function buildLiveDecorations(state, render, ranges, layout = false) {
   const decorations = [];
+  let imageCount = 0;
   const { doc, selection } = state;
   const touches = (from, to) => selection.ranges.some((range) => range.from <= to && range.to >= from);
   const linesTouch = (from, to) => touches(doc.lineAt(from).from, doc.lineAt(to).to);
@@ -128,6 +152,13 @@ export function buildLiveDecorations(state, render, ranges, layout = false) {
       if (name === 'InlineCode') mark(from, to, 'cm-lp-code');
       if (!touches(from, to)) for (const inline of node.getChildren(inlineMarks[name])) hide(inline.from, inline.to);
       return;
+    }
+    if (name === 'Image' && node.getChild('URL') && render && !touches(from, to)) {
+      const multiline = doc.lineAt(from).number !== doc.lineAt(to).number;
+      if (multiline === layout && to - from < 8192 && imageCount++ < 16) {
+        decorations.push(Decoration.replace({ widget: new ImageWidget(doc.sliceString(from, to), render) }).range(from, to));
+      }
+      return false;
     }
     if (name === 'WikiLink') {
       const label = node.getChild('WikiLinkLabel') ?? node.getChild('WikiLinkTarget');
