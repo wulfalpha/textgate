@@ -369,11 +369,14 @@ release artifacts or claim the M1 installation issue resolved until tested.
 - [x] Windows candidate tested by the user: installs, launches, links and
       local images work. Spelling remains a known limitation.
 - [x] Merge release documentation through normal required CI.
-- [ ] After candidate verification, create the immutable v0.1.7 tag on the
+- [x] After candidate verification, create the immutable v0.1.7 tag on the
       approved main commit; verify its Release run and draft's nine assets.
-- [ ] Expand/finalize the actual GitHub draft notes, verify tagged downloads,
+      Tagged 716f024; Release run 42348028183 attached all nine assets. Tag
+      Checks failed once on a flaky Windows test teardown and passed on rerun.
+- [x] Expand/finalize the actual GitHub draft notes, verify tagged downloads,
       and publish only after explicit publication approval. Keep v0.1.6 Latest
       until publication, then update README download links/status.
+      Published 2026-11-07: https://github.com/wulfalpha/textgate/releases/tag/v0.1.7.
 
-0.2.0 scope remains a separate draft in docs/plans/0.2.0.md. Source-file autosave
-and per-image remote loading are deferred; neither is enabled in 0.1.7.
+0.2.0 scope is drafted in docs/plans/0.2.0.md. Source-file autosave and
+per-image remote loading are deferred to 0.2.1; neither is enabled in 0.1.7.
