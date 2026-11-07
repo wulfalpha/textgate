@@ -20,6 +20,10 @@ pub struct Root {
 }
 
 impl Root {
+    pub(crate) fn link_base(&self) -> &Path {
+        &self.given
+    }
+
     pub fn new(given: &Path) -> io::Result<Self> {
         if !fs::metadata(given)?.is_dir() {
             return Err(io::Error::other("Choose a folder."));

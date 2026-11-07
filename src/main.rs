@@ -3,6 +3,7 @@
 mod documents;
 mod launch;
 mod markdown;
+mod note_links;
 mod recovery;
 mod spelling;
 mod themes;
@@ -64,6 +65,8 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             themes::theme_state,
             markdown::render_markdown,
+            markdown::note_heading_line,
+            note_links::resolve_note_link,
             documents::new_document,
             documents::close_document,
             documents::open_document,

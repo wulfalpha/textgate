@@ -129,6 +129,12 @@ export function buildLiveDecorations(state, render, ranges, layout = false) {
       if (!touches(from, to)) for (const inline of node.getChildren(inlineMarks[name])) hide(inline.from, inline.to);
       return;
     }
+    if (name === 'WikiLink') {
+      const label = node.getChild('WikiLinkLabel') ?? node.getChild('WikiLinkTarget');
+      mark(label.from, label.to, 'cm-lp-link');
+      if (!touches(from, to)) { hide(from, label.from); hide(label.to, to); }
+      return false;
+    }
     if (name === 'Link') {
       const [open, close] = node.getChildren('LinkMark');
       if (!open || !close || doc.sliceString(open.from, open.to) !== '[') return;

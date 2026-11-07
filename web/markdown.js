@@ -1,5 +1,6 @@
 import { syntaxTree } from '@codemirror/language';
 import { frontMatterEnd, headingsFromTree } from './markdown-structure.js';
+import { markedWikiLinks } from './note-links.js';
 export { frontMatterEnd } from './markdown-structure.js';
 
 // Read the available tree without forcing synchronous full-document parsing.
@@ -12,9 +13,13 @@ export function headings(state) {
 // The desktop app renders with comrak (a port of GitHub's cmark-gfm) in Rust.
 // The browser-only dev server has no Rust backend and falls back to marked.
 export function createRenderer({ desktop, invoke, purifier }) {
+  let browserParser;
   const html = desktop
     ? (source) => invoke('render_markdown', { source })
-    : async (source) => (await import('marked')).marked.parse(source, { gfm: true });
+    : async (source) => {
+      browserParser ??= new (await import('marked')).Marked({ gfm: true, extensions: [markedWikiLinks] });
+      return browserParser.parse(source.slice(frontMatterEnd(source)));
+    };
   return async (source) => sanitize(await html(source), purifier);
 }
 
@@ -25,7 +30,7 @@ const allowedTags = ['a', 'abbr', 'b', 'blockquote', 'br', 'cite', 'code', 'dd',
   'q', 's', 'samp', 'section', 'small', 'span', 'strong', 'sub', 'summary', 'sup', 'table', 'tbody', 'td', 'tfoot',
   'th', 'thead', 'tr', 'u', 'ul', 'var'];
 const allowedAttributes = ['align', 'alt', 'checked', 'class', 'colspan', 'dir', 'disabled', 'height', 'href', 'id',
-  'lang', 'open', 'rowspan', 'src', 'start', 'title', 'type', 'width'];
+  'lang', 'open', 'rowspan', 'src', 'start', 'title', 'type', 'width', 'data-wikilink'];
 
 export function sanitize(html, purifier) {
   const fragment = purifier.sanitize(html, {

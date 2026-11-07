@@ -362,6 +362,22 @@ test('app switches modes without rewriting Markdown and keeps one undo history',
   };
   assert.equal(await approveQuit(), true);
   assert.equal(quitPrompts, 2);
+  // Wiki links render without changing source, and both click and keyboard
+  // activation use the app handler rather than navigating the webview.
+  $('mode-source').click();
+  replace('[[Next note|Alias]]');
+  await flushDetails();
+  const wiki = $('preview').querySelector('a[data-wikilink="true"]');
+  assert.equal(wiki.textContent, 'Alias');
+  wiki.click();
+  await tick();
+  assert.match($('status').textContent, /desktop app/);
+  view.dispatch({ selection: { anchor: 5 } });
+  const follow = new window.KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', ctrlKey: true, bubbles: true, cancelable: true });
+  view.contentDOM.dispatchEvent(follow);
+  await tick();
+  assert.equal(follow.defaultPrevented, true);
+  assert.equal(text(), '[[Next note|Alias]]');
   await flushDetails();
   view.destroy();
 });

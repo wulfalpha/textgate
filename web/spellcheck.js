@@ -9,7 +9,7 @@ import { frontMatterEnd } from './markdown-structure.js';
 
 const key = 'textgate.spellcheck';
 // Node names from @lezer/markdown whose text is not prose.
-export const notProse = new Set(['InlineCode', 'FencedCode', 'CodeBlock', 'URL', 'Autolink', 'HTMLTag', 'HTMLBlock', 'CommentBlock', 'ProcessingInstructionBlock']);
+export const notProse = new Set(['InlineCode', 'FencedCode', 'CodeBlock', 'URL', 'WikiLinkTarget', 'Autolink', 'HTMLTag', 'HTMLBlock', 'CommentBlock', 'ProcessingInstructionBlock']);
 const skip = Decoration.mark({ attributes: { spellcheck: 'false' } });
 
 // The ranges to exclude within [from, to), in document order.
