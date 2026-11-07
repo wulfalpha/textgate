@@ -126,6 +126,22 @@ mod tests {
     }
 
     #[test]
+    fn spaces_and_macos_screenshot_spacing_are_preserved_in_file_lookup() {
+        let dir = tempfile::tempdir().unwrap();
+        let documents = Documents::default();
+        documents.set_root(Some(Root::new(dir.path()).unwrap()));
+        for name in [
+            "My screenshot.png",
+            "Screenshot 2026-11-06 at 6.40.56\u{202f}PM.png",
+        ] {
+            let bytes = b"\x89PNG\r\n\x1a\nfixture";
+            fs::write(dir.path().join(name), bytes).unwrap();
+            let image = load(&documents, None, name).unwrap();
+            assert_eq!(STANDARD.decode(image.data).unwrap(), bytes);
+        }
+    }
+
+    #[test]
     fn saved_notes_resolve_their_own_relative_images() {
         let dir = tempfile::tempdir().unwrap();
         let documents = Documents::default();

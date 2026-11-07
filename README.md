@@ -170,6 +170,15 @@ The 0.1.7 local-images branch displays PNG, JPEG, GIF and WebP images:
 ![Description](images/photo.png)
 ```
 
+Wrap a path containing spaces in angle brackets, without renaming the file:
+
+```md
+![Screenshot](<images/My screenshot.png>)
+```
+
+Encoding spaces as `%20` also works. Bare spaces inside `(...)` are not valid
+Markdown image destinations.
+
 Paths are relative to the saved note, or the open workspace for an Untitled
 note. Use Open Folder to grant access to local images in that workspace.
 Source Preview displays images; Live mode shows inline images away from the

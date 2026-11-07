@@ -4,8 +4,29 @@ import { JSDOM } from 'jsdom';
 import createDOMPurify from 'dompurify';
 import { createRenderer, sanitize } from './markdown.js';
 import { imageReference, loadImages } from './images.js';
+import { EditorState } from '@codemirror/state';
+import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
+import { syntaxTree } from '@codemirror/language';
 
 const result = { mime: 'image/png', data: 'YQ==' };
+
+test('space-containing image paths work in browser Preview and the Live syntax tree', async () => {
+  const dom = new JSDOM('');
+  const render = createRenderer({ desktop: false, purifier: createDOMPurify(dom.window) });
+  for (const source of ['![Screenshot](<images/My screenshot.png>)', '![Screenshot](images/My%20screenshot.png)',
+    '![Screenshot](<images/Screenshot at 6.40.56\u202fPM.png>)']) {
+    const fragment = await render(source);
+    const image = fragment.querySelector('img');
+    assert.ok(image, source);
+    assert.ok(imageReference(image.getAttribute('src')).includes(' '));
+    const state = EditorState.create({ doc: source, extensions: [markdown({ base: markdownLanguage })] });
+    let found = false;
+    syntaxTree(state).iterate({ enter(node) { if (node.name === 'Image' && node.node.getChild('URL')) found = true; } });
+    assert.equal(found, true, source);
+    assert.equal(state.doc.toString(), source);
+  }
+  dom.window.close();
+});
 function setup(html) {
   const dom = new JSDOM('');
   return { dom, fragment: sanitize(html, createDOMPurify(dom.window)) };
