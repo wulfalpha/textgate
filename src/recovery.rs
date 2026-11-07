@@ -18,44 +18,44 @@ const MAX_TABS: usize = 512;
 pub struct Recovery {
     // Serializes restore/checkpoint I/O and prevents writes before a successful
     // read. A corrupt checkpoint must not be silently replaced on startup.
-    ready: Mutex<bool>,
+    pub(crate) ready: Mutex<bool>,
 }
 
-#[derive(Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct CheckpointTab {
-    document: DocumentId,
-    contents: String,
-    dirty: bool,
-    anchor: usize,
-    head: usize,
+    pub(crate) document: DocumentId,
+    pub(crate) contents: String,
+    pub(crate) dirty: bool,
+    pub(crate) anchor: usize,
+    pub(crate) head: usize,
 }
 
-#[derive(Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Checkpoint {
-    tabs: Vec<CheckpointTab>,
-    active: usize,
-    closed: bool,
+    pub(crate) tabs: Vec<CheckpointTab>,
+    pub(crate) active: usize,
+    pub(crate) closed: bool,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct StoredTab {
-    original: Option<Version>,
-    contents: String,
-    dirty: bool,
-    anchor: usize,
-    head: usize,
+pub(crate) struct StoredTab {
+    pub(crate) original: Option<Version>,
+    pub(crate) contents: String,
+    pub(crate) dirty: bool,
+    pub(crate) anchor: usize,
+    pub(crate) head: usize,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct Session {
-    version: u32,
-    tabs: Vec<StoredTab>,
-    active: usize,
-    closed: bool,
+pub(crate) struct Session {
+    pub(crate) version: u32,
+    pub(crate) tabs: Vec<StoredTab>,
+    pub(crate) active: usize,
+    pub(crate) closed: bool,
 }
 
 #[derive(Serialize)]
@@ -83,14 +83,14 @@ fn message(error: SaveError) -> String {
     }
 }
 
-fn session_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+pub(crate) fn session_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     app.path()
         .app_local_data_dir()
         .map(|dir| dir.join("recovery/session.json"))
         .map_err(|error| error.to_string())
 }
 
-fn validate(session: &Session) -> Result<(), String> {
+pub(crate) fn validate(session: &Session) -> Result<(), String> {
     if session.version != VERSION {
         return Err("This recovery file was written by an unsupported Textgate version.".into());
     }
@@ -128,7 +128,7 @@ fn load(path: &Path) -> Result<Option<Session>, String> {
     Ok(Some(session))
 }
 
-fn store(path: &Path, session: &Session) -> Result<(), String> {
+pub(crate) fn store(path: &Path, session: &Session) -> Result<(), String> {
     store_with(path, session, |file, bytes| file.write_all(bytes))
 }
 
@@ -170,7 +170,7 @@ fn store_with(
     Ok(())
 }
 
-fn capture(documents: &Documents, checkpoint: Checkpoint) -> Result<Session, String> {
+pub(crate) fn capture(documents: &Documents, checkpoint: Checkpoint) -> Result<Session, String> {
     if checkpoint.tabs.len() > MAX_TABS
         || (!checkpoint.tabs.is_empty() && checkpoint.active >= checkpoint.tabs.len())
     {
@@ -301,8 +301,25 @@ pub async fn restore_session(app: tauri::AppHandle) -> Result<RestoredSession, S
             return Ok(RestoredSession::default());
         }
         let result = match load(&session_path(&app)?)? {
-            Some(session) => restore(&app.state::<Documents>(), session)?,
-            None => RestoredSession::default(),
+            Some(session) => {
+                let (session, warnings) = crate::rename_links::reconcile(&app, session);
+                let mut restored = restore(&app.state::<Documents>(), session)?;
+                restored.warnings.extend(warnings);
+                restored
+            }
+            None => match crate::rename_links::recovery_seed(&app) {
+                Ok(Some(session)) => {
+                    let (session, warnings) = crate::rename_links::reconcile(&app, session);
+                    let mut restored = restore(&app.state::<Documents>(), session)?;
+                    restored.warnings.extend(warnings);
+                    restored
+                }
+                Ok(None) => RestoredSession::default(),
+                Err(error) => RestoredSession {
+                    warnings: vec![error],
+                    ..Default::default()
+                },
+            },
         };
         *ready = true;
         Ok(result)

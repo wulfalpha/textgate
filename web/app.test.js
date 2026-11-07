@@ -36,6 +36,14 @@ test('app switches modes without rewriting Markdown and keeps one undo history',
   assert.equal($('outline-panel').hidden, true);
   assert.equal($('view-files').getAttribute('aria-pressed'), 'true');
   assert.match($('files-empty').textContent, /desktop app/);
+  $('sidebar-backlinks').click();
+  assert.equal($('backlinks-panel').hidden, false);
+  assert.equal($('files-panel').hidden, true);
+  assert.equal($('view-backlinks').getAttribute('aria-pressed'), 'true');
+  assert.equal(window.localStorage.getItem('textgate.sidebar.v2'), 'backlinks');
+  assert.equal(window.localStorage.getItem('textgate.sidebar'), 'outline', 'older builds retain a recognized sidebar choice');
+  $('sidebar-backlinks').dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+  assert.equal($('sidebar-files').getAttribute('aria-selected'), 'true');
   $('view-outline').click();
   assert.equal($('outline-panel').hidden, false);
   assert.equal($('sidebar-outline').getAttribute('aria-selected'), 'true');

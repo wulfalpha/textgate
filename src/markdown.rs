@@ -2,7 +2,7 @@ use comrak::{Anchorizer, Arena, Options, markdown_to_html, nodes::NodeValue, par
 
 // GitHub-flavored rendering via comrak, a port of GitHub's cmark-gfm.
 // Raw HTML is passed through here and sanitized by DOMPurify in the webview.
-fn options() -> Options<'static> {
+pub(crate) fn options() -> Options<'static> {
     let mut options = Options::default();
     options.extension.strikethrough = true;
     options.extension.table = true;

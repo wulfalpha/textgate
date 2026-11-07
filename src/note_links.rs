@@ -1,5 +1,6 @@
 //! Link clicks reuse existing grants; document content cannot grant paths.
 use crate::documents::{DocumentId, Documents};
+use crate::workspace::Root;
 use std::path::{Path, PathBuf};
 use tauri::Manager;
 
@@ -41,35 +42,7 @@ pub(crate) fn resolve_scoped_file(
             .ok_or("Open a folder before following note ID links.")?;
         return crate::notes::resolve_id(root, id);
     }
-    let base = original
-        .as_ref()
-        .and_then(|path| path.parent())
-        .or_else(|| root.as_ref().map(|root| root.link_base()));
-    let Some(base) = base else {
-        return Err("Save this note or use Open Folder before following relative links.".into());
-    };
-    let mut relative = PathBuf::from(link);
-    if wiki && relative.extension().is_none() {
-        relative.set_extension("md");
-    }
-    if !relative
-        .extension()
-        .and_then(|extension| extension.to_str())
-        .is_some_and(|extension| {
-            extensions
-                .iter()
-                .any(|allowed| extension.eq_ignore_ascii_case(allowed))
-        })
-    {
-        return Err(format!(
-            "Supported file extensions: {}.",
-            extensions.join(", ")
-        ));
-    }
-    let mut candidates = vec![base.join(&relative)];
-    if wiki && let Some(root) = &root {
-        candidates.push(root.link_base().join(&relative));
-    }
+    let candidates = candidates(root.as_ref(), original.as_deref(), link, wiki, extensions)?;
     let mut denied = false;
     for candidate in candidates {
         let Ok(real) = std::fs::canonicalize(&candidate) else {
@@ -97,6 +70,54 @@ pub(crate) fn resolve_scoped_file(
         "Linked file not found. No file was created."
     }
     .into())
+}
+
+// Shared by navigation and the workspace index: the same extension and
+// current-folder/root fallback rules must apply to both.
+pub(crate) fn candidates(
+    root: Option<&Root>,
+    original: Option<&Path>,
+    link: &str,
+    wiki: bool,
+    extensions: &[&str],
+) -> Result<Vec<PathBuf>, String> {
+    if link.is_empty()
+        || link.len() > 4096
+        || link.contains(['\\', ':', '\0'])
+        || Path::new(link).is_absolute()
+    {
+        return Err("Use a relative file path.".into());
+    }
+    let base = original
+        .as_ref()
+        .and_then(|path| path.parent())
+        .or_else(|| root.map(|root| root.link_base()));
+    let Some(base) = base else {
+        return Err("Save this note or use Open Folder before following relative links.".into());
+    };
+    let mut relative = PathBuf::from(link);
+    if wiki && relative.extension().is_none() {
+        relative.set_extension("md");
+    }
+    if !relative
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| {
+            extensions
+                .iter()
+                .any(|allowed| extension.eq_ignore_ascii_case(allowed))
+        })
+    {
+        return Err(format!(
+            "Supported file extensions: {}.",
+            extensions.join(", ")
+        ));
+    }
+    let mut candidates = vec![base.join(&relative)];
+    if wiki && let Some(root) = root {
+        candidates.push(root.link_base().join(&relative));
+    }
+    Ok(candidates)
 }
 
 #[tauri::command]
