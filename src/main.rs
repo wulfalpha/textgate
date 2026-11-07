@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod backlinks;
 mod documents;
 mod images;
 mod launch;
@@ -8,6 +9,7 @@ mod missing_notes;
 mod note_links;
 mod notes;
 mod recovery;
+mod rename_links;
 mod spelling;
 mod themes;
 mod watching;
@@ -67,11 +69,22 @@ fn main() {
         .manage(documents::Documents::default())
         .manage(recovery::Recovery::default())
         .manage(watching::Watching::default())
+        .manage(backlinks::WorkspaceIndex::default())
+        .manage(rename_links::Renames::default())
         .invoke_handler(tauri::generate_handler![
             themes::theme_state,
             markdown::render_markdown,
             markdown::note_heading_line,
             note_links::resolve_note_link,
+            backlinks::workspace_backlinks,
+            rename_links::prepare_note_rename,
+            rename_links::preview_note_rename,
+            rename_links::begin_note_rename,
+            rename_links::step_note_rename,
+            rename_links::stop_note_rename,
+            rename_links::pending_note_rename,
+            rename_links::acknowledge_note_rename,
+            rename_links::retry_note_rename,
             notes::create_note,
             missing_notes::prepare_missing_note,
             missing_notes::create_missing_note,

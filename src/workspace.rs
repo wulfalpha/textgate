@@ -67,6 +67,27 @@ impl Root {
     }
 }
 
+pub(crate) fn relative_label(root: &Root, path: &Path) -> String {
+    let real = fs::canonicalize(path)
+        .or_else(|_| {
+            path.parent()
+                .zip(path.file_name())
+                .ok_or_else(|| io::Error::other("No parent."))
+                .and_then(|(parent, name)| fs::canonicalize(parent).map(|p| p.join(name)))
+        })
+        .ok();
+    path.strip_prefix(root.link_base())
+        .ok()
+        .or_else(|| path.strip_prefix(root.watch_path()).ok())
+        .or_else(|| {
+            real.as_deref()
+                .and_then(|p| p.strip_prefix(root.watch_path()).ok())
+        })
+        .unwrap_or(path)
+        .to_string_lossy()
+        .replace('\\', "/")
+}
+
 #[derive(Clone, Debug, Serialize, PartialEq)]
 pub struct Workspace {
     path: String,
@@ -303,14 +324,19 @@ fn same_entry(a: &Path, b: &Path) -> bool {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Renamed {
-    path: String,
+    pub(crate) path: String,
     /// Open documents that moved, with their new paths.
-    documents: Vec<(DocumentId, String)>,
+    pub(crate) documents: Vec<(DocumentId, String)>,
 }
 
 // Renames within the same folder. A file keeps its extension unless the new
 // name gives Markdown or text one. Never replaces another entry.
-fn rename(documents: &Documents, root: &Root, path: &Path, name: &str) -> Result<Renamed, String> {
+pub(crate) fn rename(
+    documents: &Documents,
+    root: &Root,
+    path: &Path,
+    name: &str,
+) -> Result<Renamed, String> {
     root.entry(path)?;
     let name = checked_name(name)?;
     let folder = fs::metadata(path).is_ok_and(|meta| meta.is_dir());

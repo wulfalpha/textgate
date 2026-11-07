@@ -72,14 +72,32 @@ fn snapshot(path: &Path) -> io::Result<Option<Vec<u8>>> {
     fs::read(path).map(Some)
 }
 
-fn save(path: &Path, bytes: &[u8], expected: Option<&[u8]>) -> Result<(), SaveError> {
+pub(crate) fn save(path: &Path, bytes: &[u8], expected: Option<&[u8]>) -> Result<(), SaveError> {
     save_with(path, expected, |file| file.write_all(bytes))
+}
+
+pub(crate) fn save_with_receipt(
+    path: &Path,
+    bytes: &[u8],
+    expected: Option<&[u8]>,
+    receipt: impl FnOnce(&Path) -> Result<(), SaveError>,
+) -> Result<(), SaveError> {
+    save_with_hook(path, expected, |file| file.write_all(bytes), receipt)
 }
 
 fn save_with(
     path: &Path,
     expected: Option<&[u8]>,
     write: impl FnOnce(&mut fs::File) -> io::Result<()>,
+) -> Result<(), SaveError> {
+    save_with_hook(path, expected, write, |_| Ok(()))
+}
+
+fn save_with_hook(
+    path: &Path,
+    expected: Option<&[u8]>,
+    write: impl FnOnce(&mut fs::File) -> io::Result<()>,
+    receipt: impl FnOnce(&Path) -> Result<(), SaveError>,
 ) -> Result<(), SaveError> {
     let conflict = |current: &Option<Vec<u8>>| SaveError::Conflict {
         missing: current.is_none(),
@@ -135,6 +153,7 @@ fn save_with(
     if current.as_deref() != expected {
         return Err(conflict(&current));
     }
+    receipt(temporary.path())?;
     persist(temporary, path, expected.is_none())?;
     // Best effort directory durability: some filesystems cannot sync directories.
     // A failure here must not report an unsuccessful save after replacement.
@@ -371,6 +390,18 @@ impl Documents {
             .get(&document)
             .map(|slots| slots.baseline.as_ref().map(|(path, _)| path.clone()))
             .ok_or_else(gone)
+    }
+
+    pub(crate) fn named_documents(&self) -> Vec<(DocumentId, PathBuf)> {
+        let mut paths: Vec<_> = self
+            .open
+            .lock()
+            .unwrap()
+            .iter()
+            .filter_map(|(&id, slots)| slots.baseline.as_ref().map(|(path, _)| (id, path.clone())))
+            .collect();
+        paths.sort_by_key(|(id, _)| *id);
+        paths
     }
 
     // Derived exclusively from native document baselines, never arbitrary paths

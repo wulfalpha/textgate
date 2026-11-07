@@ -90,6 +90,10 @@ Right-click (or press the menu key or Shift+F10) for:
   buttons use the selected folder.
 - **Rename…** (F2). A file keeps its extension unless a Markdown or text one is
   typed. Open tabs follow the rename, including files inside a renamed folder.
+  Note renames preview affected links and offer **Rename and Update Links**,
+  **Rename Only**, or **Cancel**. Updated open notes stay unsaved and support
+  undo; closed notes are written after conflict checks. Folder renames do not
+  update links. Existing note ID prefixes must be retained.
 - **Move to Trash…** (Delete, or Cmd+Backspace on macOS), after asking. Items go
   to the system trash, never deleted outright; a trashed file's open tab keeps
   its text, and saving it recreates the file.
@@ -97,7 +101,7 @@ Right-click (or press the menu key or Shift+F10) for:
 
 Nothing is ever replaced: creating or renaming onto an existing name is refused.
 Names must be valid on every platform (no `/ \ : * ? " < > |`, no leading or
-trailing dot). Choose **Files** or **Outline** at the top of the sidebar or in
+trailing dot). Choose **Files**, **Outline**, or **Backlinks** at the top of the sidebar or in
 the View menu; **View → Sidebar** shows or hides it. Drag the sidebar's edge to
 resize it (or focus the edge and use the arrow keys; double-click resets it).
 Textgate watches visible folders and open files: clean tabs reload
@@ -190,6 +194,20 @@ and Markdown links keep their requested path; the parent folder must already
 exist. Duplicate IDs, inaccessible paths and existing files do not authorize
 creation. See the [missing-note behavior](docs/plans/0.2.0-missing-notes.md)
 and the original [note-links milestone](docs/plans/0.1.7-note-links.md).
+
+The **Backlinks** sidebar (also available from View) lists notes in the open
+folder that link to the active saved note, with source-note/link counts,
+workspace-relative paths and line context. Click a result to
+open its source at the link. Unsaved open notes are included; outside file
+changes reconcile about every five seconds while the panel is visible, or on
+Refresh/focus. Scan limits and unreadable notes are shown as partial results.
+See [backlink behavior and limits](docs/plans/0.2.0-backlinks.md).
+
+Renaming a note can update its Markdown and wiki link destinations while keeping
+labels, aliases and heading fragments. Stable ID links remain unchanged.
+Interrupted operations retain a progress record for review; pending writes never
+resume automatically. Undo affects one editor's link changes, not the filesystem
+rename or other files. See [rename behavior and validation](docs/plans/0.2.0-rename-links.md).
 
 Textgate displays PNG, JPEG, GIF and WebP images:
 

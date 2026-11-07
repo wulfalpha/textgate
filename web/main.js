@@ -32,6 +32,9 @@ import { createSessionRecovery } from './session-recovery.js';
 import { wikiLinks, noteLinkAt, splitNoteLink, wikiLinkTarget, wikiIdDestination } from './note-links.js';
 import { noteIdCandidates } from './note-ids.js';
 import { askMissingNote } from './missing-notes.js';
+import { scanRenameCandidates } from './rename-links.js';
+import { askRenamePreview, renameTransaction } from './rename-dialog.js';
+import { createBacklinks, renderBacklinks, openBacklink } from './backlinks.js';
 import { createDiskMonitor, reloadDiskTab } from './disk-monitor.js';
 import { encodeDocument, decodeDocument, defaultFormat, lineEndingLabel, documentFormat, preserveDocumentFormat, sameDocumentFormat, normalizeLineEndings, snapshotDocument } from './document-format.js';
 import { createRenderer } from './markdown.js';
@@ -72,6 +75,7 @@ let previewBusy = false;
 let previewPromise = null;
 let sessionRecovery = null;
 let diskMonitor = null;
+let backlinks = null;
 let watchWarning = '';
 const details = createDocumentDetails();
 const vimMode = new Compartment();
@@ -106,6 +110,7 @@ const name = () => fileName(tabs.active.path);
 const previewVisible = () => mode === 'source' && $('toggle-preview').getAttribute('aria-pressed') === 'true';
 
 function refresh() {
+  backlinks?.invalidate();
   refreshDiskWarning();
   updateEditorStatus();
   renderTabs();
@@ -493,6 +498,7 @@ const separatorOf = (path) => (path.includes('\\') && !path.includes('/') ? '\\'
 // Tabs follow a renamed file or folder; Rust names the documents it moved
 // (including tabs that reached a file through a linked folder).
 async function renameEntry(target) {
+  if (!target.folder) return renameNote(target);
   const current = fileName(target.path);
   const dot = target.folder ? -1 : current.lastIndexOf('.');
   const result = await askName({
@@ -524,6 +530,133 @@ async function renameEntry(target) {
   fileTree.select(result.path, { focus: true });
   $('status').textContent = `Renamed to ${fileName(result.path)}`;
 }
+// File renames have a reviewed operation; folder renames keep their existing
+// path-following behavior without initiating recursive link rewrites.
+function frozenRenameEditors() {
+  const snapshots = tabs.list.map((tab) => ({ tab, path: tab.path, snapshot: snapshotDocument(stateOf(tab)) }));
+  return () => snapshots.length === tabs.list.length && snapshots.every(({ tab, path, snapshot }) =>
+    tabs.list.includes(tab) && tab.path === path && snapshotDocument(stateOf(tab)).eq(snapshot));
+}
+async function renameCheckpoint() { return { ...await captureSession(), closed: false }; }
+async function parsedRename(scan) {
+  let candidates, parseError;
+  try { candidates = await scanRenameCandidates(scan.sources); }
+  catch (error) { parseError = error; candidates = scan.sources.map(({ key }) => ({ key, spans: [] })); }
+  const preview = await invoke('preview_note_rename', { token: scan.token, candidates });
+  if (parseError) preview.issues.unshift(`Destination parsing failed; Rename Only is available. ${parseError?.message ?? parseError}`);
+  return preview;
+}
+async function applyNativeRenamePaths(renamed) {
+  if (!renamed) return;
+  for (const [id, path] of renamed.documents) {
+    const tab = await tabWithDocument(id);
+    if (tab) tab.path = path;
+  }
+  revealed = tabs.active.path;
+  invalidateImageContext(); refresh();
+  await fileTree.refresh(); fileTree.select(renamed.path);
+}
+async function renameStopped(token, reason, previous) {
+  try { return { ...previous, ...await invoke('stop_note_rename', { token, reason }) }; }
+  catch (error) { return { ...previous, error: `${reason} Progress could not be updated: ${error?.message ?? error}. The existing recovery record was retained.` }; }
+}
+async function applyReviewedRename(preview, update, { stopped, progress }) {
+  const unchanged = frozenRenameEditors();
+  const checkpoint = await renameCheckpoint();
+  if (!unchanged()) throw new Error('Editor contents changed. Rebuild the preview.');
+  progress('Checking the preview and preserving drafts before renaming…');
+  let result;
+  try { result = await invoke('begin_note_rename', { token: preview.token, checkpoint, update }); }
+  catch (error) {
+    const pending = await invoke('pending_note_rename');
+    if (!pending || pending.token !== preview.token) throw error;
+    if (pending.rename_done) await applyNativeRenamePaths({ path: pending.to, documents: pending.documents });
+    return { ...pending, error: String(error), patches: [], editor_files: [], written_files: [], pending_files: [] };
+  }
+  const renamed = result.renamed;
+  let transactions;
+  try {
+    if (!unchanged()) throw new Error('Editor contents changed during rename. Link patches were not applied.');
+    const targets = await Promise.all(result.patches.map(async (patch) => ({ patch, tab: await tabWithDocument(patch.document) })));
+    if (!unchanged()) throw new Error('The editor tab list changed during rename.');
+    transactions = targets.map(({ patch, tab }) => {
+      if (!tab) throw new Error('A source tab closed during rename.');
+      return { tab, transaction: renameTransaction(stateOf(tab), patch.edits) };
+    });
+  } catch (error) {
+    await applyNativeRenamePaths(renamed);
+    await sessionRecovery?.commit();
+    return { ...await renameStopped(result.token, String(error), result), editor_files: [] };
+  }
+  for (const { tab, transaction } of transactions) {
+    if (tab === tabs.active) view.dispatch(transaction);
+    else { tab.state = transaction.state; tab.scroll = null; }
+  }
+  await applyNativeRenamePaths(renamed); refresh();
+  if (!sessionRecovery || !await sessionRecovery.commit()) return renameStopped(result.token, 'Recovery checkpointing failed. Remaining disk updates were stopped.', result);
+  const stableEditors = frozenRenameEditors();
+  while (result.pending && !result.error) {
+    if (stopped() || !stableEditors()) return renameStopped(result.token, stopped()
+      ? 'Stopped after the current step. Completed changes were retained; pending files were not changed.'
+      : 'An editor changed. Remaining updates stopped without overwriting it.', result);
+    progress(`${result.written} closed files written; ${result.pending} remaining. Open-note link edits remain unsaved.`);
+    try { result = await invoke('step_note_rename', { token: result.token }); }
+    catch (error) { return renameStopped(result.token, `A file update could not be confirmed: ${error?.message ?? error}`, result); }
+  }
+  return result;
+}
+let pendingRename = null;
+async function updateRenameWarning() {
+  if (!isTauri()) return;
+  try {
+    pendingRename = await invoke('pending_note_rename');
+    $('rename-recovery-warning').hidden = !pendingRename;
+    if (pendingRename) $('rename-recovery-text').textContent = `Rename record: ${fileName(pendingRename.from)} → ${fileName(pendingRename.to)}. ${pendingRename.written} files written; ${pendingRename.pending} pending. ${pendingRename.error ?? 'Review before retrying; no pending writes run automatically.'}`;
+  } catch (error) {
+    pendingRename = null; $('rename-recovery-warning').hidden = false;
+    $('rename-recovery-text').textContent = `Rename recovery record could not be read. Drafts were preserved. ${error?.message ?? error}`;
+  }
+  $('rename-recovery-review').disabled = $('rename-recovery-ack').disabled = !pendingRename;
+}
+async function reviewRename(preview) {
+  try {
+    return await askRenamePreview(document, preview, {
+      apply: applyReviewedRename,
+      acknowledge: async (result) => {
+        if (!sessionRecovery || !await sessionRecovery.commit()) throw new Error('Keep the rename record until recovery checkpointing works.');
+        await invoke('acknowledge_note_rename', { token: result.token });
+      },
+      review: async (result) => parsedRename(await invoke('retry_note_rename', { token: result.token, checkpoint: await renameCheckpoint() })),
+    });
+  } finally { await updateRenameWarning(); }
+}
+async function renameNote(target) {
+  const current = fileName(target.path); const dot = current.lastIndexOf('.');
+  const titleStart = /^\d{12,14} /.exec(current)?.[0].length ?? 0;
+  const preview = await askName({ title: `Rename ${current}`, value: current, action: 'Preview Rename',
+    selection: dot > titleStart ? [titleStart, dot] : null,
+    hint: 'Keep any existing note ID prefix. Next, review link edits or choose Rename Only.',
+    submit: async (name) => {
+      $('status').textContent = 'Scanning notes for the rename preview…';
+      return parsedRename(await invoke('prepare_note_rename', { path: target.path, name, checkpoint: await renameCheckpoint() }));
+    },
+  });
+  if (!preview) return;
+  if (preview.from === preview.to && !preview.retry) { $('status').textContent = 'Name unchanged.'; return; }
+  const result = await reviewRename(preview);
+  $('status').textContent = result?.error ? `Rename stopped: ${result.error}`
+    : result?.rename_done ? `Renamed to ${fileName(preview.to)}. ${result.editor_files?.length ? 'Open link edits remain unsaved.' : result.written ? 'Closed-file link updates completed.' : 'No source contents changed.'}`
+    : pendingRename ? 'Rename review closed. Completed changes remain; review the pending record.' : 'Rename cancelled.';
+}
+$('rename-recovery-review').onclick = () => run(async () => {
+  if (pendingRename) await reviewRename(await parsedRename(await invoke('retry_note_rename', { token: pendingRename.token, checkpoint: await renameCheckpoint() })));
+});
+$('rename-recovery-ack').onclick = () => run(async () => {
+  if (!pendingRename || !await confirm('Acknowledge this rename record? Completed changes stay in place. Pending link updates will require manual review; nothing will be rolled back.', { title: 'Acknowledge rename', okLabel: 'Acknowledge', cancelLabel: 'Cancel' })) return;
+  if (!await sessionRecovery?.commit()) return;
+  await invoke('acknowledge_note_rename', { token: pendingRename.token }); await updateRenameWarning();
+});
+
 // To the system trash, never deleted outright; open tabs keep their text.
 async function trashEntry(target) {
   const label = fileName(target.path);
@@ -597,21 +730,28 @@ async function showLaunchedFolder(workspace) {
   if ($('toggle-outline').getAttribute('aria-pressed') !== 'true') $('toggle-outline').click();
   $('status').textContent = `Opened folder ${workspace.name}`;
 }
-// Files or Outline, remembered on this device.
+// Sidebar selection is remembered on this device.
 function showSidebar(view, { focus = false } = {}) {
-  for (const [name, tab, panel, item] of [['files', 'sidebar-files', 'files-panel', 'view-files'], ['outline', 'sidebar-outline', 'outline-panel', 'view-outline']]) {
+  if (!['files', 'outline', 'backlinks'].includes(view)) view = 'outline';
+  for (const [name, tab, panel, item] of [['files', 'sidebar-files', 'files-panel', 'view-files'], ['outline', 'sidebar-outline', 'outline-panel', 'view-outline'], ['backlinks', 'sidebar-backlinks', 'backlinks-panel', 'view-backlinks']]) {
     const shown = name === view;
     $(tab).setAttribute('aria-selected', String(shown));
     $(tab).tabIndex = shown ? 0 : -1;
     $(panel).hidden = !shown;
     setPressed($(item), shown);
   }
-  try { storage?.setItem('textgate.sidebar', view); } catch { /* keep it for this session */ }
+  try {
+    storage?.setItem('textgate.sidebar.v2', view);
+    // Older builds only understand Files/Outline; keep their fallback usable.
+    storage?.setItem('textgate.sidebar', view === 'backlinks' ? 'outline' : view);
+  } catch { /* keep it for this session */ }
+  backlinks?.invalidate();
   if (focus) focusSidebar();
 }
-const sidebarView = () => ($('sidebar-files').getAttribute('aria-selected') === 'true' ? 'files' : 'outline');
+const sidebarView = () => ['files', 'outline', 'backlinks'].find((name) => $(`sidebar-${name}`).getAttribute('aria-selected') === 'true') ?? 'outline';
 function focusSidebar() {
   if (sidebarView() === 'outline') ($('outline').querySelector('button') ?? $('outline')).focus();
+  else if (sidebarView() === 'backlinks') ($('backlinks').querySelector('button') ?? $('backlinks')).focus();
   else if (fileTree.root) fileTree.focus();
   else $('open-folder-here').focus();
 }
@@ -640,11 +780,16 @@ $('view-files').onclick = () => showSidebar('files', { focus: true });
 $('view-outline').onclick = () => showSidebar('outline', { focus: true });
 $('sidebar-files').onclick = () => showSidebar('files');
 $('sidebar-outline').onclick = () => showSidebar('outline');
+$('sidebar-backlinks').onclick = () => showSidebar('backlinks');
+$('view-backlinks').onclick = () => showSidebar('backlinks', { focus: true });
+$('refresh-backlinks').onclick = () => backlinks?.refresh();
 document.querySelector('.sidebar-switch').addEventListener('keydown', (event) => {
   if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
   event.preventDefault();
-  showSidebar(sidebarView() === 'files' ? 'outline' : 'files');
-  $(sidebarView() === 'files' ? 'sidebar-files' : 'sidebar-outline').focus();
+  const views = ['files', 'outline', 'backlinks'];
+  const next = views[(views.indexOf(sidebarView()) + (event.key === 'ArrowRight' ? 1 : views.length - 1)) % views.length];
+  showSidebar(next);
+  $(`sidebar-${next}`).focus();
 });
 // A focus scan also covers locations where filesystem notifications are absent.
 window.addEventListener('focus', () => { void diskMonitor?.scan(true); });
@@ -913,6 +1058,7 @@ for (const part of ['preview', 'outline']) {
     button.setAttribute('aria-pressed', String(show));
     document.querySelector('main').classList.toggle(`hide-${part}`, !show);
     view.requestMeasure();
+    backlinks?.invalidate();
     refreshPreview();
   };
 }
@@ -1228,8 +1374,43 @@ async function restoreSession() {
     }
   }, { silent: true });
 }
+backlinks = createBacklinks({
+  visible: () => sidebarView() === 'backlinks' && !document.querySelector('main').classList.contains('hide-outline'),
+  capture: () => {
+    const root = fileTree.root;
+    const target = tabs.active;
+    if (!root) throw new Error('Open a folder to see backlinks.');
+    if (!target.path) throw new Error('Save this note inside the open folder to see backlinks.');
+    const frozen = tabs.list.map((tab) => ({ tab, path: tab.path, doc: stateOf(tab).doc }));
+    return { target, root, frozen, unchanged: () => fileTree.root === root && tabs.active === target &&
+      tabs.list.length === frozen.length && frozen.every(({ tab, path, doc }) => tabs.list.includes(tab) && tab.path === path && stateOf(tab).doc === doc) };
+  },
+  query: async ({ target, frozen }) => {
+    if (!isTauri()) throw new Error('Run the desktop app to see workspace backlinks.');
+    const document = await target.file.id();
+    const buffers = await Promise.all(frozen.filter(({ path }) => path).map(async ({ tab, doc }) =>
+      ({ document: await tab.file.id(), contents: doc.toString() })));
+    return invoke('workspace_backlinks', { document, buffers });
+  },
+  render: (state) => renderBacklinks({ document, container: $('backlinks'), status: $('backlinks-status'), warning: $('backlinks-warning'),
+    open: (entry) => run(async () => {
+      await openBacklink(entry, { findOpen: tabWithDocument, show: showTab, open: openFile });
+      const doc = view.state.doc;
+      const line = doc.line(Math.min(doc.lines, Math.max(1, entry.line)));
+      if (!line.text.startsWith(entry.context)) {
+        $('status').textContent = 'The linking note changed. Refresh backlinks and choose the link again.';
+        backlinks.refresh(); return;
+      }
+      const offset = Math.min(line.to, line.from + Math.max(0, entry.column - 1));
+      view.dispatch({ selection: { anchor: offset }, effects: EditorView.scrollIntoView(offset, { y: 'center' }) });
+      view.focus();
+    }) }, state),
+});
+window.addEventListener('focus', () => backlinks.refresh());
+window.addEventListener('pagehide', () => backlinks.dispose());
+
 // Native requests stay in Rust's queue while recovery is being restored.
-restoreSession().then(() => setupExternalOpen({ desktop: isTauri(), listen, invoke, run, report,
+restoreSession().then(() => updateRenameWarning()).then(() => setupExternalOpen({ desktop: isTauri(), listen, invoke, run, report,
   openPath: openFile, openFolder: showLaunchedFolder,
 })).then(() => {
   if (!isTauri()) return;
@@ -1242,7 +1423,7 @@ restoreSession().then(() => setupExternalOpen({ desktop: isTauri(), listen, invo
   diskMonitor.start();
 }).catch(report);
 // The folder from the last session, and the sidebar view last chosen.
-const storedSidebar = (() => { try { return storage?.getItem('textgate.sidebar'); } catch { return null; } })();
+const storedSidebar = (() => { try { return storage?.getItem('textgate.sidebar.v2') ?? storage?.getItem('textgate.sidebar'); } catch { return null; } })();
 if (isTauri()) {
   invoke('workspace').then(async (workspace) => {
     if (folderLaunched) return;
@@ -1251,7 +1432,7 @@ if (isTauri()) {
   }).catch(report);
 } else {
   $('files-empty').firstChild.textContent = 'Run the desktop app to browse folders.';
-  showSidebar(storedSidebar === 'files' ? 'files' : 'outline');
+  showSidebar(storedSidebar ?? 'outline');
 }
 setupSidebarWidth({ handle: $('sidebar-resize'), main: document.querySelector('main'), storage, window });
 setupThemes({ document, desktop: isTauri(), invoke });
