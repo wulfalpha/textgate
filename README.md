@@ -2,19 +2,14 @@
 
 A lightweight desktop Markdown editor built with Rust, Tauri 2, CodeMirror 6, and comrak.
 
-**Status: early release.** v0.1.6 adds document tabs, a workspace file browser,
-multi-file opening and safer file-browser renames, plus a Linux AppImage
-spell-checking fix. Packages target Linux, Windows and macOS (Apple Silicon
-and Intel). Download [v0.1.6](https://github.com/wulfalpha/textgate/releases/tag/v0.1.6).
-See the [0.1.6 release notes](docs/releases/0.1.6.md),
+**Status: early release.** v0.1.7 adds crash recovery and restored tabs,
+detection of outside file changes, links between notes and local images in
+Preview and Live mode. Packages target Linux, Windows and macOS (Apple Silicon
+and Intel). Download [v0.1.7](https://github.com/wulfalpha/textgate/releases/tag/v0.1.7).
+See the [0.1.7 release notes](docs/releases/0.1.7.md),
 [release checklist](docs/release-checklist.md),
 [package testing guide](docs/testing-0.1.4.md) and
 [contributor guide](CONTRIBUTING.md).
-
-**0.1.7 preparation:** recovery/restored tabs, outside-change detection, note
-links and local images are merged into `main`. See the
-[draft 0.1.7 notes](docs/releases/0.1.7.md). Candidate packages are being built
-and verified; 0.1.6 remains the latest published download.
 
 ![Textgate in Live mode: headings, task list, link, and table rendered in place](docs/screenshots/live.png)
 
@@ -38,8 +33,9 @@ do not collapse into one when the file is reopened. Files that are not valid UTF
 refused rather than opened lossily. The app uses vanilla JavaScript and CSS with
 Vite; no UI framework is required.
 
-> **Windows status.** Tabs, the file browser and opening several files at once
-> are new in 0.1.6. Windows MSI testing confirmed tab switching, close and quit
+> **Windows status.** The 0.1.7 Windows package was tested by hand: it
+> installs and launches, and links and local images work. For 0.1.6, Windows
+> MSI testing confirmed tab switching, close and quit
 > dialogs, file creation/rename/trash, and CLI/Explorer multi-file opening.
 > Ctrl+S, Ctrl+Shift+S and Ctrl+W also passed with the expected prompts in the
 > rebuilt MSI. Explorer Open With required adding Textgate manually.
@@ -104,8 +100,7 @@ Names must be valid on every platform (no `/ \ : * ? " < > |`, no leading or
 trailing dot). Choose **Files** or **Outline** at the top of the sidebar or in
 the View menu; **View → Sidebar** shows or hides it. Drag the sidebar's edge to
 resize it (or focus the edge and use the arrow keys; double-click resets it).
-Published 0.1.6 refreshes the file browser on focus or manually. The 0.1.7
-development branch watches visible folders and open files: clean tabs reload
+Textgate watches visible folders and open files: clean tabs reload
 outside edits, while unsaved tabs keep their text and show a warning. Deleted
 files keep their tab contents; Save asks before recreating them. **Reload from
 disk…** asks before discarding editor changes. Reload starts a fresh undo
@@ -165,7 +160,7 @@ not rendered when enclosed by `---` lines at the start of the document.
 Output is sanitized with DOMPurify. Browser-only `npm run dev` has no
 Rust backend and falls back to `marked`, which can differ in edge cases.
 
-The 0.1.7 development build opens relative Markdown links such as
+Textgate opens relative Markdown links such as
 `[Next](notes/next.md#heading)` and wiki links such as `[[Next note]]` or
 `[[notes/Next note|Label]]` in tabs. Click a link in Preview, or use
 Ctrl/Cmd+click or Ctrl/Cmd+Enter on an inline/wiki link in the editor. Existing
@@ -176,7 +171,7 @@ Linked notes must be in the chosen workspace or already opened through a native
 file grant. Missing links report an error and do not create files. See the
 [note-links milestone](docs/plans/0.1.7-note-links.md).
 
-The 0.1.7 development build displays PNG, JPEG, GIF and WebP images:
+Textgate displays PNG, JPEG, GIF and WebP images:
 
 ```md
 ![Description](images/photo.png)
@@ -215,7 +210,7 @@ code blocks, URLs, raw HTML and YAML front matter are not checked.
   provider, removing 0.1.5's fixed Debian/Ubuntu provider path. The Ubuntu
   build-time dictionary check and manual Arch test pass. Downloaded packages
   have not been tested by hand on Fedora or Debian/Ubuntu.
-- **Windows: known issue.** Spelling is not underlined on Windows in 0.1.6,
+- **Windows: known issue.** Spelling is not underlined on Windows (still the case in 0.1.7),
   although the setting is present. The cause has not been identified yet;
   WebView2, the system component Textgate uses to display the editor, does not
   apply its spell checker to the editor in our testing. Nothing else is
@@ -299,8 +294,8 @@ collaborators with access.
 For the Linux AppImage, make the downloaded file executable and run it:
 
 ```sh
-chmod +x Textgate_0.1.6_amd64.AppImage
-./Textgate_0.1.6_amd64.AppImage
+chmod +x Textgate_0.1.7_amd64.AppImage
+./Textgate_0.1.7_amd64.AppImage
 ```
 
 Open the macOS DMG and copy Textgate to Applications. Mac builds from the current
@@ -487,9 +482,8 @@ Next milestones:
 - Continued package validation across supported platforms.
 
 Textgate has one window, with a tab for each open document. Closing a tab or
-quitting asks before discarding unsaved changes. Published 0.1.6 has no crash
-recovery, autosave or tab restoration after a restart. The 0.1.7 development
-branch adds private recovery checkpoints for unsaved buffers and restores named
+quitting asks before discarding unsaved changes. Textgate keeps private
+recovery checkpoints for unsaved buffers and restores named
 tabs after a normal quit; it does not autosave over Markdown files. See the
 [recovery milestone](docs/plans/0.1.7-recovery.md) for behavior and limits.
 File permissions are
