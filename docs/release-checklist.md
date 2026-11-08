@@ -1,5 +1,7 @@
 # Release checklist
 
+Current preparation: [v0.2.0 checklist](#v020-release-preparation).
+
 - [x] Choose the project license and add its text and package metadata (MIT).
 - [x] Create the GitHub repository and initial commit after reviewing the file list.
 - [x] Run the CI workflow on GitHub; local checks do not validate hosted execution.
@@ -380,3 +382,110 @@ release artifacts or claim the M1 installation issue resolved until tested.
 
 0.2.0 scope is drafted in docs/plans/0.2.0.md. Source-file autosave and
 per-image remote loading are deferred to 0.2.1; neither is enabled in 0.1.7.
+
+## v0.2.0 release preparation
+
+Preparation branch: `release/0.2.0`, based on merged main `df5636e`.
+Source versions are now 0.2.0. No 0.2.0 candidate, tag or release has been
+created. Checked items below describe feature validation, not validation of the
+eventual tagged packages. Historical test records above remain unchanged.
+
+### Scope and merged features
+
+- [x] ID-named New Note and confirmed creation from missing links: [PR #11](https://github.com/wulfalpha/textgate/pull/11), `42866b3`.
+- [x] Shared workspace inventory, backlinks with counts/folder context, and
+      reviewed rename link updates: [PR #12](https://github.com/wulfalpha/textgate/pull/12), `e1e0fa8`.
+- [x] Quick filename/ID search, Ctrl/Cmd+P and Vim Normal-mode `/`:
+      [PR #13](https://github.com/wulfalpha/textgate/pull/13), `df5636e`.
+- [x] Keep explicit Save and private crash recovery. Tags, graph view, full-text
+      search, source-file autosave and per-image remote loading remain deferred
+      to 0.2.1. Outgoing-link browsing is outside this release's agreed scope.
+
+### Feature validation already recorded
+
+- [x] Note creation/missing-link confirmation and recovery reported on macOS,
+      Linux and Windows; see [creation results](plans/0.2.0-missing-notes.md).
+- [x] macOS backlinks and counts/folder-context smoke; Linux and Windows
+      backlinks reported working. Windows existing links and images also passed;
+      see [backlink results](plans/0.2.0-backlinks.md).
+- [x] macOS rename choices, open/closed source updates, editor undo/redo and
+      recovery smoke; Linux Rename Only, Rename and Update Links, undo/recovery;
+      Windows Rename Only, Rename and Update Links, undo/recovery;
+      see [rename results](plans/0.2.0-rename-links.md).
+- [x] macOS quick-search acceptance and isolated keyboard, ID, folder context,
+      dirty-tab reuse, cancellation and Vim tests; Linux and Windows `/` and
+      Ctrl+P reported working; see [search results](plans/0.2.0-quick-search.md).
+- [x] Quick-search review fixed a background-refresh selection race and added
+      a failing-then-passing regression test. Final frontend run: 174 tests,
+      production build and version checks. Native code: 100 tests (98 unit,
+      two CLI), Clippy and formatting passed before the frontend-only fix.
+- [x] All six hosted PR/push Checks passed for quick-search head `89dc8b4`.
+      Earlier feature installer workflow [42429509588](https://github.com/wulfalpha/textgate/actions/runs/42429509588)
+      passed for `8edd2dd`; these artifacts precede the final refresh fix and
+      are not 0.2.0 release candidates.
+
+### Remaining feature checks
+
+- [x] Rename-dialog destination collisions tested on macOS, Linux and Windows:
+      the operation refuses and leaves both files unchanged.
+- [x] On macOS, Linux and Windows, closed-source change after preview rejected with a fresh-preview
+      message; outside content preserved and target name unchanged.
+- [x] Case-only Rename and Update Links passed on macOS, Linux and Windows: `target.md`
+      became `Target.md`, the open tab's name followed, and links still open it.
+- [ ] On Linux/Windows, check stopping or
+      recovering a partially completed update. Preserve open drafts and verify
+      pending files are not silently overwritten or replayed. Automated coverage
+      exists; these manual cases have not been individually reported.
+      The user attempted a five-source rename, but it completed too quickly to
+      stop between writes. Manual interruption between writes is untested;
+      automated interruption/receipt/retry coverage passes. General recovery
+      has been reported on all three platforms and is a separate result.
+- [ ] Check backlink counts/folder context on Linux. On Linux/Windows, finish
+      quick-search filename/ID matching, mouse/keyboard opening, dirty-tab reuse,
+      Escape cancellation and Refresh after outside create/rename/delete.
+- [ ] Smoke-test the final refresh fix: change the highlighted search result
+      while reconciliation is running; it must retain the current note if that
+      path remains in the results. Automated regression coverage already passes.
+
+### Release source and candidate packages
+
+- [x] Prepare `docs/releases/0.2.0.md` and update README/platform guidance.
+      Keep Windows spelling, unsigned Windows installers, ad-hoc Mac signing,
+      lack of notarization and untested package platforms explicit. Do not mark
+      source builds as downloaded-package tests.
+- [x] Set the six root version fields to 0.2.0 in `package.json`,
+      `package-lock.json` (two fields), `Cargo.toml`, `Cargo.lock` (Textgate only)
+      and `tauri.conf.json`. Run `npm run check:version`; verify a proposed
+      `v0.2.0` tag also matches, without creating the tag yet.
+- [x] Run the complete local checks from CONTRIBUTING.md on the integrated
+      0.2.0 release source: 174 JavaScript tests, 100 Rust tests (98 unit,
+      two CLI), frontend build, Clippy, formatting, version/tag consistency and
+      diff checks passed. Existing nonfatal local libLLVM/debug-stripping and
+      frontend chunk-size warnings remain.
+- [ ] Merge release preparation through a PR with required hosted CI.
+- [ ] Run the manual Release workflow on the intended candidate commit.
+      Record its source SHA/run URL and confirm all four package jobs succeed,
+      including both Mac signatures and the AppImage dictionary check.
+- [ ] Inspect all nine candidate packages (two Mac app archives, two DMGs,
+      Windows MSI/NSIS, Linux DEB/RPM/AppImage) and record SHA-256 checksums.
+- [ ] Smoke-test downloaded 0.2.0 candidates on the available M4 Mac and Windows
+      machine; test Linux source build and the downloaded AppImage separately.
+      Cover launch/version, existing 0.1.7 settings/tabs, open/save/close,
+      linked-note creation, backlinks, rename updates, search/Vim, recovery,
+      links and local images. Confirm platform spelling status.
+- [ ] Record package-platform limits: Intel Mac runtime and DEB/RPM installation
+      checks remain unverified unless suitable machines are actually tested.
+      Build/signature success alone is not an installation/runtime pass.
+
+### Tag, draft and publication
+
+- [ ] Review the final candidate evidence and choose the approved main commit.
+      Create the immutable `v0.2.0` tag only after approval to tag/release.
+- [ ] Confirm tagged Checks/Release jobs pass and the GitHub draft has all nine
+      assets. Verify the tag points to the approved source and inspect tagged
+      downloads/checksums; do not assume candidate and tagged binaries match.
+- [ ] Put the finalized 0.2.0 notes and installation/platform guidance in the
+      actual GitHub draft. Verify asset links and keep it a draft until approval
+      to publish; 0.1.7 remains Latest meanwhile.
+- [ ] Publish after explicit approval, then verify the public downloads/Latest
+      release and update README links and this checklist with final evidence.
