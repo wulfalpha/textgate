@@ -36,10 +36,13 @@ export function askQuickSearch(document, { query, delay = 150, interval = 5000 }
       if (settled) return;
       if (running) { queued = true; return; }
       running = true; queued = false;
-      const version = revision, text = input.value, previous = entries[selected]?.path;
+      const version = revision, text = input.value;
       try {
         const result = await query(text);
         if (settled || version !== revision || input.value !== text) return;
+        // Selection can change while a periodic scan is running. Preserve the
+        // currently highlighted path, not the one highlighted when it started.
+        const previous = entries[selected]?.path;
         entries = result.entries; busy = false; list.replaceChildren();
         $('quick-search-warning').textContent = result.warnings.length ? `Partial results: ${result.warnings.join(' ')}` : '';
         $('quick-search-status').textContent = entries.length ? `${entries.length} ${entries.length === 1 ? 'note' : 'notes'}. ↑/↓ to select, Enter to open.`

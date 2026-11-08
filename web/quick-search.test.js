@@ -54,3 +54,21 @@ test('partial results, errors and refresh are explicit and cancellation never se
   assert.equal(get('quick-search-results').querySelector('img'), null);
   get('quick-search-cancel').click(); assert.equal(await result, null); dom.window.close();
 });
+
+test('a background refresh preserves a selection changed while the scan was running', { timeout: 2000 }, async () => {
+  const { dom, document, get, key } = setup(); let release; let calls = 0;
+  let started;
+  const background = new Promise((resolve) => { started = resolve; });
+  const result = askQuickSearch(document, { query: () => {
+    if (++calls === 1) return Promise.resolve({ entries, warnings: [] });
+    return new Promise((resolve) => { release = resolve; started(); });
+  }, delay: 0, interval: 1 });
+  await background;
+  assert.ok(release, 'background reconciliation started');
+  key('ArrowDown');
+  release({ entries: [...entries].reverse(), warnings: [] });
+  await Promise.resolve(); await Promise.resolve();
+  key('Enter');
+  assert.deepEqual(await result, entries[1], 'the highlighted note survives reordered results');
+  assert.equal(get('quick-search-dialog').open, false); dom.window.close();
+});
