@@ -1,5 +1,6 @@
 import { setupThemes } from './themes.js';
 import { setupMenus, appDialogOpen } from './menus.js';
+import { askQuickSearch } from './quick-search.js';
 import packageInfo from '../package.json' with { type: 'json' };
 import { syntaxHighlighting } from '@codemirror/language';
 import { fencedLanguage } from './source-language.js';
@@ -907,6 +908,20 @@ async function openDocument() {
   const selected = await open({ multiple: true, filters });
   for (const path of [selected ?? []].flat()) await openFile(path);
 }
+async function quickNoteSearch() {
+  if (!isTauri()) { $('status').textContent = 'Run the desktop app to search workspace notes.'; return; }
+  if (!fileTree.root) {
+    if (!await confirm('Open a folder to search its notes?', { title: 'Quick Note Search', okLabel: 'Open Folder…', cancelLabel: 'Cancel' })) return;
+    await openFolder();
+    if (!fileTree.root) return;
+  }
+  const workspace = fileTree.root.path;
+  const entry = await askQuickSearch(document, { query: (query) => invoke('search_workspace_notes', { workspace, query }) });
+  if (!entry) return;
+  if (fileTree.root?.path !== workspace) throw new Error('The workspace changed. Reopen Quick Note Search.');
+  await openFile(entry.path);
+}
+$('quick-search').onclick = () => run(quickNoteSearch);
 // Resolves true only when the document was written.
 async function saveDocument(saveAs = false, tab = tabs.active) {
   if (!isTauri()) { $('status').textContent = 'Run npm run tauri dev to open and save local files.'; return false; }
@@ -1009,6 +1024,8 @@ defineVimFileCommands(Vim, {
   run,
   save: () => saveDocument(),
   saveAs: () => saveDocument(true),
+  // Defer until Vim finishes handling / before moving focus to the dialog.
+  quickSearch: () => new Promise((resolve, reject) => setTimeout(() => { quickNoteSearch().then(resolve, reject); }, 0)),
   isDirty: () => dirty(),
   // Callers have already saved or chosen to discard, so close the tab without
   // asking; closing the last one closes the window.
@@ -1127,12 +1144,14 @@ export function handleAppKeydown(event, { native = Boolean(nativeMenus), platfor
     $({ '=': 'zoom-in', '-': 'zoom-out', 0: 'zoom-reset' }[key]).click();
     return;
   }
-  if (!['n', 'o', 's', 'q', 'w'].includes(key)) return;
+  if (!['n', 'o', 's', 'q', 'w', 'p'].includes(key)) return;
+  if (key === 'p' && event.shiftKey) return;
   event.preventDefault();
   event.stopPropagation();
   if (key === 'w') $('close-tab').click();
   if (key === 'n') $('new').click();
   if (key === 'o') $('open').click();
+  if (key === 'p') $('quick-search').click();
   if (key === 's') run(() => saveDocument(event.shiftKey));
   if (key === 'q') $('quit').click();
 }

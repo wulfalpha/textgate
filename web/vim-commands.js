@@ -13,6 +13,7 @@
 // `:tabnext`/`:tabn` [N], `:tabprevious`/`:tabp`/`:tabNext`/`:tabN` [N],
 // `:tabnew`/`:tabedit` (an empty tab; file names are not supported) and
 // `:tabclose`/`:tabc`, which is `:q` for the current tab.
+// Normal-mode / opens the workspace note switcher; Insert-mode / stays text.
 
 const bang = (params) => params.argString?.trim().startsWith('!') ?? false;
 // Text after the command (apart from `!`), such as a file name.
@@ -24,7 +25,9 @@ const count = (params) => {
   return Number.isInteger(value) && value > 0 ? value : null;
 };
 
-export function defineVimFileCommands(Vim, { run, save, saveAs, isDirty, close, message, tabs }) {
+export function defineVimFileCommands(Vim, { run, save, saveAs, quickSearch, isDirty, close, message, tabs }) {
+  Vim.defineAction('textgateQuickSearch', () => run(() => quickSearch()));
+  Vim.mapCommand('/', 'action', 'textgateQuickSearch', {}, { context: 'normal' });
   function plain(params, name) {
     if (!argument(params)) return true;
     message(`:${name} takes no file name here. Use :saveas to choose a new file.`);
