@@ -43,6 +43,16 @@ Vite; no UI framework is required.
 > [Spell checking](#spell-checking)). Windows support may trail Linux and macOS
 > for now; reports are welcome.
 
+## Quick note search
+
+Choose **File → Quick Note Search…** or press **Ctrl/Cmd+P** to find notes in
+the open folder by filename or timestamp ID. Matching ignores case; words can
+also match folder names. Results show relative paths. Use ↑/↓ and Enter, or click
+a result, to open it. Escape cancels. Already-open notes keep their existing tab,
+unsaved text and undo history. Refresh reconciles outside changes; results also
+refresh while the search stays open. Scan limits are marked as partial results.
+This searches names and IDs, not note contents.
+
 ## Tabs
 
 Each open document has its own tab, with its own undo history, cursor and scroll
@@ -480,12 +490,14 @@ spell checking, and themes.
 | Check or uncheck tasks on the selected lines | Ctrl/Cmd+Shift+X |
 | Move between tabs, sidebar, editor and preview | F6 / Shift+F6 |
 | Rename / move to trash (file browser) | F2 / Delete (Cmd+Backspace on macOS) |
+| Quick note search | Ctrl/Cmd+P |
 | File browser menu | Menu key or Shift+F10 |
 
 Choose **View → Vim bindings** to enable Vim editing in either mode. The status
 bar shows the current Vim mode. Vim is off by default; turning it on or off is
-remembered across sessions. The file commands use the same save checks as
-the menus: `:w` saves, `:sav` chooses a new file, `:wq` and `:x` save and close
+remembered across sessions. In Vim Normal mode, `/` opens Quick Note Search; in Insert mode it
+types a slash. Use **Edit → Find…** (Ctrl/Cmd+F) to search within the current note.
+The file commands use the same save checks as the menus: `:w` saves, `:sav` chooses a new file, `:wq` and `:x` save and close
 the tab, `:q` closes it (refusing with E37 if there are unsaved changes, as Vim
 does), and `:q!` closes without saving; closing the last tab closes the window.
 `:qa` closes every tab, refusing with E37 if any has unsaved changes; `:qa!`

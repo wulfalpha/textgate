@@ -8,6 +8,7 @@ mod markdown;
 mod missing_notes;
 mod note_links;
 mod notes;
+mod quick_search;
 mod recovery;
 mod rename_links;
 mod spelling;
@@ -77,6 +78,7 @@ fn main() {
             markdown::note_heading_line,
             note_links::resolve_note_link,
             backlinks::workspace_backlinks,
+            quick_search::search_workspace_notes,
             rename_links::prepare_note_rename,
             rename_links::preview_note_rename,
             rename_links::begin_note_rename,

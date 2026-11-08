@@ -13,6 +13,7 @@ let app;
 defineVimFileCommands(Vim, {
   run: (action) => app.run(action),
   save: () => app.save(), saveAs: () => app.saveAs(),
+  quickSearch: () => app.calls.push('quickSearch'),
   isDirty: () => app.dirty, close: () => app.close(), message: (text) => app.message(text),
   tabs: {
     step: (offset) => app.calls.push(`step ${offset}`), go: (position) => app.calls.push(`go ${position}`),
@@ -34,8 +35,23 @@ function setup({ dirty = false, saved = true, anyDirty = dirty } = {}) {
   const view = new EditorView({ parent: document.body, state: EditorState.create({ doc: 'text', extensions: [vim()] }) });
   const ex = async (input) => { Vim.handleEx(getCM(view), input); await Promise.all(pending); };
   const keys = (input) => { for (const key of input) Vim.handleKey(getCM(view), key, 'user'); };
-  return { calls, ex, keys, done: () => view.destroy() };
+  return { calls, ex, keys, view, done: () => view.destroy() };
 }
+
+test('/ in Normal mode opens quick note search without editing; Insert mode keeps literal slash', () => {
+  const { calls, keys, view, done } = setup();
+  keys('/');
+  assert.deepEqual(calls, ['quickSearch']);
+  assert.equal(view.state.doc.toString(), 'text');
+  assert.equal(getCM(view).state.vim.insertMode, false);
+  assert.equal(view.dom.querySelector('.cm-vim-panel'), null);
+  keys('i');
+  assert.equal(getCM(view).state.vim.insertMode, true);
+  // Unhandled printable keys go to CodeMirror's normal text input in Insert mode.
+  assert.equal(Vim.findKey(getCM(view), '/', 'user'), undefined);
+  assert.deepEqual(calls, ['quickSearch']);
+  done();
+});
 
 test(':w and :write save; :w! saves too', async () => {
   for (const input of ['w', 'write', 'w!']) {

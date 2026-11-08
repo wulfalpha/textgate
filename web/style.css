@@ -256,3 +256,9 @@ main { position: relative; }
 #sidebar-resize:hover, #sidebar-resize:focus-visible, main.resizing #sidebar-resize { background: var(--tg-accent); opacity: 0.5; outline: none; }
 main.hide-outline #sidebar-resize { display: none; }
 main.resizing { cursor: col-resize; user-select: none; }
+#quick-search-dialog { width: min(40rem, 90vw); }
+#quick-search-input { box-sizing: border-box; width: 100%; }
+#quick-search-results { max-height: 45vh; overflow-y: auto; margin: .6rem 0; border: 1px solid var(--tg-border); }
+#quick-search-results [role="option"] { padding: .5rem .75rem; cursor: pointer; overflow-wrap: anywhere; }
+#quick-search-results [aria-selected="true"] { background: var(--tg-hover); outline: 1px solid var(--tg-accent); outline-offset: -1px; }
+#quick-search-warning { white-space: pre-wrap; }

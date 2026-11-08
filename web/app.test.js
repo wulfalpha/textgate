@@ -331,6 +331,12 @@ test('app switches modes without rewriting Markdown and keeps one undo history',
   assert.equal(nativeKey('s').defaultPrevented, true);
   await tick();
   assert.match($('status').textContent, /desktop|tauri dev/, 'Ctrl+S reaches the save action');
+  assert.equal($('quick-search').dataset.shortcut, 'CmdOrCtrl+P');
+  assert.equal(nativeKey('p', 'MacIntel').defaultPrevented, false);
+  assert.equal(nativeKey('p', 'Linux x86_64').defaultPrevented, false);
+  assert.equal(nativeKey('p').defaultPrevented, true);
+  await tick();
+  assert.match($('status').textContent, /desktop app to search/, 'Ctrl+P reaches Quick Note Search');
   // Ctrl/Cmd+Alt+N matches the physical N key, since Alt changes the character.
   const noteKey = (platform, options = {}) => {
     const event = new window.KeyboardEvent('keydown', { key: '˜', code: 'KeyN', ctrlKey: true, altKey: true, cancelable: true, ...options });
