@@ -2,19 +2,15 @@
 
 A lightweight desktop Markdown editor built with Rust, Tauri 2, CodeMirror 6, and comrak.
 
-**Status: early release.** v0.1.7 adds crash recovery and restored tabs,
-detection of outside file changes, links between notes and local images in
-Preview and Live mode. Packages target Linux, Windows and macOS (Apple Silicon
-and Intel). Download [v0.1.7](https://github.com/wulfalpha/textgate/releases/tag/v0.1.7).
-See the [0.1.7 release notes](docs/releases/0.1.7.md),
+**Status: early release.** v0.2.0 adds ID-named notes, confirmed creation from
+missing links, backlinks, reviewed rename link updates and quick note search.
+It also includes crash recovery, restored tabs, outside-change detection and
+local images. Packages target Linux, Windows and macOS (Apple Silicon and Intel).
+Download [v0.2.0](https://github.com/wulfalpha/textgate/releases/tag/v0.2.0).
+See the [0.2.0 release notes](docs/releases/0.2.0.md),
 [release checklist](docs/release-checklist.md),
 [package testing guide](docs/testing-0.1.4.md) and
 [contributor guide](CONTRIBUTING.md).
-
-**In preparation: 0.2.0**, with ID-named notes, confirmed creation from missing
-links, backlinks, reviewed rename link updates and quick note search. See the
-[draft 0.2.0 notes](docs/releases/0.2.0.md). The published download above remains
-0.1.7 until 0.2.0 package verification and publication are complete.
 
 ![Textgate in Live mode: headings, task list, link, and table rendered in place](docs/screenshots/live.png)
 
@@ -348,8 +344,8 @@ collaborators with access.
 For the Linux AppImage, make the downloaded file executable and run it:
 
 ```sh
-chmod +x Textgate_0.1.7_amd64.AppImage
-./Textgate_0.1.7_amd64.AppImage
+chmod +x Textgate_0.2.0_amd64.AppImage
+./Textgate_0.2.0_amd64.AppImage
 ```
 
 Open the macOS DMG and copy Textgate to Applications. Mac builds from the current
@@ -529,9 +525,6 @@ out of the editor, press Escape followed by Tab.
 Next milestones:
 
 - Table row/column commands for Live mode.
-- 0.2.0 (Zettelkasten): new notes with ID names, creating notes from missing
-  links, backlinks, renames that update links, and quick note search. See the
-  [0.2.0 plan](docs/plans/0.2.0.md).
 - 0.2.1: tags, graph view, full-text search, optional source-file autosave,
   per-image remote loading, and image paste/drop and editing.
 - External link opening remains a follow-up (preview web links show their
