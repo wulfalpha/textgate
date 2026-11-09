@@ -463,16 +463,37 @@ eventual tagged packages. Historical test records above remain unchanged.
       diff checks passed. Existing nonfatal local libLLVM/debug-stripping and
       frontend chunk-size warnings remain.
 - [ ] Merge release preparation through a PR with required hosted CI.
-- [ ] Run the manual Release workflow on the intended candidate commit.
+- [x] Run the manual Release workflow on the intended candidate commit.
       Record its source SHA/run URL and confirm all four package jobs succeed,
       including both Mac signatures and the AppImage dictionary check.
-- [ ] Inspect all nine candidate packages (two Mac app archives, two DMGs,
+      Candidate `cb3300f`: run [42448877242](https://github.com/wulfalpha/textgate/actions/runs/42448877242)
+      passed all four jobs. Both PR/push Checks also passed all six jobs.
+- [x] Inspect all nine candidate uploads (two Mac app ZIPs, two DMGs,
       Windows MSI/NSIS, Linux DEB/RPM/AppImage) and record SHA-256 checksums.
+      See [candidate verification and downloads](releases/0.2.0-candidate.md)
+      and its checksum file. Tagged Mac app archives will be verified separately.
+- [x] Run an initial downloaded Apple Silicon candidate smoke from the read-only
+      DMG: version/signature/architecture, restored tabs, CLI opening, backlinks,
+      links/images, ID creation, rename/open-draft undo/save, exact byte preservation
+      and crash recovery passed. Candidate Vim `/`, Insert-mode slash and undo also
+      passed. Detailed limits are in the candidate record.
 - [ ] Smoke-test downloaded 0.2.0 candidates on the available M4 Mac and Windows
       machine; test Linux source build and the downloaded AppImage separately.
       Cover launch/version, existing 0.1.7 settings/tabs, open/save/close,
       linked-note creation, backlinks, rename updates, search/Vim, recovery,
       links and local images. Confirm platform spelling status.
+      On 2026-11-08, the Arch release-source build at `cb3300f` passed all
+      174 JavaScript/100 Rust tests, version checks, frontend build, formatting,
+      Clippy and DEB/RPM packaging. The downloaded AppImage checksum/version
+      matched. The user confirmed Backlinks appears and Ctrl+P/Vim `/` work
+      in that AppImage and the downloaded Windows MSI. Remaining cases stay open;
+      see the candidate record for scope.
+      Follow-up user testing confirmed AppImage spelling underlines, save/reopen
+      and link updates; Windows MSI links, save protection, recovery and rename
+      with link updates passed. Windows spelling remains broken as documented.
+      The user also confirmed AppImage search/Refresh and reported recovery
+      testing using SIGINT. Detailed search edge cases and interruption between
+      rename writes remain separately unconfirmed.
 - [ ] Record package-platform limits: Intel Mac runtime and DEB/RPM installation
       checks remain unverified unless suitable machines are actually tested.
       Build/signature success alone is not an installation/runtime pass.
