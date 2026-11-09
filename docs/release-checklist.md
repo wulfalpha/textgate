@@ -462,7 +462,8 @@ eventual tagged packages. Historical test records above remain unchanged.
       two CLI), frontend build, Clippy, formatting, version/tag consistency and
       diff checks passed. Existing nonfatal local libLLVM/debug-stripping and
       frontend chunk-size warnings remain.
-- [ ] Merge release preparation through a PR with required hosted CI.
+- [x] Merge release preparation through a PR with required hosted CI.
+      PR #14 merged as `59d108e`; all six PR/push checks and main CI passed.
 - [x] Run the manual Release workflow on the intended candidate commit.
       Record its source SHA/run URL and confirm all four package jobs succeed,
       including both Mac signatures and the AppImage dictionary check.
@@ -494,19 +495,34 @@ eventual tagged packages. Historical test records above remain unchanged.
       The user also confirmed AppImage search/Refresh and reported recovery
       testing using SIGINT. Detailed search edge cases and interruption between
       rename writes remain separately unconfirmed.
-- [ ] Record package-platform limits: Intel Mac runtime and DEB/RPM installation
+- [x] Record package-platform limits: Intel Mac runtime and DEB/RPM installation
       checks remain unverified unless suitable machines are actually tested.
       Build/signature success alone is not an installation/runtime pass.
 
 ### Tag, draft and publication
 
-- [ ] Review the final candidate evidence and choose the approved main commit.
+- [x] Review the final candidate evidence and choose the approved main commit.
+      User approved tagging/release; `v0.2.0` points to `59d108e`.
       Create the immutable `v0.2.0` tag only after approval to tag/release.
-- [ ] Confirm tagged Checks/Release jobs pass and the GitHub draft has all nine
+- [x] Confirm tagged Checks/Release jobs pass and the GitHub draft has all nine
       assets. Verify the tag points to the approved source and inspect tagged
       downloads/checksums; do not assume candidate and tagged binaries match.
-- [ ] Put the finalized 0.2.0 notes and installation/platform guidance in the
+- [x] Put the finalized 0.2.0 notes and installation/platform guidance in the
       actual GitHub draft. Verify asset links and keep it a draft until approval
       to publish; 0.1.7 remains Latest meanwhile.
-- [ ] Publish after explicit approval, then verify the public downloads/Latest
+- [x] Publish after explicit approval, then verify the public downloads/Latest
       release and update README links and this checklist with final evidence.
+
+### 0.2.0 publication evidence
+
+Published 2026-11-09 UTC with explicit user approval. Tag `v0.2.0` resolves to
+`59d108e0408f1c3668035190f8fa2743334e4e48`. [Release run 42542831276](https://github.com/wulfalpha/textgate/actions/runs/42542831276)
+passed all four jobs, including both strict Mac signature checks and AppImage
+spelling verification. Main Checks run `42542165366` passed on the same commit.
+All nine tagged assets were downloaded and matched GitHub sizes/SHA-256 digests.
+Both Mac archives were extracted and their signatures, versions and architectures
+verified; both DMGs passed `hdiutil verify`. Windows/Linux package formats were
+inspected. Tagged checksums are in [0.2.0-sha256.txt](releases/0.2.0-sha256.txt).
+The public release contains nine packages plus `SHA256SUMS.txt`; GitHub's Latest
+endpoint returns `v0.2.0`. Candidate runtime tests remain distinguished from
+these rebuilt downloads. Unchecked manual cases above remain unverified.
