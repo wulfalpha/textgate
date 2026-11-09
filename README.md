@@ -11,14 +11,20 @@ See the [0.1.7 release notes](docs/releases/0.1.7.md),
 [package testing guide](docs/testing-0.1.4.md) and
 [contributor guide](CONTRIBUTING.md).
 
+**In preparation: 0.2.0**, with ID-named notes, confirmed creation from missing
+links, backlinks, reviewed rename link updates and quick note search. See the
+[draft 0.2.0 notes](docs/releases/0.2.0.md). The published download above remains
+0.1.7 until 0.2.0 package verification and publication are complete.
+
 ![Textgate in Live mode: headings, task list, link, and table rendered in place](docs/screenshots/live.png)
 
 The [Textgate logo](docs/branding/README.md) combines a segmented omega
 with code-bracket feet, with a vector master and desktop icon exports.
 
 **Your Markdown file is the document.** Textgate never re-serializes it: the only
-changes saved are the ones you type or the formatting commands you run, and those
-touch only the markup they add or remove. Opening and saving an unedited UTF-8
+changes saved are the ones you type, formatting commands you run, or link updates
+you explicitly approve in a rename preview. These touch only the affected markup.
+Opening and saving an unedited UTF-8
 file preserves its bytes, including mixed LF, CRLF and CR line endings, a UTF-8
 byte order mark, whitespace, and the presence or absence of a final newline.
 Existing line breaks retain their spelling during edits; newly inserted breaks
